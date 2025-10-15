@@ -1,21 +1,40 @@
+# ==== root: wp-content/.gitignore ====
+
+# 1) התעלם מהכול כברירת מחדל
 /*
+
+# הרשה רק קבצים/תיקיות בסיסיים בשורש
 !.gitignore
 !README.md
+!.gitattributes
+!.editorconfig
 
+# הרשה את התיקיות האלו (לא את התוכן שלהן עדיין)
 !plugins/
 !themes/
 !mu-plugins/
 
+# 2) PLUGINS – התעלם מהכול, חוץ מהקוד שלך
 plugins/*
+!plugins/tapin-next/
 !plugins/tapin-next/**
 
+# אם תוסיף פלאגין משלך בעתיד, הוסף גם:
+# !plugins/my-other-plugin/
+# !plugins/my-other-plugin/**
+
+# 3) THEMES – אם יש תבנית מותאמת, בטל הערות ועדכן שם
 themes/*
+# !themes/tapin-theme/
 # !themes/tapin-theme/**
 
+# 4) MU-PLUGINS – אפשר קבצי PHP בודדים ותיקיות tapin*
 mu-plugins/*
 !mu-plugins/*.php
+!mu-plugins/tapin*/
 !mu-plugins/tapin*/**
 
+# 5) כללי – מדיה/גיבויים/קאש/לוגים/ארטיפקטים
 uploads/**
 cache/**
 upgrade*/**
@@ -23,14 +42,32 @@ ai1wm-backups/**
 backup-*/**
 backuply/**
 wp/**
+
 languages/**
 speedycache-config/**
+
 debug.log
 *.log
+*.tmp
+*.swp
+
+# ארכיונים/דאמפים
 *.sql
+*.sqlite
 *.zip
 *.tar
 *.gz
 *.7z
+
+# קבצי build
 node_modules/
 vendor/
+dist/
+build/
+coverage/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
