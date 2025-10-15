@@ -1,42 +1,40 @@
 # ==== wp-content/.gitignore ====
 
-# התעלם מהכול כברירת מחדל
-/*
+/*                      # התעלם מהכול כברירת מחדל
 
-# הרשה קבצים/תיקיות בסיסיים בשורש
+# קבצי בסיס שמותר
 !.gitignore
 !README.md
 !.gitattributes
 !.editorconfig
 
-# הרשה את תיקיות הקוד (עדיין בלי התוכן)
+# תיקיות שמותר ברמה הבאה (עדיין בלי התוכן)
 !plugins/
 !themes/
 !mu-plugins/
-!OLD MU/                  # ← תיקיית OLD MU בשורש wp-content
+!/OLD MU/               # התיקייה OLD MU בשורש wp-content
 
-# PLUGINS — עקוב רק אחרי הפלאגין שלך
+# PLUGINS — עקוב רק אחרי tapin-next
 plugins/*
 !plugins/tapin-next/
 !plugins/tapin-next/**
 
-# THEMES — אם יש תבנית משלך, בטל הערה ועדכן שם
+# THEMES — בטל הערה אם יש תבנית משלך
 themes/*
 # !themes/tapin-theme/
 # !themes/tapin-theme/**
 
-# MU-PLUGINS — אפשר קבצי MU משלך (tapin*) וקבצי PHP בודדים
+# MU-PLUGINS — אפשר MU משלך
 mu-plugins/*
 !mu-plugins/*.php
 !mu-plugins/tapin*/
 !mu-plugins/tapin*/**
 
-# OLD MU — עקוב אחרי כל התוכן שבתיקייה זו
-!OLD MU/**
-# שים לב: החסימות הכלליות למטה (zip/sql וכו') עדיין חלות.
-# אם תרצה להעלות גם ארכיונים/SQL בתוך OLD MU, ראה הבלוק האופציונלי בסוף.
+# עקוב אחרי כל התוכן ב-OLD MU (מלבד חסימות כלליות למטה)
+!/OLD MU/**
+# אם תרצה להעלות גם .zip/.sql שבתוך OLD MU, בטל הערות בסוף.
 
-# כלליים — מדיה/גיבויים/קאש/לוגים/ארטיפקטים
+# חסימות כלליות (יישארו גם בתוך OLD MU אם לא מלבינים)
 uploads/**
 cache/**
 upgrade*/**
@@ -44,7 +42,6 @@ ai1wm-backups/**
 backup-*/**
 backuply/**
 wp/**
-
 languages/**
 speedycache-config/**
 
@@ -70,7 +67,6 @@ coverage/
 .DS_Store
 Thumbs.db
 
-# (אופציונלי) אם אתה חייב ש־.zip/.sql בתוך OLD MU כן ייכנסו:
-# בטל את ההערות של שתי השורות הבאות:
-# !OLD MU/**/*.zip
-# !OLD MU/**/*.sql
+# (אופציונלי) לאפשר גם ארכיונים/SQL בתוך OLD MU:
+# !/OLD MU/**/*.zip
+# !/OLD MU/**/*.sql
