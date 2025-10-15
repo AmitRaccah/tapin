@@ -1,40 +1,45 @@
-# ==== root: wp-content/.gitignore ====
+# ==== wp-content/.gitignore ====
 
 # 1) התעלם מהכול כברירת מחדל
 /*
 
-# הרשה רק קבצים/תיקיות בסיסיים בשורש
+# 2) הרשה קבצים/תיקיות בסיסיים בשורש
 !.gitignore
 !README.md
 !.gitattributes
 !.editorconfig
 
-# הרשה את התיקיות האלו (לא את התוכן שלהן עדיין)
+# 3) הרשה תיקיות שתרצה לעקוב אחריהן (עדיין בלי התוכן)
 !plugins/
 !themes/
 !mu-plugins/
+!OLD\ MU/                     # עוקב אחרי wp-content/OLD MU
 
-# 2) PLUGINS – התעלם מהכול, חוץ מהקוד שלך
+# 4) PLUGINS — עקוב רק אחרי הפלאגין שלך
 plugins/*
 !plugins/tapin-next/
 !plugins/tapin-next/**
 
-# אם תוסיף פלאגין משלך בעתיד, הוסף גם:
-# !plugins/my-other-plugin/
-# !plugins/my-other-plugin/**
+# אם תוסיף פלאגין משלך בעתיד:
+# !plugins/tapin-foo/
+# !plugins/tapin-foo/**
 
-# 3) THEMES – אם יש תבנית מותאמת, בטל הערות ועדכן שם
+# 5) THEMES — אם יש תבנית מותאמת, בטל הערות ועדכן שם
 themes/*
 # !themes/tapin-theme/
 # !themes/tapin-theme/**
 
-# 4) MU-PLUGINS – אפשר קבצי PHP בודדים ותיקיות tapin*
+# 6) MU-PLUGINS — אפשר קבצי MU משלך (tapin*) וקבצי PHP בודדים
 mu-plugins/*
 !mu-plugins/*.php
 !mu-plugins/tapin*/
 !mu-plugins/tapin*/**
 
-# 5) כללי – מדיה/גיבויים/קאש/לוגים/ארטיפקטים
+# 7) OLD MU — עקוב אחרי כל התוכן שבתיקייה זו (עם רווח בשם)
+!OLD\ MU/**
+# הערה: כללי ignore גלובליים למטה (כמו *.zip/*.sql) עדיין יחולו גם בתוך OLD MU
+
+# 8) כללי — מדיה/גיבויים/קאש/לוגים/ארטיפקטים
 uploads/**
 cache/**
 upgrade*/**
@@ -51,7 +56,7 @@ debug.log
 *.tmp
 *.swp
 
-# ארכיונים/דאמפים
+# ארכיונים/דאמפים (יישארו מחוץ לריפו גם בתוך OLD MU)
 *.sql
 *.sqlite
 *.zip
