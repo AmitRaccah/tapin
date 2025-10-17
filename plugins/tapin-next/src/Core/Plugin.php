@@ -1,49 +1,115 @@
 <?php
 namespace Tapin\Events\Core;
 
+use Tapin\Events\Support\MetaKeys;
+
 class Plugin {
+    private const FILE_INCLUDES = [
+        'Support/StylesShim.php',
+        'Support/ThanksNotice.php',
+        'Support/SaleWindowsSaver.php',
+        'Domain/SaleWindowsRepository.php',
+        'Integrations/smart-slider-compat.php',
+        'Features/ProductPage/SaleWindowsCards.php',
+        'Features/Infra/ss3-cache-bridge.php',
+    ];
+
+    private const BASE_SERVICES = [
+        \Tapin\Events\Support\Compat::class,
+        \Tapin\Events\Support\StylesShim::class,
+        \Tapin\Events\Support\ThanksNotice::class,
+        \Tapin\Events\Support\SaleWindowsSaver::class,
+        \Tapin\Events\Integrations\SmartSliderCache::class,
+        \Tapin\Events\Features\Producers\Portal::class,
+        \Tapin\Events\Features\Producers\RequestsManager::class,
+        \Tapin\Events\Features\Rest\ProducersController::class,
+        \Tapin\Events\Features\Shortcodes\ProducerEventsCenter::class,
+        \Tapin\Events\Features\Shortcodes\ProducerEventsGrid::class,
+    ];
+
+    private const WC_SERVICES = [
+        \Tapin\Events\Features\UserProfileCompletion::class,
+        \Tapin\Events\Features\Shortcodes\ProducerEventRequest::class,
+        \Tapin\Events\Features\Shortcodes\EventsAdminCenter::class,
+        \Tapin\Events\Features\Shortcodes\ProducerEventSales::class,
+        \Tapin\Events\Features\Orders\ProducerApprovalsShortcode::class,
+        \Tapin\Events\Features\ProductPage\SaleWindowsCards::class,
+        \Tapin\Events\Features\ProductPage\PurchaseDetailsModal::class,
+        \Tapin\Events\Features\Orders\AwaitingProducerStatus::class,
+        \Tapin\Events\Features\Orders\AwaitingProducerGate::class,
+        \Tapin\Events\Features\PricingOverrides::class,
+        \Tapin\Events\Features\PurchasableGate::class,
+    ];
+
     private function safeRegister(string $class): void {
         try {
-            if (!class_exists($class)) { error_log("[Tapin Next] Missing class: {$class}"); return; }
+            if (!class_exists($class)) {
+                $this->maybeLog("Missing class: {$class}");
+                return;
+            }
+
             $obj = null;
-            try { $obj = new $class(); } catch (\Throwable $e) { error_log("[Tapin Next] Failed to instantiate {$class}: ".$e->getMessage()); return; }
-            try { if (method_exists($obj,'register')) { $obj->register(); } else { error_log("[Tapin Next] {$class} has no register() method"); } }
-            catch (\Throwable $e) { error_log("[Tapin Next] register() crashed in {$class}: ".$e->getMessage()); }
-        } catch (\Throwable $e) { error_log("[Tapin Next] safeRegister fatal for {$class}: ".$e->getMessage()); }
+            try {
+                $obj = new $class();
+            } catch (\Throwable $e) {
+                $this->maybeLog("Failed to instantiate {$class}: " . $e->getMessage());
+                return;
+            }
+
+            try {
+                if ($obj instanceof Service || method_exists($obj, 'register')) {
+                    $obj->register();
+                } else {
+                    $this->maybeLog("{$class} has no register() method");
+                }
+            } catch (\Throwable $e) {
+                $this->maybeLog("register() crashed in {$class}: " . $e->getMessage());
+            }
+        } catch (\Throwable $e) {
+            $this->maybeLog("safeRegister fatal for {$class}: " . $e->getMessage());
+        }
     }
 
     private function tryRequire(string $path): void {
-        if (file_exists($path)) require_once $path;
+        if (file_exists($path)) {
+            require_once $path;
+        }
     }
 
     public function boot(array $cfg = []): void {
         $sandbox = !empty($cfg['sandbox']);
 
-        if (class_exists('\Tapin\Events\Support\MetaKeys')) { \Tapin\Events\Support\MetaKeys::define(); }
+        if (class_exists(MetaKeys::class)) {
+            MetaKeys::define();
+        }
 
         $src = dirname(__DIR__);
-        $this->tryRequire($src.'/Support/StylesShim.php');
-        $this->tryRequire($src.'/Support/SaleWindowsSaver.php');
-        $this->tryRequire($src.'/Domain/SaleWindowsRepository.php');
-        $this->tryRequire($src.'/Features/ProductPage/SaleWindowsCards.php');
+        foreach (self::FILE_INCLUDES as $relative) {
+            $this->tryRequire($src . '/' . $relative);
+        }
 
-        $this->safeRegister(\Tapin\Events\Support\Compat::class);
-        $this->safeRegister(\Tapin\Events\Support\StylesShim::class);
-        $this->safeRegister(\Tapin\Events\Support\SaleWindowsSaver::class);
+        foreach (self::BASE_SERVICES as $class) {
+            $this->safeRegister($class);
+        }
 
-        $this->safeRegister(\Tapin\Events\Features\Shortcodes\ProducerEventRequest::class);
-        $this->safeRegister(\Tapin\Events\Features\Shortcodes\EventsAdminCenter::class);
-        $this->safeRegister(\Tapin\Events\Features\Orders\ProducerApprovalsShortcode::class);
-        $this->safeRegister(\Tapin\Events\Features\Shortcodes\ProducerEventSales::class);
+        if (class_exists('\WooCommerce')) {
+            foreach (self::WC_SERVICES as $class) {
+                $this->safeRegister($class);
+            }
+        }
 
-        $this->safeRegister(\Tapin\Events\Features\ProductPage\SaleWindowsCards::class);
-        $this->safeRegister(\Tapin\Events\Features\Orders\AwaitingProducerStatus::class);
-        $this->safeRegister(\Tapin\Events\Features\UM\ProfileCompletion::class);
-        $this->safeRegister(\Tapin\Events\Features\Producers\RequestsManager::class);
+        if ($sandbox) {
+            return;
+        }
+    }
 
-        $this->tryRequire($src.'/Features/Infra/ss3-cache-bridge.php');
+    private function maybeLog(string $message): void {
+        $shouldLog = defined('TAPIN_NEXT_DEBUG')
+            ? (bool) TAPIN_NEXT_DEBUG
+            : (defined('WP_DEBUG') && WP_DEBUG);
 
-        if (class_exists('\WooCommerce')) { $this->safeRegister(\Tapin\Events\Features\PricingOverrides::class); }
-        if ($sandbox) { return; }
+        if ($shouldLog) {
+            error_log('[Tapin Next] ' . $message);
+        }
     }
 }

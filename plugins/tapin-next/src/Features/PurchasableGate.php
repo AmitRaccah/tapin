@@ -2,25 +2,46 @@
 namespace Tapin\Events\Features;
 
 use Tapin\Events\Core\Service;
-use Tapin\Events\Domain\SaleWindowsRepository;
+use Tapin\Events\Support\MetaKeys;
+use Tapin\Events\Support\Time;
 
-final class PricingOverrides implements Service {
+final class PurchasableGate implements Service {
     public function register(): void {
-        add_filter('woocommerce_product_get_sale_price', [$this,'salePrice'], 20, 2);
-        add_filter('woocommerce_product_get_price',      [$this,'price'], 20, 2);
-        add_filter('woocommerce_product_is_on_sale',     [$this,'onSale'], 20, 2);
+        add_filter('woocommerce_is_purchasable', [$this, 'gate'], 10, 2);
+        add_action('woocommerce_single_product_summary', [$this, 'notice'], 6);
     }
-    public function salePrice($price, $product){
-        $w = SaleWindowsRepository::findActive($product->get_id());
-        return $w ? (string)$w['price'] : $price;
+
+    public function gate($purchasable, $product) {
+        if (!$product) {
+            return $purchasable;
+        }
+        $pid    = $product->get_id();
+        $paused = get_post_meta($pid, MetaKeys::PAUSED, true);
+        if ($paused === 'yes') {
+            return false;
+        }
+
+        $eventTs = Time::productEventTs($pid);
+        if ($eventTs && $eventTs <= time()) {
+            return false;
+        }
+
+        return $purchasable;
     }
-    public function price($price, $product){
-        $w = SaleWindowsRepository::findActive($product->get_id());
-        if ($w) return (string)$w['price'];
-        $reg = $product->get_regular_price();
-        return $reg !== '' ? $reg : $price;
-    }
-    public function onSale($is_on_sale, $product){
-        return $is_on_sale || (bool) SaleWindowsRepository::findActive($product->get_id());
+
+    public function notice(): void {
+        global $product;
+        if (!$product) {
+            return;
+        }
+        $pid    = $product->get_id();
+        $paused = get_post_meta($pid, MetaKeys::PAUSED, true);
+        $event  = Time::productEventTs($pid);
+
+        if ($paused === 'yes') {
+            echo '<div class="woocommerce-info" style="direction:rtl;text-align:right">האירוע הושעה זמנית ולכן לא ניתן לרכישה.</div>';
+        } elseif ($event && $event <= time()) {
+            echo '<div class="woocommerce-info" style="direction:rtl;text-align:right">האירוע כבר הסתיים ולכן אינו זמין לרכישה.</div>';
+        }
     }
 }

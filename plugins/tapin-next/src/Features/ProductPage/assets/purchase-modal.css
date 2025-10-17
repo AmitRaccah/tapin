@@ -1,0 +1,148 @@
+.tapin-purchase-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+.tapin-purchase-modal.is-open {
+  display: flex;
+}
+
+.tapin-purchase-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 0;
+}
+
+.tapin-purchase-modal__dialog {
+  position: relative;
+  width: min(520px, 92vw);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.35);
+  padding: 28px 30px 24px;
+  direction: rtl;
+  text-align: right;
+  z-index: 1;
+}
+
+.tapin-purchase-modal__title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: #1f2937;
+  margin: 0;
+}
+
+.tapin-purchase-modal__subtitle {
+  margin: 6px 0 24px;
+  color: #475569;
+  font-size: 0.95rem;
+}
+
+.tapin-purchase-modal__close {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 12px;
+  border: 0;
+  background: transparent;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #64748b;
+}
+
+.tapin-field {
+  margin-bottom: 18px;
+}
+
+.tapin-field label {
+  display: block;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 6px;
+}
+
+.tapin-field input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background-color: #fff;
+}
+
+.tapin-field input:focus {
+  outline: none;
+  border-color: #2a1a5e;
+  box-shadow: 0 0 0 3px rgba(42, 26, 94, 0.15);
+}
+
+.tapin-field--invalid,
+.tapin-field input.tapin-field--invalid {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.tapin-field__error {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: #b91c1c;
+  min-height: 18px;
+}
+
+.tapin-required {
+  color: #ef4444;
+}
+
+.tapin-purchase-modal__actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.tapin-btn {
+  padding: 12px 22px;
+  border-radius: 12px;
+  border: 0;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: opacity 0.2s ease;
+}
+
+.tapin-btn:hover {
+  opacity: 0.85;
+}
+
+.tapin-btn--primary {
+  background: #16a34a;
+  color: #fff;
+}
+
+.tapin-btn--ghost {
+  background: #f1f5f9;
+  color: #1f2937;
+}
+
+@media (max-width: 540px) {
+  .tapin-purchase-modal__dialog {
+    padding: 24px 20px 20px;
+    width: min(94vw, 520px);
+  }
+
+  .tapin-purchase-modal__actions {
+    flex-direction: column-reverse;
+  }
+
+  .tapin-btn {
+    width: 100%;
+  }
+}
