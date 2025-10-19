@@ -105,34 +105,8 @@ final class Portal implements Service {
     }
 
     public function umAvatarUrl($url, $user_id) {
-        $meta = get_user_meta($user_id, 'profile_photo', true);
-        if ($meta) {
-            if (is_numeric($meta)) {
-                $src = wp_get_attachment_image_src((int) $meta, 'medium') ?: wp_get_attachment_image_src((int) $meta, 'full');
-                if ($src && !empty($src[0])) {
-                    return $src[0];
-                }
-            } else {
-                $file_url = ProducerProfiles::umUrlForUserfile($user_id, $meta);
-                if ($file_url) {
-                    return $file_url;
-                }
-            }
-        }
-
-        $meta2 = get_user_meta($user_id, 'um_profile_photo', true);
-        if (!empty($meta2) && !is_numeric($meta2)) {
-            return ProducerProfiles::umUrlForUserfile($user_id, $meta2);
-        }
-
-        $aid = (int) get_user_meta($user_id, 'producer_avatar_id', true);
-        if ($aid) {
-            $src = wp_get_attachment_image_src($aid, 'medium') ?: wp_get_attachment_image_src($aid, 'full');
-            if ($src && !empty($src[0])) {
-                return $src[0];
-            }
-        }
-        return $url;
+        $custom = ProducerProfiles::umProfilePhotoUrl($user_id, 'medium');
+        return $custom ?: $url;
     }
 
     public function avatarFilter($args, $id_or_email) {
@@ -148,24 +122,9 @@ final class Portal implements Service {
             }
         }
         if ($user_id) {
-            $meta = get_user_meta($user_id, 'profile_photo', true);
-            if ($meta) {
-                if (is_numeric($meta)) {
-                    $src = wp_get_attachment_image_src((int) $meta, 'thumbnail') ?: wp_get_attachment_image_src((int) $meta, 'full');
-                    if ($src && !empty($src[0])) {
-                        $args['url'] = $src[0];
-                    }
-                } else {
-                    $args['url'] = ProducerProfiles::umUrlForUserfile($user_id, $meta);
-                }
-            } else {
-                $aid = (int) get_user_meta($user_id, 'producer_avatar_id', true);
-                if ($aid) {
-                    $src = wp_get_attachment_image_src($aid, 'thumbnail') ?: wp_get_attachment_image_src($aid, 'full');
-                    if ($src && !empty($src[0])) {
-                        $args['url'] = $src[0];
-                    }
-                }
+            $custom = ProducerProfiles::umProfilePhotoUrl($user_id, 'thumbnail');
+            if ($custom) {
+                $args['url'] = $custom;
             }
         }
         return $args;
@@ -182,33 +141,11 @@ final class Portal implements Service {
         if (!$uid) {
             return;
         }
-        $cover = $this->getUmCoverUrl($uid);
+        $cover = ProducerProfiles::umCoverUrl($uid);
         if (!$cover) {
             return;
         }
         $css = '.um-profile.um-viewing .um-cover-e{background-image:url(' . esc_url($cover) . ')!important;background-size:cover!important;background-position:center!important}';
         echo '<style id="tapin-um-cover-css">' . $css . '</style>';
-    }
-
-    private function getUmCoverUrl(int $user_id, string $size = 'full'): string {
-        $meta = get_user_meta($user_id, 'cover_photo', true);
-        if ($meta) {
-            if (is_numeric($meta)) {
-                $url = wp_get_attachment_image_url((int) $meta, $size);
-                if ($url) {
-                    return $url;
-                }
-            } else {
-                return ProducerProfiles::umUrlForUserfile($user_id, $meta);
-            }
-        }
-        $cid = (int) get_user_meta($user_id, 'producer_cover_id', true);
-        if ($cid) {
-            $url = wp_get_attachment_image_url($cid, $size);
-            if ($url) {
-                return $url;
-            }
-        }
-        return '';
     }
 }

@@ -18,15 +18,22 @@ final class SaleWindowsRepository {
     }
 
     public static function parseFromPost(string $prefix='sale_w'): array {
-        $starts = isset($_POST["{$prefix}_start"]) ? (array)$_POST["{$prefix}_start"] : [];
-        $ends   = isset($_POST["{$prefix}_end"])   ? (array)$_POST["{$prefix}_end"]   : [];
-        $prices = isset($_POST["{$prefix}_price"]) ? (array)$_POST["{$prefix}_price"] : [];
+        $starts = isset($_POST["{$prefix}_start"]) ? (array) wp_unslash($_POST["{$prefix}_start"]) : [];
+        $ends   = isset($_POST["{$prefix}_end"])   ? (array) wp_unslash($_POST["{$prefix}_end"])   : [];
+        $prices = isset($_POST["{$prefix}_price"]) ? (array) wp_unslash($_POST["{$prefix}_price"]) : [];
         $out = [];
         $count = max(count($starts), count($prices));
         for ($i=0; $i<$count; $i++){
-            $price = isset($prices[$i]) ? floatval(str_replace(',', '.', $prices[$i])) : 0;
-            $start = isset($starts[$i]) ? Time::localStrToUtcTs((string)$starts[$i]) : 0;
-            $end   = isset($ends[$i])   ? Time::localStrToUtcTs((string)$ends[$i])   : 0;
+            $rawPrice = isset($prices[$i]) ? sanitize_text_field($prices[$i]) : '';
+            $priceInput = str_replace(',', '.', $rawPrice);
+            $price = $priceInput !== '' ? (function_exists('wc_format_decimal') ? wc_format_decimal($priceInput) : (float) $priceInput) : 0;
+            $price = is_numeric($price) ? (float) $price : 0;
+
+            $startStr = isset($starts[$i]) ? sanitize_text_field($starts[$i]) : '';
+            $endStr   = isset($ends[$i])   ? sanitize_text_field($ends[$i])   : '';
+
+            $start = $startStr !== '' ? Time::localStrToUtcTs($startStr) : 0;
+            $end   = $endStr   !== '' ? Time::localStrToUtcTs($endStr)   : 0;
             if ($price>0 && $start>0 && ($end===0 || $end>$start)) {
                 $out[] = ['start'=>$start,'end'=>$end,'price'=>$price];
             }

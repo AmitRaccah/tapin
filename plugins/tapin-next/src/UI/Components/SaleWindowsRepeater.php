@@ -1,6 +1,7 @@
 <?php
 namespace Tapin\Events\UI\Components;
 
+use Tapin\Events\Support\Assets;
 use Tapin\Events\Support\Time;
 
 final class SaleWindowsRepeater {
@@ -8,13 +9,7 @@ final class SaleWindowsRepeater {
         $fmt = fn($ts)=> Time::tsToLocalInput((int)$ts);
         if (empty($windows)) $windows=[['start'=>0,'end'=>0,'price'=>'']];
         ?>
-        <style>
-          .tapin-sale-w{border:1px solid var(--tapin-border-color);border-radius:12px;padding:12px}
-          .tapin-sale-w__row{display:grid;grid-template-columns:1fr 1fr 160px 40px;gap:10px;margin-bottom:10px}
-          .tapin-sale-w__remove{width:40px;height:40px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--tapin-border-color);border-radius:8px;background:#fff;cursor:pointer}
-          .tapin-sale-w__add{margin-top:10px}
-          @media(max-width:640px){.tapin-sale-w__row{grid-template-columns:1fr}}
-        </style>
+        <style><?php echo Assets::repeaterCss(); ?></style>
         <div class="tapin-form-row">
           <label>חלונות הנחה (אופציונלי)</label>
           <div class="tapin-sale-w" data-prefix="<?php echo esc_attr($namePrefix); ?>">

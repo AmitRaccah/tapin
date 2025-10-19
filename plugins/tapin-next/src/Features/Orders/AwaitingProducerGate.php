@@ -3,6 +3,7 @@
 namespace Tapin\Events\Features\Orders;
 
 use Tapin\Events\Core\Service;
+use Tapin\Events\Support\Orders;
 use WC_Order;
 
 final class AwaitingProducerGate implements Service
@@ -27,7 +28,7 @@ final class AwaitingProducerGate implements Service
             return;
         }
 
-        $producerIds = self::collectProducerIds($order);
+        $producerIds = Orders::collectProducerIds($order);
         if ($producerIds === []) {
             return;
         }
@@ -164,27 +165,6 @@ final class AwaitingProducerGate implements Service
         return $didCapture;
     }
 
-    /**
-     * @return array<int,int>
-     */
-    private static function collectProducerIds(WC_Order $order): array
-    {
-        $ids = [];
-        foreach ($order->get_items('line_item') as $item) {
-            $productId = $item->get_product_id();
-            if (!$productId) {
-                continue;
-            }
-
-            $author = (int) get_post_field('post_author', $productId);
-            if ($author) {
-                $ids[] = $author;
-            }
-        }
-
-        return array_values(array_unique($ids));
-    }
-
     private static function awaitingStatusSlug(): string
     {
         static $slug = null;
@@ -223,7 +203,7 @@ final class AwaitingProducerGate implements Service
             return $current;
         }
 
-        $ids = self::collectProducerIds($order);
+        $ids = Orders::collectProducerIds($order);
         if ($ids === []) {
             return [];
         }

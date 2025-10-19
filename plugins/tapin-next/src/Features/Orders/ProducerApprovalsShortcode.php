@@ -5,6 +5,7 @@ namespace Tapin\Events\Features\Orders;
 use Tapin\Events\Core\Service;
 use Tapin\Events\Features\Orders\AwaitingProducerGate;
 use Tapin\Events\Support\AttendeeFields;
+use Tapin\Events\Support\Orders;
 use WC_Order;
 use WC_Order_Item_Product;
 
@@ -40,7 +41,7 @@ final class ProducerApprovalsShortcode implements Service
         foreach ($awaitingIds as $orderId) {
             $order = wc_get_order($orderId);
             if ($order instanceof WC_Order && !$order->get_meta('_tapin_producer_ids')) {
-                $order->update_meta_data('_tapin_producer_ids', $this->collectProducerIds($order));
+                $order->update_meta_data('_tapin_producer_ids', Orders::collectProducerIds($order));
                 $order->save();
             }
         }
@@ -538,23 +539,6 @@ final class ProducerApprovalsShortcode implements Service
         return $warnings;
     }
 
-    private function collectProducerIds(WC_Order $order): array
-    {
-        $ids = [];
-        foreach ($order->get_items('line_item') as $item) {
-            $productId = $item->get_product_id();
-            if (!$productId) {
-                continue;
-            }
-
-            $author = (int) get_post_field('post_author', $productId);
-            if ($author) {
-                $ids[] = $author;
-            }
-        }
-
-        return array_values(array_unique($ids));
-    }
 
     private function getUserProfile(int $userId): array
     {

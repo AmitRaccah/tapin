@@ -11,7 +11,6 @@ class Plugin {
         'Domain/SaleWindowsRepository.php',
         'Integrations/smart-slider-compat.php',
         'Features/ProductPage/SaleWindowsCards.php',
-        'Features/Infra/ss3-cache-bridge.php',
     ];
 
     private const BASE_SERVICES = [
