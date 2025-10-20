@@ -4,6 +4,7 @@ namespace Tapin\Events\Features\Producers;
 use Tapin\Events\Core\Service;
 use Tapin\Events\Support\ProducerProfiles;
 use Tapin\Events\Support\Security;
+use Tapin\Events\Support\TableSearch;
 
 final class RequestsManager implements Service {
     public function register(): void {
@@ -161,9 +162,12 @@ final class RequestsManager implements Service {
             <?php endif; ?>
 
             <h3 class="tapin-title" style="margin-top:40px;">רשימת המפיקים</h3>
-            <div class="tapin-form-row">
-                <input id="tapinProdSearch" type="text" placeholder="חיפוש לפי שם / דוא&quot;ל / טלפון...">
-            </div>
+            <?php echo TableSearch::render([
+                'input_id'       => 'tapinProdSearch',
+                'placeholder'    => 'חיפוש לפי שם / דוא&quot;ל / טלפון...',
+                'row_selector'   => '#tapinProdTBody tr[data-search]',
+                'empty_selector' => '#tapinProdNoRes',
+            ]); ?>
             <table class="tapin-producers-table" id="tapinProdTable">
                 <thead>
                     <tr>
@@ -181,7 +185,7 @@ final class RequestsManager implements Service {
                         $phone_priv = get_user_meta($pid, 'producer_phone_private', true);
                         $search_blob = strtolower($name . ' ' . $producer->user_email . ' ' . ($phone_pub ?: '') . ' ' . ($phone_priv ?: ''));
                     ?>
-                    <tr data-name="<?php echo esc_attr($search_blob); ?>">
+                    <tr data-search="<?php echo esc_attr($search_blob); ?>">
                         <td data-label="שם"><?php echo esc_html($name); ?></td>
                         <td data-label="דוא&quot;ל"><a href="mailto:<?php echo esc_attr($producer->user_email); ?>"><?php echo esc_html($producer->user_email); ?></a></td>
                         <td data-label="טלפון"><?php echo $phone_pub ? '<a href="tel:' . esc_attr($phone_pub) . '">' . esc_html($phone_pub) . '</a>' : '—'; ?></td>
@@ -201,25 +205,6 @@ final class RequestsManager implements Service {
                 </tbody>
             </table>
         </div>
-        <script>
-        (function(){
-          var input = document.getElementById('tapinProdSearch');
-          var tbody = document.getElementById('tapinProdTBody');
-          if(!input || !tbody) return;
-          var rows = Array.from(tbody.querySelectorAll('tr[data-name]'));
-          var nores = document.getElementById('tapinProdNoRes');
-          function filterRows(){
-            var q = input.value.trim().toLowerCase();
-            var visible = 0;
-            rows.forEach(function(tr){
-              var text = tr.dataset.name || '';
-              if (!q || text.includes(q)) { tr.style.display = ''; visible++; } else { tr.style.display = 'none'; }
-            });
-            if (nores) { nores.style.display = visible ? 'none' : ''; }
-          }
-          input.addEventListener('input', filterRows);
-        })();
-        </script>
         <?php
         return ob_get_clean();
     }

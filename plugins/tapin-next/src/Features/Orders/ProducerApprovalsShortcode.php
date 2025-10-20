@@ -6,6 +6,7 @@ use Tapin\Events\Core\Service;
 use Tapin\Events\Features\Orders\AwaitingProducerGate;
 use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\Orders;
+use Tapin\Events\Support\TableSearch;
 use WC_Order;
 use WC_Order_Item_Product;
 
@@ -162,6 +163,8 @@ final class ProducerApprovalsShortcode implements Service
         <style>
           .tapin-pa{direction:rtl;text-align:right;font-family:inherit}
           .tapin-pa .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
+          .tapin-pa .toolbar .toolbar__search{margin:0;flex:1 1 260px;min-width:220px}
+          .tapin-pa .toolbar .toolbar__search .tapin-table-search__input{width:100%}
           .tapin-pa .btn{padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:600}
           .tapin-pa .btn-primary{background:#16a34a;color:#fff}
           .tapin-pa .btn-danger{background:#ef4444;color:#fff}
@@ -193,6 +196,14 @@ final class ProducerApprovalsShortcode implements Service
           <form method="post" id="tapinBulkForm">
             <?php wp_nonce_field('tapin_pa_bulk', 'tapin_pa_bulk_nonce'); ?>
             <div class="toolbar">
+              <?php echo TableSearch::render([
+                  'input_id'         => 'tapinOrderSearch',
+                  'placeholder'      => 'חיפוש לפי הזמנה, לקוח או טלפון...',
+                  'row_selector'     => '#tapinOrdersTable tbody tr[data-search]',
+                  'empty_selector'   => '#tapinOrdersNoRes',
+                  'detail_row_class' => 'tapin-pa__attendees-row',
+                  'wrapper_class'    => 'tapin-table-search tapin-form-row toolbar__search',
+              ]); ?>
               <button class="btn btn-primary" type="submit" name="bulk_approve"><?php echo esc_html($this->decodeEntities('אשר נבחרות')); ?></button>
               <button class="btn btn-ghost" type="button" id="tapinApproveAll"><?php echo esc_html($this->decodeEntities('אשר הכול')); ?></button>
               <button class="btn btn-danger" type="submit" name="bulk_cancel" onclick="return confirm('<?php echo esc_js($this->decodeEntities('לבטל את ההזמנות שנבחרו?')); ?>')"><?php echo esc_html($this->decodeEntities('בטל הזמנות שנבחרו')); ?></button>
@@ -220,7 +231,38 @@ final class ProducerApprovalsShortcode implements Service
               <tbody>
                 <?php if ($orders): ?>
                   <?php foreach ($orders as $order): ?>
-                    <tr>
+                    <?php
+                    $searchSegments = [
+                        '#' . $order['number'],
+                        (string) ($order['profile']['first_name'] ?? ''),
+                        (string) ($order['profile']['last_name'] ?? ''),
+                        (string) ($order['profile']['birthdate'] ?? ''),
+                        (string) ($order['profile']['gender'] ?? ''),
+                        (string) ($order['profile']['facebook'] ?? ''),
+                        (string) ($order['profile']['instagram'] ?? ''),
+                        (string) ($order['profile']['whatsapp'] ?? ''),
+                        (string) $order['date'],
+                        (string) $order['total'],
+                    ];
+                    if (!empty($order['items'])) {
+                        foreach ($order['items'] as $itemText) {
+                            $searchSegments[] = wp_strip_all_tags((string) $itemText);
+                        }
+                    }
+                    if (!empty($order['attendees'])) {
+                        foreach ($order['attendees'] as $attendee) {
+                            $searchSegments[] = (string) ($attendee['full_name'] ?? '');
+                            $searchSegments[] = (string) ($attendee['email'] ?? '');
+                            $searchSegments[] = (string) ($attendee['phone'] ?? '');
+                            $searchSegments[] = (string) ($attendee['id_number'] ?? '');
+                        }
+                    }
+                    $searchSegments = array_filter($searchSegments, static function ($value) {
+                        return $value !== null && $value !== '';
+                    });
+                    $searchBlob = strtolower(wp_strip_all_tags(implode(' ', $searchSegments)));
+                    ?>
+                    <tr data-search="<?php echo esc_attr($searchBlob); ?>">
                       <td class="select-col"><input type="checkbox" name="order_ids[]" value="<?php echo (int) $order['id']; ?>"></td>
                       <td>#<?php echo esc_html($order['number']); ?></td>
                       <td><?php echo esc_html($order['profile']['first_name']); ?></td>
@@ -295,6 +337,9 @@ final class ProducerApprovalsShortcode implements Service
                       </tr>
                     <?php endif; ?>
                   <?php endforeach; ?>
+                  <tr id="tapinOrdersNoRes" style="display:none">
+                    <td colspan="12" class="muted" style="text-align:center"><?php echo esc_html($this->decodeEntities('אין תוצאות')); ?></td>
+                  </tr>
                 <?php else: ?>
                   <tr><td colspan="12" class="muted" style="text-align:center"><?php echo esc_html($this->decodeEntities('אין הזמנות ממתינות לאישור.')); ?></td></tr>
                 <?php endif; ?>
