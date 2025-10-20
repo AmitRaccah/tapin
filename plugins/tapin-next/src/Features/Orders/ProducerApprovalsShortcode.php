@@ -218,6 +218,7 @@ final class ProducerApprovalsShortcode implements Service
                   <th data-sort><?php echo esc_html($this->decodeEntities('מספר הזמנה')); ?></th>
                   <th data-sort><?php echo esc_html($this->decodeEntities('שם פרטי')); ?></th>
                   <th data-sort><?php echo esc_html($this->decodeEntities('שם משפחה')); ?></th>
+                  <th data-sort><?php echo esc_html($this->decodeEntities('ת"ז')); ?></th>
                   <th data-sort><?php echo esc_html($this->decodeEntities('תאריך לידה')); ?></th>
                   <th data-sort><?php echo esc_html($this->decodeEntities('מגדר')); ?></th>
                   <th data-sort>Facebook</th>
@@ -236,6 +237,7 @@ final class ProducerApprovalsShortcode implements Service
                         '#' . $order['number'],
                         (string) ($order['profile']['first_name'] ?? ''),
                         (string) ($order['profile']['last_name'] ?? ''),
+                        (string) ($order['primary_id_number'] ?? ''),
                         (string) ($order['profile']['birthdate'] ?? ''),
                         (string) ($order['profile']['gender'] ?? ''),
                         (string) ($order['profile']['facebook'] ?? ''),
@@ -267,6 +269,13 @@ final class ProducerApprovalsShortcode implements Service
                       <td>#<?php echo esc_html($order['number']); ?></td>
                       <td><?php echo esc_html($order['profile']['first_name']); ?></td>
                       <td><?php echo esc_html($order['profile']['last_name']); ?></td>
+                      <td>
+                        <?php if (!empty($order['primary_id_number'])): ?>
+                          <?php echo esc_html($order['primary_id_number']); ?>
+                        <?php else: ?>
+                          <span class="muted">-</span>
+                        <?php endif; ?>
+                      </td>
                       <td><?php echo esc_html($order['profile']['birthdate']); ?></td>
                       <td><?php echo esc_html($order['profile']['gender']); ?></td>
                       <td class="muted">
@@ -296,7 +305,7 @@ final class ProducerApprovalsShortcode implements Service
                     ?>
                       <tr class="tapin-pa__attendees-row">
                         <td></td>
-                        <td colspan="11">
+                        <td colspan="12">
                           <div class="tapin-pa__attendees">
                             <?php foreach ($attendeeCards as $offset => $attendee): ?>
                               <?php
@@ -338,10 +347,10 @@ final class ProducerApprovalsShortcode implements Service
                     <?php endif; ?>
                   <?php endforeach; ?>
                   <tr id="tapinOrdersNoRes" style="display:none">
-                    <td colspan="12" class="muted" style="text-align:center"><?php echo esc_html($this->decodeEntities('אין תוצאות')); ?></td>
+                    <td colspan="13" class="muted" style="text-align:center"><?php echo esc_html($this->decodeEntities('אין תוצאות')); ?></td>
                   </tr>
                 <?php else: ?>
-                  <tr><td colspan="12" class="muted" style="text-align:center"><?php echo esc_html($this->decodeEntities('אין הזמנות ממתינות לאישור.')); ?></td></tr>
+                  <tr><td colspan="13" class="muted" style="text-align:center"><?php echo esc_html($this->decodeEntities('אין הזמנות ממתינות לאישור.')); ?></td></tr>
                 <?php endif; ?>
               </tbody>
             </table>
@@ -486,7 +495,8 @@ final class ProducerApprovalsShortcode implements Service
                 'email' => $order->get_billing_email(),
                 'phone' => $order->get_billing_phone(),
             ],
-            'profile'        => $profile,
+            'profile'             => $profile,
+            'primary_id_number'   => $this->findPrimaryIdNumber($attendeesList),
         ];
     }
 
@@ -550,6 +560,22 @@ final class ProducerApprovalsShortcode implements Service
         }
 
         return $fallback;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $attendees
+     */
+    private function findPrimaryIdNumber(array $attendees): string
+    {
+        foreach ($attendees as $attendee) {
+            $raw = isset($attendee['id_number']) ? (string) $attendee['id_number'] : '';
+            $normalized = AttendeeFields::displayValue('id_number', $raw);
+            if ($normalized !== '') {
+                return $normalized;
+            }
+        }
+
+        return '';
     }
 
     /**
