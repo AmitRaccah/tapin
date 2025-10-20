@@ -6,9 +6,9 @@ use Tapin\Events\Core\Service;
 use Tapin\Events\Features\Orders\AwaitingProducerGate;
 use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\Orders;
-use Tapin\Events\Support\TableSearch;
 use WC_Order;
 use WC_Order_Item_Product;
+use WC_Product;
 
 final class ProducerApprovalsShortcode implements Service
 {
@@ -23,12 +23,12 @@ final class ProducerApprovalsShortcode implements Service
     public function render(): string
     {
         if (!is_user_logged_in()) {
-            return '<div class="woocommerce-info" style="direction:rtl;text-align:right">יש להתחבר כדי לצפות בהזמנות.</div>';
+            return '<div class="woocommerce-info" style="direction:rtl;text-align:right">&#1497;&#1513;&#32;&#1500;&#1492;&#1510;&#1495;&#1489;&#1512;&#32;&#1499;&#1491;&#1497;&#32;&#1500;&#1510;&#1508;&#1493;&#1514;&#32;&#1489;&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;.</div>';
         }
 
         $currentUser = wp_get_current_user();
         if (!array_intersect((array) $currentUser->roles, ['producer', 'owner'])) {
-            return '<div class="woocommerce-error" style="direction:rtl;text-align:right">אין לך הרשאה לצפות בעמוד זה.</div>';
+            return '<div class="woocommerce-error" style="direction:rtl;text-align:right">&#1488;&#1497;&#1503;&#32;&#1500;&#1495;&#32;&#1492;&#1512;&#1513;&#1488;&#1492;&#32;&#1500;&#1510;&#1508;&#1493;&#1514;&#32;&#1489;&#1506;&#1502;&#1493;&#1491;&#32;&#1494;&#1492;.</div>';
         }
 
         $producerId = (int) get_current_user_id();
@@ -60,17 +60,8 @@ final class ProducerApprovalsShortcode implements Service
                 continue;
             }
 
-            $metaIds = (array) $order->get_meta('_tapin_producer_ids');
-            if ($metaIds && in_array($producerId, $metaIds, true)) {
+            if ($this->orderBelongsToProducer($order, $producerId)) {
                 $relevantIds[] = $orderId;
-                continue;
-            }
-
-            foreach ($order->get_items('line_item') as $item) {
-                if ($this->isProducerLineItem($item, $producerId)) {
-                    $relevantIds[] = $orderId;
-                    break;
-                }
             }
         }
 
@@ -104,7 +95,7 @@ final class ProducerApprovalsShortcode implements Service
                 }
 
                 if ($cancelSelected) {
-                    $order->update_status('cancelled', 'ההזמנה בוטלה לבקשת המפיק.');
+                    $order->update_status('cancelled', '&#1492;&#1492;&#1494;&#1502;&#1504;&#1492;&#32;&#1489;&#1493;&#1496;&#1500;&#1488;&#32;&#1500;&#1489;&#1511;&#1513;&#1514;&#32;&#1492;&#1502;&#1508;&#1497;&#1511;.');
                     $approved++;
                 } else {
                     AwaitingProducerGate::captureAndApprove($order);
@@ -114,19 +105,56 @@ final class ProducerApprovalsShortcode implements Service
 
             if ($approved || $failed) {
                 $notice = sprintf(
-                    '<div class="woocommerce-message" style="direction:rtl;text-align:right">אושרו %1$d הזמנות, נכשלו %2$d.</div>',
+                    '<div class="woocommerce-message" style="direction:rtl;text-align:right">&#1488;&#1493;&#1513;&#1512;&#1493;&#32;%1$d&#32;&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;,&#32;&#1504;&#1499;&#1513;&#1500;&#1493;&#32;%2$d.</div>',
                     $approved,
                     $failed
                 );
             }
 
-            $relevantIds = array_values(array_diff($relevantIds, $selected));
+            $relevantIds = array_values(array_filter(
+                $relevantIds,
+                function ($orderId) {
+                    $order = wc_get_order((int) $orderId);
+                    return $order instanceof WC_Order && $order->has_status('awaiting-producer');
+                }
+            ));
+        }
+
+        $displayIds = $relevantIds;
+
+        $historyStatuses = [
+            'wc-processing',
+            'wc-completed',
+            'wc-cancelled',
+            'wc-refunded',
+            'wc-failed',
+        ];
+
+        $historyIds = wc_get_orders([
+            'status' => $historyStatuses,
+            'limit'  => 200,
+            'return' => 'ids',
+        ]);
+
+        foreach ($historyIds as $orderId) {
+            if (in_array($orderId, $displayIds, true)) {
+                continue;
+            }
+
+            $order = wc_get_order($orderId);
+            if (!$order instanceof WC_Order) {
+                continue;
+            }
+
+            if ($this->orderBelongsToProducer($order, $producerId)) {
+                $displayIds[] = $orderId;
+            }
         }
 
         $orders = [];
         $customerStats = [];
 
-        foreach ($relevantIds as $orderId) {
+        foreach ($displayIds as $orderId) {
             $order = wc_get_order($orderId);
             if (!$order instanceof WC_Order) {
                 continue;
@@ -159,219 +187,367 @@ final class ProducerApprovalsShortcode implements Service
 
         $warnings = $this->buildWarnings($customerStats);
 
+        $events = [];
+        foreach ($orders as $order) {
+            if (empty($order['events'])) {
+                continue;
+            }
+
+            foreach ($order['events'] as $eventData) {
+                $eventId = (int) ($eventData['event_id'] ?? 0);
+                $productId = (int) ($eventData['product_id'] ?? 0);
+                $eventKey = $eventId ?: $productId ?: (int) $order['id'];
+                $key = (string) $eventKey;
+
+                if (!isset($events[$key])) {
+                    $events[$key] = [
+                        'id'        => $eventKey,
+                        'title'     => (string) ($eventData['title'] ?? ''),
+                        'image'     => (string) ($eventData['image'] ?? ''),
+                        'permalink' => (string) ($eventData['permalink'] ?? ''),
+                        'counts'    => ['pending' => 0, 'approved' => 0, 'cancelled' => 0],
+                        'orders'    => [],
+                        'search'    => '',
+                    ];
+
+                    if ($events[$key]['title'] === '') {
+                        $events[$key]['title'] = $this->decodeEntities('&#1488;&#1497;&#1512;&#1493;&#1506; &#1489;&#1500;&#1514;&#1497; &#1505;&#1493;&#1498;');
+                    }
+                }
+
+                $statusType = $this->classifyOrderStatus((string) $order['status']);
+                if (isset($events[$key]['counts'][$statusType])) {
+                    $events[$key]['counts'][$statusType]++;
+                }
+
+                $searchSegments = [
+                    '#' . $order['number'],
+                    (string) ($order['customer']['name'] ?? ''),
+                    (string) ($order['customer']['email'] ?? ''),
+                    (string) ($order['customer']['phone'] ?? ''),
+                    (string) $order['primary_id_number'],
+                    (string) $order['date'],
+                    (string) $order['total'],
+                    (string) ($eventData['title'] ?? ''),
+                ];
+
+                foreach ((array) ($eventData['lines'] ?? []) as $line) {
+                    $searchSegments[] = (string) ($line['name'] ?? '');
+                }
+
+                foreach ((array) ($eventData['attendees'] ?? []) as $attendee) {
+                    foreach (['full_name', 'email', 'phone', 'id_number'] as $field) {
+                        if (!empty($attendee[$field])) {
+                            $searchSegments[] = (string) $attendee[$field];
+                        }
+                    }
+                }
+
+                $orderSearch = strtolower(wp_strip_all_tags(implode(' ', array_filter($searchSegments))));
+
+                $events[$key]['orders'][] = [
+                    'id'                => (int) $order['id'],
+                    'number'            => (string) $order['number'],
+                    'timestamp'         => (int) ($order['timestamp'] ?? 0),
+                    'date'              => (string) $order['date'],
+                    'status'            => (string) $order['status'],
+                    'status_label'      => (string) $order['status_label'],
+                    'status_type'       => $statusType,
+                    'total'             => (string) $order['total'],
+                    'quantity'          => (int) ($eventData['quantity'] ?? 0),
+                    'lines'             => (array) ($eventData['lines'] ?? []),
+                    'attendees'         => (array) ($eventData['attendees'] ?? []),
+                    'customer'          => (array) $order['customer'],
+                    'profile'           => (array) $order['profile'],
+                    'primary_id_number' => (string) $order['primary_id_number'],
+                    'is_pending'        => (string) $order['status'] === 'awaiting-producer',
+                    'search_blob'       => $orderSearch,
+                ];
+
+                $events[$key]['search'] .= ' ' . $orderSearch;
+            }
+        }
+
+        foreach ($events as &$event) {
+            $event['search'] = strtolower(trim($event['title'] . ' ' . $event['search']));
+            usort($event['orders'], static function (array $a, array $b): int {
+                return ($b['timestamp'] ?? 0) <=> ($a['timestamp'] ?? 0);
+            });
+        }
+        unset($event);
+
+        uasort($events, static function (array $a, array $b): int {
+            $pendingDiff = ($b['counts']['pending'] ?? 0) <=> ($a['counts']['pending'] ?? 0);
+            if ($pendingDiff !== 0) {
+                return $pendingDiff;
+            }
+
+            $approvedDiff = ($b['counts']['approved'] ?? 0) <=> ($a['counts']['approved'] ?? 0);
+            if ($approvedDiff !== 0) {
+                return $approvedDiff;
+            }
+
+            return strcmp((string) $a['title'], (string) $b['title']);
+        });
+
+        $events = array_values($events);
+
         ob_start(); ?>
         <style>
-          .tapin-pa{direction:rtl;text-align:right;font-family:inherit}
-          .tapin-pa .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
-          .tapin-pa .toolbar .toolbar__search{margin:0;flex:1 1 260px;min-width:220px}
-          .tapin-pa .toolbar .toolbar__search .tapin-table-search__input{width:100%}
-          .tapin-pa .btn{padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:600}
+          .tapin-pa{direction:rtl;text-align:right;font-family:inherit;color:#0f172a}
+          .tapin-pa a{color:inherit}
+          .tapin-pa .btn{padding:10px 16px;border-radius:12px;border:0;cursor:pointer;font-weight:600;font-size:.95rem}
           .tapin-pa .btn-primary{background:#16a34a;color:#fff}
           .tapin-pa .btn-danger{background:#ef4444;color:#fff}
-          .tapin-pa .btn-ghost{background:#f1f5f9;color:#111827}
-          .tapin-pa table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(2,6,23,.05)}
-          .tapin-pa thead th{background:#f8fafc;font-weight:700;border-bottom:1px solid #e5e7eb;padding:10px;font-size:.95rem;white-space:nowrap;cursor:pointer}
-          .tapin-pa tbody td{border-bottom:1px solid #f1f5f9;padding:10px;vertical-align:top;font-size:.95rem}
-          .tapin-pa tbody tr:last-child td{border-bottom:0}
-          .tapin-pa .muted{color:#64748b;font-size:.9rem}
+          .tapin-pa .btn-ghost{background:#e2e8f0;color:#1f2937}
+          .tapin-pa__form{margin:0}
+          .tapin-pa__controls{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}
+          .tapin-pa__search{flex:1 1 260px;min-width:220px}
+          .tapin-pa__search-input{width:100%;padding:10px 14px;border-radius:12px;border:1px solid #cbd5f5;background:#fff;font-size:.95rem}
+          .tapin-pa__buttons{display:flex;gap:8px;flex-wrap:wrap}
+          .tapin-pa__events{display:grid;gap:16px}
           .tapin-pa__warning{border-radius:12px;padding:12px;margin:10px 0;border:1px solid #facc15;background:#fefce8;color:#92400e}
-          .tapin-pa__attendees-row td{background:#f9fafb}
-          .tapin-pa__attendees{display:grid;gap:12px;margin:0;padding:0}
-          .tapin-pa__attendee{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:12px}
-          .tapin-pa__attendee-header{font-weight:700;color:#0f172a;margin:0 0 8px}
-          .tapin-pa__attendee-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
-          .tapin-pa__attendee-list li{display:flex;flex-wrap:wrap;gap:6px;font-size:.9rem;color:#1f2937}
-          .tapin-pa__attendee-list strong{min-width:90px;color:#334155;font-weight:600}
-          .tapin-pa__attendee-list a{color:#2563eb;text-decoration:none}
-          .tapin-pa__attendee-list a:hover{text-decoration:underline}
+          .tapin-pa-event{border:1px solid #e2e8f0;border-radius:18px;box-shadow:0 6px 18px rgba(15,23,42,.08);overflow:hidden;background:#fff}
+          .tapin-pa-event__header{display:flex;justify-content:space-between;align-items:center;width:100%;background:transparent;border:0;padding:18px;cursor:pointer;text-align:right}
+          .tapin-pa-event__header:hover{background:#f8fafc}
+          .tapin-pa-event__summary{display:flex;gap:16px;align-items:center}
+          .tapin-pa-event__image{width:72px;height:72px;border-radius:14px;object-fit:cover;background:#f1f5f9;flex-shrink:0}
+          .tapin-pa-event__text h4{margin:0;font-size:1.1rem;font-weight:700;color:#0f172a}
+          .tapin-pa-event__stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:.9rem}
+          .tapin-pa-event__badge{padding:4px 10px;border-radius:999px;font-weight:600;font-size:.85rem;display:inline-flex;align-items:center}
+          .tapin-pa-event__badge--pending{background:rgba(234,179,8,.18);color:#92400e}
+          .tapin-pa-event__badge--approved{background:rgba(22,163,74,.18);color:#065f46}
+          .tapin-pa-event__badge--cancelled{background:rgba(248,113,113,.18);color:#991b1b}
+          .tapin-pa-event__chevron{transition:transform .25s ease;color:#334155;font-size:1.2rem}
+          .tapin-pa-event.is-open .tapin-pa-event__chevron{transform:rotate(180deg)}
+          .tapin-pa-event__panel{padding:0 18px 18px;display:none}
+          .tapin-pa-event.is-open .tapin-pa-event__panel{display:block}
+          .tapin-pa-order{border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-top:14px;background:#fff}
+          .tapin-pa-order__header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
+          .tapin-pa-order__left{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+          .tapin-pa-order__checkbox{width:18px;height:18px}
+          .tapin-pa-order__meta{display:flex;gap:10px;flex-wrap:wrap;font-size:.9rem;color:#475569}
+          .tapin-pa-order__status{padding:4px 10px;border-radius:999px;font-weight:600;font-size:.85rem}
+          .tapin-pa-order--pending .tapin-pa-order__status{background:rgba(234,179,8,.18);color:#92400e}
+          .tapin-pa-order--approved .tapin-pa-order__status{background:rgba(22,163,74,.18);color:#065f46}
+          .tapin-pa-order--cancelled .tapin-pa-order__status{background:rgba(248,113,113,.18);color:#991b1b}
+          .tapin-pa-order__body{margin-top:12px;display:grid;gap:10px;font-size:.92rem;color:#1f2937}
+          .tapin-pa-order__body strong{color:#0f172a}
+          .tapin-pa-order__lines{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.88rem;color:#475569}
+          .tapin-pa-attendees{border-top:1px solid #e2e8f0;margin-top:12px;padding-top:12px;display:grid;gap:10px}
+          .tapin-pa-attendee{border:1px solid #e2e8f0;border-radius:12px;padding:12px;background:#f9fafb}
+          .tapin-pa-attendee h5{margin:0 0 8px;font-size:.95rem;color:#0f172a}
+          .tapin-pa-attendee__list{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:.86rem;color:#374151}
+          .tapin-pa-attendee__label{min-width:82px;color:#475569;font-weight:600}
+          .tapin-pa-attendee__list li{display:flex;gap:6px;flex-wrap:wrap}
+          .tapin-pa-empty{padding:48px 12px;border:2px dashed #cbd5f5;border-radius:16px;text-align:center;color:#64748b;font-size:1rem;background:#f8fafc}
+          @media (max-width:640px){
+            .tapin-pa-event__header{flex-direction:column;align-items:flex-start}
+            .tapin-pa-order__header{flex-direction:column;align-items:flex-start}
+            .tapin-pa-order__meta{flex-direction:column;align-items:flex-start}
+            .tapin-pa__buttons{width:100%}
+            .tapin-pa__buttons .btn{flex:1 1 auto;text-align:center}
+          }
         </style>
         <div class="tapin-pa">
           <?php echo $notice; ?>
-          <h3><?php echo esc_html($this->decodeEntities('הזמנות ממתינות לאישור')); ?></h3>
+          <h3><?php echo esc_html($this->decodeEntities('&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;&#32;&#1502;&#1502;&#1514;&#1497;&#1504;&#1493;&#1514;&#32;&#1500;&#1488;&#1497;&#1513;&#1493;&#1512;')); ?></h3>
 
           <?php foreach ($warnings as $warning): ?>
             <div class="tapin-pa__warning"><?php echo wp_kses_post($warning); ?></div>
           <?php endforeach; ?>
 
-          <form method="post" id="tapinBulkForm">
+          <form method="post" id="tapinBulkForm" class="tapin-pa__form">
             <?php wp_nonce_field('tapin_pa_bulk', 'tapin_pa_bulk_nonce'); ?>
-            <div class="toolbar">
-              <?php echo TableSearch::render([
-                  'input_id'         => 'tapinOrderSearch',
-                  'placeholder'      => 'חיפוש לפי הזמנה, לקוח או טלפון...',
-                  'row_selector'     => '#tapinOrdersTable tbody tr[data-search]',
-                  'empty_selector'   => '#tapinOrdersNoRes',
-                  'detail_row_class' => 'tapin-pa__attendees-row',
-                  'wrapper_class'    => 'tapin-table-search tapin-form-row toolbar__search',
-              ]); ?>
-              <button class="btn btn-primary" type="submit" name="bulk_approve"><?php echo esc_html($this->decodeEntities('אשר נבחרות')); ?></button>
-              <button class="btn btn-ghost" type="button" id="tapinApproveAll"><?php echo esc_html($this->decodeEntities('אשר הכול')); ?></button>
-              <button class="btn btn-danger" type="submit" name="bulk_cancel" onclick="return confirm('<?php echo esc_js($this->decodeEntities('לבטל את ההזמנות שנבחרו?')); ?>')"><?php echo esc_html($this->decodeEntities('בטל הזמנות שנבחרו')); ?></button>
+            <div class="tapin-pa__controls">
+              <div class="tapin-pa__search">
+                <input type="search" id="tapinPaSearch" class="tapin-pa__search-input" placeholder="<?php echo esc_attr($this->decodeEntities('&#1495;&#1497;&#1508;&#1493;&#1513;&#32;&#1500;&#1508;&#1497;&#32;&#1500;&#1511;&#1493;&#1495;&#32;&#1488;&#1493;&#32;&#1488;&#1497;&#1512;&#1493;&#1506;&#46;&#46;&#46;')); ?>">
+              </div>
+              <div class="tapin-pa__buttons">
+                <button class="btn btn-ghost" type="button" id="tapinPaSelectAll"><?php echo esc_html($this->decodeEntities('&#1489;&#1495;&#1512;&#32;&#1492;&#1499;&#1500;')); ?></button>
+                <button class="btn btn-primary" type="submit" name="bulk_approve"><?php echo esc_html($this->decodeEntities('&#1488;&#1513;&#1512;&#32;&#1504;&#1489;&#1495;&#1512;&#1493;&#1514;')); ?></button>
+                <button class="btn btn-ghost" type="button" id="tapinApproveAll"><?php echo esc_html($this->decodeEntities('&#1488;&#1513;&#1512;&#32;&#1492;&#1499;&#1500;')); ?></button>
+                <button class="btn btn-danger" type="submit" name="bulk_cancel" onclick="return confirm('<?php echo esc_js($this->decodeEntities('&#1500;&#1489;&#1496;&#1500;&#32;&#1488;&#1514;&#32;&#1492;&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;&#32;&#1513;&#1504;&#1489;&#1495;&#1512;&#1493;&#63;')); ?>')"><?php echo esc_html($this->decodeEntities('&#1489;&#1496;&#1500;&#32;&#1492;&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;&#32;&#1513;&#1504;&#1489;&#1495;&#1512;&#1493;')); ?></button>
+              </div>
             </div>
 
             <input type="hidden" name="approve_all" id="tapinApproveAllField" value="">
 
-            <table id="tapinOrdersTable">
-              <thead>
-                <tr>
-                  <th class="select-col"><input type="checkbox" id="tapinSelectAll" aria-label="<?php echo esc_attr($this->decodeEntities('בחר הכול')); ?>"></th>
-                  <th data-sort><?php echo esc_html($this->decodeEntities('מספר הזמנה')); ?></th>
-                  <th data-sort><?php echo esc_html($this->decodeEntities('שם פרטי')); ?></th>
-                  <th data-sort><?php echo esc_html($this->decodeEntities('שם משפחה')); ?></th>
-                  <th data-sort><?php echo esc_html($this->decodeEntities('ת"ז')); ?></th>
-                  <th data-sort><?php echo esc_html($this->decodeEntities('תאריך לידה')); ?></th>
-                  <th data-sort><?php echo esc_html($this->decodeEntities('מגדר')); ?></th>
-                  <th data-sort>Facebook</th>
-                  <th data-sort>Instagram</th>
-                  <th data-sort>WhatsApp</th>
-                  <th><?php echo esc_html($this->decodeEntities('סכום הזמנה')); ?></th>
-                  <th><?php echo esc_html($this->decodeEntities('פרטי הזמנה')); ?></th>
-                  <th data-sort><?php echo esc_html($this->decodeEntities('תאריך הזמנה')); ?></th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php if ($orders): ?>
-                  <?php foreach ($orders as $order): ?>
-                    <?php
-                    $searchSegments = [
-                        '#' . $order['number'],
-                        (string) ($order['profile']['first_name'] ?? ''),
-                        (string) ($order['profile']['last_name'] ?? ''),
-                        (string) ($order['primary_id_number'] ?? ''),
-                        (string) ($order['profile']['birthdate'] ?? ''),
-                        (string) ($order['profile']['gender'] ?? ''),
-                        (string) ($order['profile']['facebook'] ?? ''),
-                        (string) ($order['profile']['instagram'] ?? ''),
-                        (string) ($order['profile']['whatsapp'] ?? ''),
-                        (string) $order['date'],
-                        (string) $order['total'],
-                    ];
-                    if (!empty($order['items'])) {
-                        foreach ($order['items'] as $itemText) {
-                            $searchSegments[] = wp_strip_all_tags((string) $itemText);
-                        }
-                    }
-                    if (!empty($order['attendees'])) {
-                        foreach ($order['attendees'] as $attendee) {
-                            $searchSegments[] = (string) ($attendee['full_name'] ?? '');
-                            $searchSegments[] = (string) ($attendee['email'] ?? '');
-                            $searchSegments[] = (string) ($attendee['phone'] ?? '');
-                            $searchSegments[] = (string) ($attendee['id_number'] ?? '');
-                        }
-                    }
-                    $searchSegments = array_filter($searchSegments, static function ($value) {
-                        return $value !== null && $value !== '';
-                    });
-                    $searchBlob = strtolower(wp_strip_all_tags(implode(' ', $searchSegments)));
-                    ?>
-                    <tr data-search="<?php echo esc_attr($searchBlob); ?>">
-                      <td class="select-col"><input type="checkbox" name="order_ids[]" value="<?php echo (int) $order['id']; ?>"></td>
-                      <td>#<?php echo esc_html($order['number']); ?></td>
-                      <td><?php echo esc_html($order['profile']['first_name']); ?></td>
-                      <td><?php echo esc_html($order['profile']['last_name']); ?></td>
-                      <td>
-                        <?php if (!empty($order['primary_id_number'])): ?>
-                          <?php echo esc_html($order['primary_id_number']); ?>
+            <?php if ($events): ?>
+              <div class="tapin-pa__events" id="tapinPaEvents">
+                <?php foreach ($events as $index => $event): ?>
+                  <?php $isOpen = (($event['counts']['pending'] ?? 0) > 0) || $index === 0; ?>
+                  <div class="tapin-pa-event<?php echo $isOpen ? ' is-open' : ''; ?>" data-search="<?php echo esc_attr($event['search']); ?>">
+                    <button class="tapin-pa-event__header" type="button" data-event-toggle aria-expanded="<?php echo $isOpen ? 'true' : 'false'; ?>">
+                      <div class="tapin-pa-event__summary">
+                        <?php if (!empty($event['image'])): ?>
+                          <img class="tapin-pa-event__image" src="<?php echo esc_url($event['image']); ?>" alt="">
                         <?php else: ?>
-                          <span class="muted">-</span>
+                          <div class="tapin-pa-event__image" aria-hidden="true"></div>
                         <?php endif; ?>
-                      </td>
-                      <td><?php echo esc_html($order['profile']['birthdate']); ?></td>
-                      <td><?php echo esc_html($order['profile']['gender']); ?></td>
-                      <td class="muted">
-                        <?php echo $order['profile']['facebook']
-                            ? '<a href="' . esc_url($order['profile']['facebook']) . '" target="_blank" rel="noopener">צפה</a>'
-                            : '<span class="muted">-</span>'; ?>
-                      </td>
-                      <td class="muted">
-                        <?php echo $order['profile']['instagram']
-                            ? '<a href="' . esc_url($order['profile']['instagram']) . '" target="_blank" rel="noopener">' . esc_html($this->trimHandle($order['profile']['instagram'])) . '</a>'
-                            : '<span class="muted">-</span>'; ?>
-                      </td>
-                      <td class="muted">
-                        <?php if ($order['profile']['whatsapp']): ?>
-                          <a href="https://wa.me/<?php echo esc_attr(preg_replace('/\D+/', '', $order['profile']['whatsapp'])); ?>" target="_blank" rel="noopener"><?php echo esc_html($order['profile']['whatsapp']); ?></a>
-                        <?php else: ?>
-                          <span class="muted">-</span>
-                        <?php endif; ?>
-                      </td>
-                      <td><?php echo esc_html($order['total']); ?></td>
-                      <td class="muted"><?php echo implode('<br>', array_map('wp_kses_post', $order['items'])); ?></td>
-                      <td><?php echo esc_html($order['date']); ?></td>
-                    </tr>
-                    <?php
-                    $attendeeCards = $order['attendees'];
-                    if ($attendeeCards):
-                    ?>
-                      <tr class="tapin-pa__attendees-row">
-                        <td></td>
-                        <td colspan="12">
-                          <div class="tapin-pa__attendees">
-                            <?php foreach ($attendeeCards as $offset => $attendee): ?>
-                              <?php
-                              $displayName = trim((string) ($attendee['full_name'] ?? ''));
-                              $header = sprintf(
-                                  '%s %d%s',
-                                  $this->decodeEntities('משתתף'),
-                                  $offset + 1,
-                                  $displayName !== '' ? ' - ' . $displayName : ''
-                              );
-                              ?>
-                              <div class="tapin-pa__attendee">
-                                <p class="tapin-pa__attendee-header"><?php echo esc_html($header); ?></p>
-                                <ul class="tapin-pa__attendee-list">
-                                  <?php if (!empty($attendee['email'])): ?>
-                                    <li><strong><?php echo esc_html($this->decodeEntities('דוא"ל')); ?>:</strong><a href="mailto:<?php echo esc_attr($attendee['email']); ?>"><?php echo esc_html($attendee['email']); ?></a></li>
-                                  <?php endif; ?>
-                                  <?php if (!empty($attendee['phone'])): ?>
-                                    <li><strong><?php echo esc_html($this->decodeEntities('טלפון')); ?>:</strong><a href="tel:<?php echo esc_attr(preg_replace('/\D+/', '', $attendee['phone'])); ?>"><?php echo esc_html($attendee['phone']); ?></a></li>
-                                  <?php endif; ?>
-                                  <?php if (!empty($attendee['id_number'])): ?>
-                                    <li><strong><?php echo esc_html($this->decodeEntities('תעודת זהות')); ?>:</strong><span><?php echo esc_html($attendee['id_number']); ?></span></li>
-                                  <?php endif; ?>
-                                  <?php if (!empty($attendee['birth_date'])): ?>
-                                    <li><strong><?php echo esc_html($this->decodeEntities('תאריך לידה')); ?>:</strong><span><?php echo esc_html($attendee['birth_date']); ?></span></li>
-                                  <?php endif; ?>
-                                  <?php if (!empty($attendee['instagram'])): ?>
-                                    <li><strong>Instagram:</strong><a href="<?php echo esc_url($attendee['instagram']); ?>" target="_blank" rel="noopener"><?php echo esc_html($this->trimHandle($attendee['instagram'])); ?></a></li>
-                                  <?php endif; ?>
-                                  <?php if (!empty($attendee['facebook'])): ?>
-                                    <li><strong>Facebook:</strong><a href="<?php echo esc_url($attendee['facebook']); ?>" target="_blank" rel="noopener"><?php echo esc_html($attendee['facebook']); ?></a></li>
-                                  <?php endif; ?>
-                                </ul>
-                              </div>
-                            <?php endforeach; ?>
+                        <div class="tapin-pa-event__text">
+                          <h4>
+                            <?php if (!empty($event['permalink'])): ?>
+                              <a href="<?php echo esc_url($event['permalink']); ?>" target="_blank" rel="noopener"><?php echo esc_html($event['title']); ?></a>
+                            <?php else: ?>
+                              <?php echo esc_html($event['title']); ?>
+                            <?php endif; ?>
+                          </h4>
+                          <div class="tapin-pa-event__stats">
+                            <span class="tapin-pa-event__badge tapin-pa-event__badge--pending"><?php echo esc_html($this->decodeEntities('&#1502;&#1502;&#1514;&#1497;&#1504;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['pending'] ?? 0); ?></span>
+                            <span class="tapin-pa-event__badge tapin-pa-event__badge--approved"><?php echo esc_html($this->decodeEntities('&#1502;&#1488;&#1493;&#1513;&#1512;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['approved'] ?? 0); ?></span>
+                            <span class="tapin-pa-event__badge tapin-pa-event__badge--cancelled"><?php echo esc_html($this->decodeEntities('&#1502;&#1489;&#1493;&#1496;&#1500;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['cancelled'] ?? 0); ?></span>
                           </div>
-                        </td>
-                      </tr>
-                    <?php endif; ?>
-                  <?php endforeach; ?>
-                  <tr id="tapinOrdersNoRes" style="display:none">
-                    <td colspan="13" class="muted" style="text-align:center"><?php echo esc_html($this->decodeEntities('אין תוצאות')); ?></td>
-                  </tr>
-                <?php else: ?>
-                  <tr><td colspan="13" class="muted" style="text-align:center"><?php echo esc_html($this->decodeEntities('אין הזמנות ממתינות לאישור.')); ?></td></tr>
-                <?php endif; ?>
-              </tbody>
-            </table>
+                        </div>
+                      </div>
+                      <span class="tapin-pa-event__chevron" aria-hidden="true">&#9662;</span>
+                    </button>
+                    <div class="tapin-pa-event__panel"<?php echo $isOpen ? '' : ' hidden'; ?>>
+                      <?php if (!empty($event['orders'])): ?>
+                        <?php foreach ($event['orders'] as $orderData): ?>
+                          <?php
+                          $statusLabel = $orderData['status_type'] === 'pending'
+                              ? $this->decodeEntities('&#1502;&#1502;&#1514;&#1497;&#1504;&#1497;&#1501;')
+                              : ($orderData['status_type'] === 'approved'
+                                  ? $this->decodeEntities('&#1488;&#1493;&#1513;&#1512;')
+                                  : $this->decodeEntities('&#1502;&#1489;&#1493;&#1496;&#1500;'));
+                          ?>
+                          <article class="tapin-pa-order tapin-pa-order--<?php echo esc_attr($orderData['status_type']); ?>" data-search="<?php echo esc_attr($orderData['search_blob']); ?>">
+                            <header class="tapin-pa-order__header">
+                              <div class="tapin-pa-order__left">
+                                <?php if ($orderData['is_pending']): ?>
+                                  <input class="tapin-pa-order__checkbox" type="checkbox" name="order_ids[]" value="<?php echo (int) $orderData['id']; ?>" data-pending="1">
+                                <?php else: ?>
+                                  <input class="tapin-pa-order__checkbox" type="checkbox" disabled title="Already processed">
+                                <?php endif; ?>
+                                <div>
+                                  <div><strong><?php echo esc_html('#' . $orderData['number']); ?></strong></div>
+                                  <div class="tapin-pa-order__meta">
+                                    <?php if ($orderData['date']): ?><span><?php echo esc_html($orderData['date']); ?></span><?php endif; ?>
+                                    <?php if ($orderData['total']): ?><span><?php echo esc_html($orderData['total']); ?></span><?php endif; ?>
+                                    <?php if ($orderData['quantity']): ?><span><?php echo esc_html($orderData['quantity'] . 'x'); ?></span><?php endif; ?>
+                                  </div>
+                                </div>
+                              </div>
+                              <span class="tapin-pa-order__status"><?php echo esc_html($statusLabel); ?></span>
+                            </header>
+                            <div class="tapin-pa-order__body">
+                              <div>
+                                <strong><?php echo esc_html($this->decodeEntities('&#1513;&#1502;&#32;&#1492;&#1500;&#1511;&#1493;&#1495;')); ?>:</strong>
+                                <span><?php echo esc_html($orderData['customer']['name'] ?? ''); ?></span>
+                              </div>
+                              <?php if (!empty($orderData['customer']['email'])): ?>
+                                <div>
+                                  <strong>Email:</strong>
+                                  <a href="mailto:<?php echo esc_attr($orderData['customer']['email']); ?>"><?php echo esc_html($orderData['customer']['email']); ?></a>
+                                </div>
+                              <?php endif; ?>
+                              <?php if (!empty($orderData['customer']['phone'])): ?>
+                                <div>
+                                  <strong><?php echo esc_html($this->decodeEntities('&#1496;&#1500;&#1508;&#1493;&#1503;')); ?>:</strong>
+                                  <a href="tel:<?php echo esc_attr($orderData['customer']['phone']); ?>"><?php echo esc_html($orderData['customer']['phone']); ?></a>
+                                </div>
+                              <?php endif; ?>
+                              <?php if (!empty($orderData['primary_id_number'])): ?>
+                                <div>
+                                  <strong><?php echo esc_html($this->decodeEntities('&#1514;&#1506;&#1493;&#1491;&#1514;&#32;&#1494;&#1492;&#1493;&#1514;')); ?>:</strong>
+                                  <span><?php echo esc_html($orderData['primary_id_number']); ?></span>
+                                </div>
+                              <?php endif; ?>
+                              <?php
+                              $profileFields = [
+                                  $this->decodeEntities('&#1513;&#1501;&#32;&#1508;&#1512;&#1496;&#1497;') => $orderData['profile']['first_name'] ?? '',
+                                  $this->decodeEntities('&#1513;&#1501;&#32;&#1502;&#1513;&#1508;&#1495;&#1492;') => $orderData['profile']['last_name'] ?? '',
+                                  $this->decodeEntities('&#1514;&#1488;&#1512;&#1497;&#1498;&#32;&#1500;&#1497;&#1491;&#1492;') => $orderData['profile']['birthdate'] ?? '',
+                                  $this->decodeEntities('&#1502;&#1490;&#1491;&#1512;') => $orderData['profile']['gender'] ?? '',
+                                  'Facebook' => $orderData['profile']['facebook'] ?? '',
+                                  'Instagram' => $orderData['profile']['instagram'] ?? '',
+                                  'WhatsApp' => $orderData['profile']['whatsapp'] ?? '',
+                              ];
+                              ?>
+                              <div class="tapin-pa-order__meta">
+                                <?php foreach ($profileFields as $label => $value): ?>
+                                  <?php if ($value): ?>
+                                    <span><strong><?php echo esc_html($label); ?>:</strong> <?php echo esc_html($value); ?></span>
+                                  <?php endif; ?>
+                                <?php endforeach; ?>
+                              </div>
+                              <?php if (!empty($orderData['lines'])): ?>
+                                <ul class="tapin-pa-order__lines">
+                                  <?php foreach ($orderData['lines'] as $line): ?>
+                                    <?php
+                                    $lineQuantity = (int) ($line['quantity'] ?? 0);
+                                    $lineParts = [];
+                                    $lineName = trim((string) ($line['name'] ?? ''));
+                                    if ($lineName !== '') {
+                                        $lineParts[] = $lineName;
+                                    }
+                                    if ($lineQuantity > 0) {
+                                        $lineParts[] = 'x ' . $lineQuantity;
+                                    }
+                                    $lineTotal = !empty($line['total']) ? trim(wp_strip_all_tags((string) $line['total'])) : '';
+                                    if ($lineTotal !== '') {
+                                        $lineParts[] = '(' . $lineTotal . ')';
+                                    }
+                                    $lineText = trim(implode(' ', $lineParts));
+                                    ?>
+                                    <li><?php echo esc_html($lineText); ?></li>
+                                  <?php endforeach; ?>
+                                </ul>
+                              <?php endif; ?>
+                              <?php if (!empty($orderData['attendees'])): ?>
+                                <div class="tapin-pa-attendees">
+                                  <?php foreach ($orderData['attendees'] as $attendee): ?>
+                                    <div class="tapin-pa-attendee">
+                                      <?php if (!empty($attendee['full_name'])): ?>
+                                        <h5><?php echo esc_html($attendee['full_name']); ?></h5>
+                                      <?php endif; ?>
+                                      <ul class="tapin-pa-attendee__list">
+                                        <?php if (!empty($attendee['email'])): ?>
+                                          <li><span class="tapin-pa-attendee__label">Email:</span><a href="mailto:<?php echo esc_attr($attendee['email']); ?>"><?php echo esc_html($attendee['email']); ?></a></li>
+                                        <?php endif; ?>
+                                        <?php if (!empty($attendee['phone'])): ?>
+                                          <li><span class="tapin-pa-attendee__label"><?php echo esc_html($this->decodeEntities('&#1496;&#1500;&#1508;&#1493;&#1503;')); ?>:</span><a href="tel:<?php echo esc_attr($attendee['phone']); ?>"><?php echo esc_html($attendee['phone']); ?></a></li>
+                                        <?php endif; ?>
+                                        <?php if (!empty($attendee['id_number'])): ?>
+                                          <li><span class="tapin-pa-attendee__label"><?php echo esc_html($this->decodeEntities('&#1514;&#1506;&#1493;&#1491;&#1514;&#32;&#1494;&#1492;&#1493;&#1514;')); ?>:</span><span><?php echo esc_html($attendee['id_number']); ?></span></li>
+                                        <?php endif; ?>
+                                        <?php if (!empty($attendee['birth_date'])): ?>
+                                          <li><span class="tapin-pa-attendee__label"><?php echo esc_html($this->decodeEntities('&#1514;&#1488;&#1512;&#1497;&#1498;&#32;&#1500;&#1497;&#1491;&#1492;')); ?>:</span><span><?php echo esc_html($attendee['birth_date']); ?></span></li>
+                                        <?php endif; ?>
+                                        <?php if (!empty($attendee['instagram'])): ?>
+                                          <li><span class="tapin-pa-attendee__label">Instagram:</span><a href="<?php echo esc_url($attendee['instagram']); ?>" target="_blank" rel="noopener"><?php echo esc_html($this->trimHandle($attendee['instagram'])); ?></a></li>
+                                        <?php endif; ?>
+                                        <?php if (!empty($attendee['facebook'])): ?>
+                                          <li><span class="tapin-pa-attendee__label">Facebook:</span><a href="<?php echo esc_url($attendee['facebook']); ?>" target="_blank" rel="noopener"><?php echo esc_html($attendee['facebook']); ?></a></li>
+                                        <?php endif; ?>
+                                      </ul>
+                                    </div>
+                                  <?php endforeach; ?>
+                                </div>
+                              <?php endif; ?>
+                            </div>
+                          </article>
+                        <?php endforeach; ?>
+                      <?php else: ?>
+                        <div class="tapin-pa-empty"><?php echo esc_html($this->decodeEntities('&#1488;&#1497;&#1503;&#32;&#1489;&#1511;&#1513;&#1493;&#1514;&#32;&#1506;&#1489;&#1493;&#1512;&#32;&#1488;&#1497;&#1512;&#1493;&#1506;&#32;&#1494;&#1492;&#46;')); ?></div>
+                      <?php endif; ?>
+                    </div>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            <?php else: ?>
+              <div class="tapin-pa-empty"><?php echo esc_html($this->decodeEntities('&#1488;&#1497;&#1503;&#32;&#1488;&#1497;&#1513;&#1493;&#1512;&#1497;&#1501;&#32;&#1500;&#1492;&#1510;&#1490;&#1492;&#32;&#1499;&#1512;&#1490;&#1506;&#46;')); ?></div>
+            <?php endif; ?>
           </form>
         </div>
 
         <script>
         (function () {
           var form = document.getElementById('tapinBulkForm');
-          var selectAll = document.getElementById('tapinSelectAll');
-          if (selectAll && form) {
-            selectAll.addEventListener('change', function () {
-              form.querySelectorAll('tbody input[type="checkbox"][name="order_ids[]"]').forEach(function (cb) {
-                cb.checked = selectAll.checked;
-              });
-            });
-          }
-
           var approveAllButton = document.getElementById('tapinApproveAll');
-          var approveAllField  = document.getElementById('tapinApproveAllField');
-          if (approveAllButton && approveAllField) {
+          var approveAllField = document.getElementById('tapinApproveAllField');
+          if (approveAllButton && approveAllField && form) {
             approveAllButton.addEventListener('click', function () {
               approveAllField.value = '1';
               var hidden = document.createElement('input');
@@ -383,50 +559,76 @@ final class ProducerApprovalsShortcode implements Service
             });
           }
 
-          var table = document.getElementById('tapinOrdersTable');
-          if (table) {
-            var headers = table.querySelectorAll('thead th[data-sort]');
-            headers.forEach(function (header) {
-              header.addEventListener('click', function () {
-                var tbody = table.tBodies[0];
-                var columnIndex = Array.from(header.parentNode.children).indexOf(header);
-                var ascending = header.dataset.dir !== 'asc';
+          var selectAllButton = document.getElementById('tapinPaSelectAll');
+          if (selectAllButton && form) {
+            selectAllButton.addEventListener('click', function () {
+              var checkboxes = Array.prototype.slice.call(form.querySelectorAll('.tapin-pa-order__checkbox[data-pending="1"]:not(:disabled)'));
+              if (!checkboxes.length) {
+                return;
+              }
+              var hasUnchecked = checkboxes.some(function (cb) { return !cb.checked; });
+              checkboxes.forEach(function (cb) { cb.checked = hasUnchecked; });
+            });
+          }
 
-                var pairs = [];
-                Array.from(tbody.querySelectorAll('tr')).forEach(function (row) {
-                  if (row.classList.contains('tapin-pa__attendees-row')) {
-                    return;
+          Array.prototype.slice.call(document.querySelectorAll('[data-event-toggle]')).forEach(function (toggle) {
+            toggle.addEventListener('click', function () {
+              var wrapper = toggle.closest('.tapin-pa-event');
+              if (!wrapper) {
+                return;
+              }
+              var panel = wrapper.querySelector('.tapin-pa-event__panel');
+              var expanded = toggle.getAttribute('aria-expanded') === 'true';
+              if (expanded) {
+                toggle.setAttribute('aria-expanded', 'false');
+                wrapper.classList.remove('is-open');
+                if (panel) {
+                  panel.hidden = true;
+                }
+              } else {
+                toggle.setAttribute('aria-expanded', 'true');
+                wrapper.classList.add('is-open');
+                if (panel) {
+                  panel.hidden = false;
+                }
+              }
+            });
+          });
+
+          var searchInput = document.getElementById('tapinPaSearch');
+          if (searchInput) {
+            searchInput.addEventListener('input', function () {
+              var term = searchInput.value.trim().toLowerCase();
+              Array.prototype.slice.call(document.querySelectorAll('.tapin-pa-event')).forEach(function (eventEl) {
+                var eventMatch = term === '' || (eventEl.getAttribute('data-search') || '').indexOf(term) !== -1;
+                var orders = Array.prototype.slice.call(eventEl.querySelectorAll('.tapin-pa-order'));
+                var orderMatch = false;
+                orders.forEach(function (orderEl) {
+                  var matches = term === '' || (orderEl.getAttribute('data-search') || '').indexOf(term) !== -1;
+                  orderEl.style.display = matches ? '' : 'none';
+                  if (matches) {
+                    orderMatch = true;
                   }
-                  var detail = row.nextElementSibling;
-                  if (!(detail && detail.classList.contains('tapin-pa__attendees-row'))) {
-                    detail = null;
+                });
+                var visible = term === '' ? true : (eventMatch || orderMatch);
+                eventEl.style.display = visible ? '' : 'none';
+                if (visible && term !== '') {
+                  eventEl.classList.add('is-open');
+                  var toggle = eventEl.querySelector('[data-event-toggle]');
+                  var panel = eventEl.querySelector('.tapin-pa-event__panel');
+                  if (toggle) {
+                    toggle.setAttribute('aria-expanded', 'true');
                   }
-                  pairs.push({ master: row, detail: detail });
-                });
-
-                pairs.sort(function (a, b) {
-                  var textA = ((a.master.children[columnIndex] || {}).textContent || '').trim().toLowerCase();
-                  var textB = ((b.master.children[columnIndex] || {}).textContent || '').trim().toLowerCase();
-                  if (textA < textB) return ascending ? -1 : 1;
-                  if (textA > textB) return ascending ? 1 : -1;
-                  return 0;
-                });
-
-                tbody.innerHTML = '';
-                pairs.forEach(function (pair) {
-                  tbody.appendChild(pair.master);
-                  if (pair.detail) {
-                    tbody.appendChild(pair.detail);
+                  if (panel) {
+                    panel.hidden = false;
                   }
-                });
-
-                headers.forEach(function (th) { delete th.dataset.dir; });
-                header.dataset.dir = ascending ? 'asc' : 'desc';
+                }
               });
             });
           }
         })();
         </script>
+
         <?php
 
         return ob_get_clean();
@@ -443,7 +645,35 @@ final class ProducerApprovalsShortcode implements Service
             return false;
         }
 
-        return (int) get_post_field('post_author', $productId) === $producerId;
+        if ((int) get_post_field('post_author', $productId) === $producerId) {
+            return true;
+        }
+
+        $product = $item->get_product();
+        if ($product instanceof WC_Product) {
+            $parentId = $product->get_parent_id();
+            if ($parentId && (int) get_post_field('post_author', $parentId) === $producerId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function orderBelongsToProducer(WC_Order $order, int $producerId): bool
+    {
+        $metaIds = array_filter(array_map('intval', (array) $order->get_meta('_tapin_producer_ids')));
+        if ($metaIds && in_array($producerId, $metaIds, true)) {
+            return true;
+        }
+
+        foreach ($order->get_items('line_item') as $item) {
+            if ($this->isProducerLineItem($item, $producerId)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -454,6 +684,7 @@ final class ProducerApprovalsShortcode implements Service
         $items         = [];
         $attendeesList = [];
         $totalQuantity = 0;
+        $eventMap      = [];
 
         foreach ($order->get_items('line_item') as $item) {
             if (!$this->isProducerLineItem($item, $producerId)) {
@@ -464,9 +695,33 @@ final class ProducerApprovalsShortcode implements Service
             $items[] = sprintf('%s &#215; %d', esc_html($item->get_name()), $quantity);
             $totalQuantity += $quantity;
 
-            foreach ($this->extractAttendees($item) as $attendee) {
+            $eventMeta = $this->resolveEventMeta($item);
+            $eventKey  = (string) ($eventMeta['event_id'] ?: $eventMeta['product_id'] ?: $item->get_id());
+
+            if (!isset($eventMap[$eventKey])) {
+                $eventMap[$eventKey] = array_merge($eventMeta, [
+                    'quantity'  => 0,
+                    'lines'     => [],
+                    'attendees' => [],
+                ]);
+            }
+
+            $formattedTotal = function_exists('wc_price')
+                ? wc_price($item->get_total(), ['currency' => $order->get_currency()])
+                : number_format((float) $item->get_total(), 2);
+
+            $eventMap[$eventKey]['quantity'] += $quantity;
+            $eventMap[$eventKey]['lines'][] = [
+                'name'     => $item->get_name(),
+                'quantity' => $quantity,
+                'total'    => $formattedTotal,
+            ];
+
+            $lineAttendees = $this->extractAttendees($item);
+            foreach ($lineAttendees as $attendee) {
                 $attendeesList[] = $attendee;
             }
+            $eventMap[$eventKey]['attendees'] = array_merge($eventMap[$eventKey]['attendees'], $lineAttendees);
         }
 
         $userId = (int) $order->get_user_id();
@@ -482,22 +737,107 @@ final class ProducerApprovalsShortcode implements Service
                 'whatsapp'   => '',
             ];
 
+        $status = $order->get_status();
+        $statusLabel = function_exists('wc_get_order_status_name')
+            ? wc_get_order_status_name('wc-' . $status)
+            : $status;
+
         return [
             'id'             => $order->get_id(),
             'number'         => $order->get_order_number(),
             'date'           => $order->get_date_created() ? $order->get_date_created()->date_i18n(get_option('date_format') . ' H:i') : '',
+            'timestamp'      => $order->get_date_created() ? (int) $order->get_date_created()->getTimestamp() : 0,
             'total'          => wp_strip_all_tags($order->get_formatted_order_total()),
             'total_quantity' => $totalQuantity,
             'items'          => $items,
             'attendees'      => $attendeesList,
             'customer'       => [
-                'name'  => trim($order->get_formatted_billing_full_name()) ?: $order->get_billing_first_name() ?: ($order->get_user() ? $order->get_user()->display_name : $this->decodeEntities('לקוח אנונימי')),
+                'name'  => trim($order->get_formatted_billing_full_name()) ?: $order->get_billing_first_name() ?: ($order->get_user() ? $order->get_user()->display_name : $this->decodeEntities('&#1500;&#1511;&#1493;&#1495;&#32;&#1488;&#1504;&#1493;&#1504;&#1497;&#1502;&#1497;')),
                 'email' => $order->get_billing_email(),
                 'phone' => $order->get_billing_phone(),
             ],
             'profile'             => $profile,
             'primary_id_number'   => $this->findPrimaryIdNumber($attendeesList),
+            'status'              => $status,
+            'status_label'        => $statusLabel,
+            'is_approved'         => (bool) $order->get_meta('_tapin_producer_approved'),
+            'events'              => array_values($eventMap),
         ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function resolveEventMeta(WC_Order_Item_Product $item): array
+    {
+        $product   = $item->get_product();
+        $productId = $product instanceof WC_Product ? (int) $product->get_id() : (int) $item->get_product_id();
+        $eventId   = 0;
+        $title     = '';
+
+        if ($product instanceof WC_Product) {
+            if ($product->is_type('variation')) {
+                $eventId = $product->get_parent_id() ?: $productId;
+            } else {
+                $eventId = $productId;
+            }
+            $title = $product->get_name();
+        } else {
+            $eventId = $productId;
+            $title   = $item->get_name();
+        }
+
+        if ($title === '') {
+            $title = $item->get_name();
+        }
+
+        if ($product instanceof WC_Product && $product->is_type('variation')) {
+            $parentId = $product->get_parent_id();
+            if ($parentId) {
+                $parent = wc_get_product($parentId);
+                if ($parent instanceof WC_Product) {
+                    $parentName = $parent->get_name();
+                    if ($parentName !== '') {
+                        $title = $parentName;
+                    }
+                }
+            }
+        }
+
+        $targetId  = $eventId ?: $productId;
+        $permalink = $targetId ? (string) get_permalink($targetId) : '';
+        $image     = $targetId ? (string) get_the_post_thumbnail_url($targetId, 'medium') : '';
+
+        if ($image === '' && $productId) {
+            $image = (string) get_the_post_thumbnail_url($productId, 'medium');
+        }
+
+        if ($image === '' && function_exists('wc_placeholder_img_src')) {
+            $image = (string) wc_placeholder_img_src();
+        }
+
+        return [
+            'event_id'   => $eventId ?: $productId ?: 0,
+            'product_id' => $productId ?: 0,
+            'title'      => $title,
+            'permalink'  => $permalink,
+            'image'      => $image,
+        ];
+    }
+
+    private function classifyOrderStatus(string $status): string
+    {
+        $normalized = strtolower($status);
+
+        if (in_array($normalized, ['awaiting-producer', 'pending', 'on-hold'], true)) {
+            return 'pending';
+        }
+
+        if (in_array($normalized, ['cancelled', 'refunded', 'failed'], true)) {
+            return 'cancelled';
+        }
+
+        return 'approved';
     }
 
     /**
@@ -547,7 +887,7 @@ final class ProducerApprovalsShortcode implements Service
         foreach ($item->get_formatted_meta_data('') as $meta) {
             $label = (string) $meta->key;
             if (
-                strpos($label, 'המשתתף') === 0
+                strpos($label, "\u{05D4}\u{05DE}\u{05E9}\u{05EA}\u{05EA}\u{05E3}") === 0
                 || strpos($label, 'Participant') === 0
                 || strpos($label, '???') === 0
             ) {
@@ -608,12 +948,7 @@ final class ProducerApprovalsShortcode implements Service
             if ($customer['total'] >= self::CUSTOMER_TOTAL_THRESHOLD || count($largeOrders) >= 2) {
                 $name  = esc_html($customer['name'] ?: $customer['email']);
                 $email = esc_html($customer['email']);
-                $warnings[] = sprintf(
-                    'שים לב: %1$s (%2$s) רכש %3$d כרטיסים בסך הכול.',
-                    $name,
-                    $email,
-                    (int) $customer['total']
-                );
+                $warnings[] = sprintf('&#1513;&#1497;&#1501;&#32;&#1500;&#1489;: %1$s (%2$s) &#1512;&#1499;&#1513;&#32;%3$d&#32;&#1499;&#1512;&#1496;&#1497;&#1505;&#1497;&#1501;&#32;&#1489;&#1505;&#1495;&#32;&#1499;&#1493;&#1500;.', $name, $email, (int) $customer['total']);
             }
         }
 
