@@ -231,6 +231,12 @@ final class ProducerApprovalsShortcode implements Service
                     (string) ($eventData['title'] ?? ''),
                 ];
 
+                $profileUsername = (string) ($order['customer_profile']['username'] ?? '');
+                if ($profileUsername !== '') {
+                    $searchSegments[] = $profileUsername;
+                    $searchSegments[] = '@' . ltrim($profileUsername, '@');
+                }
+
                 foreach ((array) ($eventData['lines'] ?? []) as $line) {
                     $searchSegments[] = (string) ($line['name'] ?? '');
                 }
@@ -258,6 +264,7 @@ final class ProducerApprovalsShortcode implements Service
                     'lines'             => (array) ($eventData['lines'] ?? []),
                     'attendees'         => (array) ($eventData['attendees'] ?? []),
                     'customer'          => (array) $order['customer'],
+                    'customer_profile'  => (array) ($order['customer_profile'] ?? []),
                     'profile'           => (array) $order['profile'],
                     'primary_id_number' => (string) $order['primary_id_number'],
                     'is_pending'        => (string) $order['status'] === 'awaiting-producer',
@@ -503,6 +510,18 @@ final class ProducerApprovalsShortcode implements Service
                                   ];
                               }
 
+                              $customerProfileMeta = (array) ($orderData['customer_profile'] ?? []);
+                              $profileUsernameMeta = trim((string) ($customerProfileMeta['username'] ?? ''));
+                              $profileUrlMeta = trim((string) ($customerProfileMeta['url'] ?? ''));
+                              if ($profileUsernameMeta !== '') {
+                                  $contactRows[] = [
+                                      'label' => $this->decodeEntities('&#1508;&#1512;&#1493;&#1508;&#1497;&#1500;&#32;&#1489;&#84;&#97;&#112;&#105;&#110;'),
+                                      'value' => '@' . ltrim($profileUsernameMeta, '@'),
+                                      'type'  => $profileUrlMeta !== '' ? 'link' : 'text',
+                                      'href'  => $profileUrlMeta,
+                                  ];
+                              }
+
                               $profileFieldMap = [
                                   $this->decodeEntities('&#1513;&#1501;&#32;&#1508;&#1512;&#1496;&#1497;') => $orderData['profile']['first_name'] ?? '',
                                   $this->decodeEntities('&#1513;&#1501;&#32;&#1502;&#1513;&#1508;&#1495;&#1492;') => $orderData['profile']['last_name'] ?? '',
@@ -577,6 +596,8 @@ final class ProducerApprovalsShortcode implements Service
                                             <a href="mailto:<?php echo esc_attr($row['href']); ?>"><?php echo esc_html($row['value']); ?></a>
                                           <?php elseif ($row['type'] === 'phone' && ($row['href'] ?? '') !== ''): ?>
                                             <a href="tel:<?php echo esc_attr($row['href']); ?>"><?php echo esc_html($row['value']); ?></a>
+                                          <?php elseif ($row['type'] === 'link' && ($row['href'] ?? '') !== ''): ?>
+                                            <a href="<?php echo esc_url($row['href']); ?>" target="_blank" rel="noopener"><?php echo esc_html($row['value']); ?></a>
                                           <?php else: ?>
                                             <?php echo esc_html($row['value']); ?>
                                           <?php endif; ?>
@@ -987,6 +1008,20 @@ final class ProducerApprovalsShortcode implements Service
                 'whatsapp'   => '',
             ];
 
+        $profileUsername = '';
+        $profileUrl = '';
+        if ($userId) {
+            $userObject = get_userdata($userId);
+            if ($userObject instanceof \WP_User) {
+                $rawSlug = (string) ($userObject->user_nicename ?: $userObject->user_login);
+                $slug = sanitize_title($rawSlug);
+                if ($slug !== '') {
+                    $profileUsername = $slug;
+                    $profileUrl = home_url('/user/' . rawurlencode($slug) . '/');
+                }
+            }
+        }
+
         $status = $order->get_status();
         $statusLabel = function_exists('wc_get_order_status_name')
             ? wc_get_order_status_name('wc-' . $status)
@@ -1005,6 +1040,11 @@ final class ProducerApprovalsShortcode implements Service
                 'name'  => trim($order->get_formatted_billing_full_name()) ?: $order->get_billing_first_name() ?: ($order->get_user() ? $order->get_user()->display_name : $this->decodeEntities('&#1500;&#1511;&#1493;&#1495;&#32;&#1488;&#1504;&#1493;&#1504;&#1497;&#1502;&#1497;')),
                 'email' => $order->get_billing_email(),
                 'phone' => $order->get_billing_phone(),
+            ],
+            'customer_profile'   => [
+                'username' => $profileUsername,
+                'url'      => $profileUrl,
+                'user_id'  => $userId,
             ],
             'profile'             => $profile,
             'primary_id_number'   => $this->findPrimaryIdNumber($attendeesList),
