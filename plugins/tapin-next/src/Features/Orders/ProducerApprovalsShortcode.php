@@ -322,7 +322,13 @@ final class ProducerApprovalsShortcode implements Service
           .tapin-pa-event.is-open .tapin-pa-event__chevron{transform:rotate(180deg)}
           .tapin-pa-event__panel{padding:0 18px 18px;display:none}
           .tapin-pa-event.is-open .tapin-pa-event__panel{display:block}
-          .tapin-pa-order{border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-top:14px;background:#fff}
+          .tapin-pa-order{position:relative;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-top:18px;background:#ffffff;transition:background-color .25s ease,border-color .25s ease,box-shadow .25s ease;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+          .tapin-pa-order--alt{background:#eef2ff;border-color:#c7d2fe;box-shadow:0 10px 26px rgba(59,130,246,.12)}
+          .tapin-pa-order::after{content:'';position:absolute;inset:-1px auto -1px -1px;width:5px;border-radius:14px 0 0 14px;background:#e2e8f0;transition:background-color .25s ease}
+          .tapin-pa-order.tapin-pa-order--pending::after{background:#fbbf24}
+          .tapin-pa-order.tapin-pa-order--approved::after{background:#22c55e}
+          .tapin-pa-order.tapin-pa-order--cancelled::after{background:#ef4444}
+          .tapin-pa-order + .tapin-pa-order{margin-top:24px}
           .tapin-pa-order__header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
           .tapin-pa-order__left{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
           .tapin-pa-order__checkbox{width:18px;height:18px}
@@ -404,15 +410,17 @@ final class ProducerApprovalsShortcode implements Service
                     </button>
                     <div class="tapin-pa-event__panel"<?php echo $isOpen ? '' : ' hidden'; ?>>
                       <?php if (!empty($event['orders'])): ?>
-                        <?php foreach ($event['orders'] as $orderData): ?>
+                        <?php foreach ($event['orders'] as $orderIndex => $orderData): ?>
                           <?php
                           $statusLabel = $orderData['status_type'] === 'pending'
                               ? $this->decodeEntities('&#1502;&#1502;&#1514;&#1497;&#1504;&#1497;&#1501;')
                               : ($orderData['status_type'] === 'approved'
                                   ? $this->decodeEntities('&#1488;&#1493;&#1513;&#1512;')
                                   : $this->decodeEntities('&#1502;&#1489;&#1493;&#1496;&#1500;'));
+                          $statusClass = 'tapin-pa-order--' . sanitize_html_class($orderData['status_type']);
+                          $altClass = ($orderIndex % 2 === 1) ? ' tapin-pa-order--alt' : '';
                           ?>
-                          <article class="tapin-pa-order tapin-pa-order--<?php echo esc_attr($orderData['status_type']); ?>" data-search="<?php echo esc_attr($orderData['search_blob']); ?>">
+                          <article class="tapin-pa-order <?php echo esc_attr($statusClass); ?><?php echo $altClass; ?>" data-search="<?php echo esc_attr($orderData['search_blob']); ?>">
                             <header class="tapin-pa-order__header">
                               <div class="tapin-pa-order__left">
                                 <?php if ($orderData['is_pending']): ?>
