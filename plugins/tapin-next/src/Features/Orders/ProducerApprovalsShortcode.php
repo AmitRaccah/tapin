@@ -337,20 +337,40 @@ final class ProducerApprovalsShortcode implements Service
           .tapin-pa-order--pending .tapin-pa-order__status{background:rgba(234,179,8,.18);color:#92400e}
           .tapin-pa-order--approved .tapin-pa-order__status{background:rgba(22,163,74,.18);color:#065f46}
           .tapin-pa-order--cancelled .tapin-pa-order__status{background:rgba(248,113,113,.18);color:#991b1b}
-          .tapin-pa-order__body{margin-top:12px;display:grid;gap:10px;font-size:.92rem;color:#1f2937}
-          .tapin-pa-order__body strong{color:#0f172a}
+          .tapin-pa-order__body{margin-top:18px;display:grid;gap:20px;font-size:.94rem;color:#0f172a}
+          .tapin-pa-order__section{display:grid;gap:12px}
+          .tapin-pa-order__section + .tapin-pa-order__section{margin-top:6px}
+          .tapin-pa-order__section-title{margin:0;font-size:.95rem;font-weight:700;color:#1f2937}
+          .tapin-pa-order__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 18px}
+          .tapin-pa-order__card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:12px;display:grid;gap:4px}
+          .tapin-pa-order--alt .tapin-pa-order__card{background:#ffffff;border-color:#c7d2fe;box-shadow:0 6px 16px rgba(59,130,246,.12)}
+          .tapin-pa-order__label{font-size:.82rem;color:#64748b;font-weight:600}
+          .tapin-pa-order__value{word-break:break-word;color:#0f172a;font-weight:500}
+          .tapin-pa-order__value a{color:#2563eb;text-decoration:none}
+          .tapin-pa-order__value a:hover{text-decoration:underline}
           .tapin-pa-order__lines{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:.88rem;color:#475569}
-          .tapin-pa-attendees{border-top:1px solid #e2e8f0;margin-top:12px;padding-top:12px;display:grid;gap:10px}
-          .tapin-pa-attendee{border:1px solid #e2e8f0;border-radius:12px;padding:12px;background:#f9fafb}
-          .tapin-pa-attendee h5{margin:0 0 8px;font-size:.95rem;color:#0f172a}
-          .tapin-pa-attendee__list{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:.86rem;color:#374151}
-          .tapin-pa-attendee__label{min-width:82px;color:#475569;font-weight:600}
-          .tapin-pa-attendee__list li{display:flex;gap:6px;flex-wrap:wrap}
+          .tapin-pa-attendees{display:grid;gap:16px;border-radius:14px}
+          .tapin-pa-attendees__grid{display:grid;gap:14px}
+          .tapin-pa-order--alt .tapin-pa-attendees{background:#eef2ff;border:1px solid #c7d2fe;padding:18px}
+          .tapin-pa-order:not(.tapin-pa-order--alt) .tapin-pa-attendees{background:#f8fafc;border:1px solid #e2e8f0;padding:18px}
+          .tapin-pa-attendee{background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;box-shadow:0 6px 14px rgba(15,23,42,.06);display:grid;gap:12px}
+          .tapin-pa-order--alt .tapin-pa-attendee{background:#f5f3ff;border-color:#c7d2fe}
+          .tapin-pa-attendee__header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+          .tapin-pa-attendee__title{margin:0;font-size:1rem;font-weight:700;color:#111827}
+          .tapin-pa-attendee__badge{background:#fde68a;color:#92400e;padding:4px 8px;border-radius:999px;font-size:.75rem;font-weight:600}
+          .tapin-pa-attendee__list{list-style:none;margin:0;padding:0;display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+          .tapin-pa-attendee__label{font-size:.8rem;color:#64748b;font-weight:600;margin-bottom:2px}
+          .tapin-pa-attendee__value{font-weight:500;color:#0f172a}
+          .tapin-pa-attendee__list li{display:flex;flex-direction:column;gap:2px;word-break:break-word}
+          .tapin-pa-attendee__list a{color:#2563eb;text-decoration:none}
+          .tapin-pa-attendee__list a:hover{text-decoration:underline}
           .tapin-pa-empty{padding:48px 12px;border:2px dashed #cbd5f5;border-radius:16px;text-align:center;color:#64748b;font-size:1rem;background:#f8fafc}
           @media (max-width:640px){
             .tapin-pa-event__header{flex-direction:column;align-items:flex-start}
             .tapin-pa-order__header{flex-direction:column;align-items:flex-start}
             .tapin-pa-order__meta{flex-direction:column;align-items:flex-start}
+            .tapin-pa-order__grid{grid-template-columns:1fr}
+            .tapin-pa-attendee__list{grid-template-columns:1fr}
             .tapin-pa__buttons{width:100%}
             .tapin-pa__buttons .btn{flex:1 1 auto;text-align:center}
           }
@@ -440,30 +460,50 @@ final class ProducerApprovalsShortcode implements Service
                               <span class="tapin-pa-order__status"><?php echo esc_html($statusLabel); ?></span>
                             </header>
                             <div class="tapin-pa-order__body">
-                              <div>
-                                <strong><?php echo esc_html($this->decodeEntities('&#1513;&#1502;&#32;&#1492;&#1500;&#1511;&#1493;&#1495;')); ?>:</strong>
-                                <span><?php echo esc_html($orderData['customer']['name'] ?? ''); ?></span>
-                              </div>
-                              <?php if (!empty($orderData['customer']['email'])): ?>
-                                <div>
-                                  <strong>Email:</strong>
-                                  <a href="mailto:<?php echo esc_attr($orderData['customer']['email']); ?>"><?php echo esc_html($orderData['customer']['email']); ?></a>
-                                </div>
-                              <?php endif; ?>
-                              <?php if (!empty($orderData['customer']['phone'])): ?>
-                                <div>
-                                  <strong><?php echo esc_html($this->decodeEntities('&#1496;&#1500;&#1508;&#1493;&#1503;')); ?>:</strong>
-                                  <a href="tel:<?php echo esc_attr($orderData['customer']['phone']); ?>"><?php echo esc_html($orderData['customer']['phone']); ?></a>
-                                </div>
-                              <?php endif; ?>
-                              <?php if (!empty($orderData['primary_id_number'])): ?>
-                                <div>
-                                  <strong><?php echo esc_html($this->decodeEntities('&#1514;&#1506;&#1493;&#1491;&#1514;&#32;&#1494;&#1492;&#1493;&#1514;')); ?>:</strong>
-                                  <span><?php echo esc_html($orderData['primary_id_number']); ?></span>
-                                </div>
-                              <?php endif; ?>
                               <?php
-                              $profileFields = [
+                              $contactRows = [];
+                              $nameValue = trim((string) ($orderData['customer']['name'] ?? ''));
+                              if ($nameValue !== '') {
+                                  $contactRows[] = [
+                                      'label' => $this->decodeEntities('&#1513;&#1502;&#32;&#1492;&#1500;&#1511;&#1493;&#1495;'),
+                                      'value' => $nameValue,
+                                      'type'  => 'text',
+                                      'href'  => '',
+                                  ];
+                              }
+
+                              $customerEmail = trim((string) ($orderData['customer']['email'] ?? ''));
+                              if ($customerEmail !== '') {
+                                  $contactRows[] = [
+                                      'label' => 'Email',
+                                      'value' => $customerEmail,
+                                      'type'  => 'email',
+                                      'href'  => $customerEmail,
+                                  ];
+                              }
+
+                              $customerPhone = trim((string) ($orderData['customer']['phone'] ?? ''));
+                              if ($customerPhone !== '') {
+                                  $digitsOnly = preg_replace('/\D+/', '', $customerPhone);
+                                  $telHref = preg_replace('/[^0-9+]/', '', $customerPhone);
+                                  $contactRows[] = [
+                                      'label' => $this->decodeEntities('&#1496;&#1500;&#1508;&#1493;&#1503;'),
+                                      'value' => $customerPhone,
+                                      'type'  => $digitsOnly !== '' ? 'phone' : 'text',
+                                      'href'  => $telHref !== '' ? $telHref : $digitsOnly,
+                                  ];
+                              }
+
+                              if (!empty($orderData['primary_id_number'])) {
+                                  $contactRows[] = [
+                                      'label' => $this->decodeEntities('&#1514;&#1506;&#1493;&#1491;&#1514;&#32;&#1494;&#1492;&#1493;&#1514;'),
+                                      'value' => (string) $orderData['primary_id_number'],
+                                      'type'  => 'text',
+                                      'href'  => '',
+                                  ];
+                              }
+
+                              $profileFieldMap = [
                                   $this->decodeEntities('&#1513;&#1501;&#32;&#1508;&#1512;&#1496;&#1497;') => $orderData['profile']['first_name'] ?? '',
                                   $this->decodeEntities('&#1513;&#1501;&#32;&#1502;&#1513;&#1508;&#1495;&#1492;') => $orderData['profile']['last_name'] ?? '',
                                   $this->decodeEntities('&#1514;&#1488;&#1512;&#1497;&#1498;&#32;&#1500;&#1497;&#1491;&#1492;') => $orderData['profile']['birthdate'] ?? '',
@@ -472,14 +512,100 @@ final class ProducerApprovalsShortcode implements Service
                                   'Instagram' => $orderData['profile']['instagram'] ?? '',
                                   'WhatsApp' => $orderData['profile']['whatsapp'] ?? '',
                               ];
+
+                              $profileRows = [];
+                              foreach ($profileFieldMap as $label => $rawValue) {
+                                  $value = trim((string) $rawValue);
+                                  if ($value === '') {
+                                      continue;
+                                  }
+
+                                  $type = 'text';
+                                  $href = '';
+                                  $displayValue = $value;
+
+                                  if ($label === 'Facebook' || $label === 'Instagram') {
+                                      $candidate = $value;
+                                      if ($label === 'Instagram') {
+                                          $handle = $this->trimHandle($value);
+                                          if ($handle !== '') {
+                                              $candidate = 'https://instagram.com/' . ltrim($handle, '@');
+                                              $displayValue = $handle;
+                                          } else {
+                                              $altHandle = $this->trimHandle('@' . ltrim($value, '@/'));
+                                              if ($altHandle !== '') {
+                                                  $displayValue = $altHandle;
+                                              }
+                                          }
+                                      }
+
+                                      if (!preg_match('#^https?://#i', $candidate)) {
+                                          $candidate = 'https://' . ltrim($candidate, '/');
+                                      }
+
+                                      $isValidUrl = filter_var($candidate, FILTER_VALIDATE_URL);
+                                      if ($isValidUrl) {
+                                          $type = 'link';
+                                          $href = $candidate;
+                                      }
+                                  } elseif ($label === 'WhatsApp') {
+                                      $digits = preg_replace('/\D+/', '', $value);
+                                      if ($digits !== '') {
+                                          $type = 'link';
+                                          $href = 'https://wa.me/' . $digits;
+                                      }
+                                  }
+
+                                  $profileRows[] = [
+                                      'label' => $label,
+                                      'value' => $displayValue,
+                                      'type'  => $type,
+                                      'href'  => $href,
+                                  ];
+                              }
                               ?>
-                              <div class="tapin-pa-order__meta">
-                                <?php foreach ($profileFields as $label => $value): ?>
-                                  <?php if ($value): ?>
-                                    <span><strong><?php echo esc_html($label); ?>:</strong> <?php echo esc_html($value); ?></span>
-                                  <?php endif; ?>
-                                <?php endforeach; ?>
-                              </div>
+
+                              <?php if ($contactRows): ?>
+                                <div class="tapin-pa-order__section">
+                                  <h5 class="tapin-pa-order__section-title"><?php echo esc_html($this->decodeEntities('&#1508;&#1512;&#1496;&#1497;&#32;&#1500;&#1511;&#1493;&#1495;')); ?></h5>
+                                  <div class="tapin-pa-order__grid">
+                                    <?php foreach ($contactRows as $row): ?>
+                                      <div class="tapin-pa-order__card">
+                                        <span class="tapin-pa-order__label"><?php echo esc_html($row['label']); ?></span>
+                                        <span class="tapin-pa-order__value">
+                                          <?php if ($row['type'] === 'email'): ?>
+                                            <a href="mailto:<?php echo esc_attr($row['href']); ?>"><?php echo esc_html($row['value']); ?></a>
+                                          <?php elseif ($row['type'] === 'phone' && ($row['href'] ?? '') !== ''): ?>
+                                            <a href="tel:<?php echo esc_attr($row['href']); ?>"><?php echo esc_html($row['value']); ?></a>
+                                          <?php else: ?>
+                                            <?php echo esc_html($row['value']); ?>
+                                          <?php endif; ?>
+                                        </span>
+                                      </div>
+                                    <?php endforeach; ?>
+                                  </div>
+                                </div>
+                              <?php endif; ?>
+
+                              <?php if ($profileRows): ?>
+                                <div class="tapin-pa-order__section">
+                                  <h5 class="tapin-pa-order__section-title"><?php echo esc_html($this->decodeEntities('&#1508;&#1512;&#1496;&#1497;&#32;&#1508;&#1512;&#1493;&#1508;&#1497;&#1500;')); ?></h5>
+                                  <div class="tapin-pa-order__grid">
+                                    <?php foreach ($profileRows as $row): ?>
+                                      <div class="tapin-pa-order__card">
+                                        <span class="tapin-pa-order__label"><?php echo esc_html($row['label']); ?></span>
+                                        <span class="tapin-pa-order__value">
+                                          <?php if ($row['type'] === 'link' && ($row['href'] ?? '') !== ''): ?>
+                                            <a href="<?php echo esc_url($row['href']); ?>" target="_blank" rel="noopener"><?php echo esc_html($row['value']); ?></a>
+                                          <?php else: ?>
+                                            <?php echo esc_html($row['value']); ?>
+                                          <?php endif; ?>
+                                        </span>
+                                      </div>
+                                    <?php endforeach; ?>
+                                  </div>
+                                </div>
+                              <?php endif; ?>
                               <?php if (!empty($orderData['lines'])): ?>
                                 <ul class="tapin-pa-order__lines">
                                   <?php foreach ($orderData['lines'] as $line): ?>
@@ -504,34 +630,150 @@ final class ProducerApprovalsShortcode implements Service
                                 </ul>
                               <?php endif; ?>
                               <?php if (!empty($orderData['attendees'])): ?>
-                                <div class="tapin-pa-attendees">
-                                  <?php foreach ($orderData['attendees'] as $attendee): ?>
-                                    <div class="tapin-pa-attendee">
-                                      <?php if (!empty($attendee['full_name'])): ?>
-                                        <h5><?php echo esc_html($attendee['full_name']); ?></h5>
-                                      <?php endif; ?>
-                                      <ul class="tapin-pa-attendee__list">
-                                        <?php if (!empty($attendee['email'])): ?>
-                                          <li><span class="tapin-pa-attendee__label">Email:</span><a href="mailto:<?php echo esc_attr($attendee['email']); ?>"><?php echo esc_html($attendee['email']); ?></a></li>
+                                <div class="tapin-pa-order__section tapin-pa-attendees">
+                                  <h5 class="tapin-pa-order__section-title"><?php echo esc_html($this->decodeEntities('&#1502;&#1493;&#1494;&#1502;&#1504;&#1497;&#1501;')); ?></h5>
+                                  <div class="tapin-pa-attendees__grid">
+                                    <?php foreach ($orderData['attendees'] as $attendee): ?>
+                                      <?php
+                                      $attendeeRows = [];
+
+                                      if (!empty($attendee['email'])) {
+                                          $email = trim((string) $attendee['email']);
+                                          if ($email !== '') {
+                                              $attendeeRows[] = [
+                                                  'label' => 'Email',
+                                                  'value' => $email,
+                                                  'type'  => 'email',
+                                                  'href'  => $email,
+                                              ];
+                                          }
+                                      }
+
+                                      if (!empty($attendee['phone'])) {
+                                          $phone = trim((string) $attendee['phone']);
+                                          if ($phone !== '') {
+                                              $digits = preg_replace('/\D+/', '', $phone);
+                                              $href = preg_replace('/[^0-9+]/', '', $phone);
+                                              $attendeeRows[] = [
+                                                  'label' => $this->decodeEntities('&#1496;&#1500;&#1508;&#1493;&#1503;'),
+                                                  'value' => $phone,
+                                                  'type'  => $digits !== '' ? 'phone' : 'text',
+                                                  'href'  => $href !== '' ? $href : $digits,
+                                              ];
+                                          }
+                                      }
+
+                                      if (!empty($attendee['id_number'])) {
+                                          $idNumber = trim((string) $attendee['id_number']);
+                                          if ($idNumber !== '') {
+                                              $attendeeRows[] = [
+                                                  'label' => $this->decodeEntities('&#1514;&#1506;&#1493;&#1491;&#1514;&#32;&#1494;&#1492;&#1493;&#1514;'),
+                                                  'value' => $idNumber,
+                                                  'type'  => 'text',
+                                                  'href'  => '',
+                                              ];
+                                          }
+                                      }
+
+                                      if (!empty($attendee['birth_date'])) {
+                                          $birthDate = trim((string) $attendee['birth_date']);
+                                          if ($birthDate !== '') {
+                                              $attendeeRows[] = [
+                                                  'label' => $this->decodeEntities('&#1514;&#1488;&#1512;&#1497;&#1498;&#32;&#1500;&#1497;&#1491;&#1492;'),
+                                                  'value' => $birthDate,
+                                                  'type'  => 'text',
+                                                  'href'  => '',
+                                              ];
+                                          }
+                                      }
+
+                                      if (!empty($attendee['instagram'])) {
+                                          $instagramRaw = trim((string) $attendee['instagram']);
+                                          if ($instagramRaw !== '') {
+                                              $candidate = $instagramRaw;
+                                              $display = $this->trimHandle($instagramRaw);
+                                              if ($display === '') {
+                                                  $display = $instagramRaw;
+                                              }
+                                      if (!preg_match('#^https?://#i', $candidate)) {
+                                          $candidate = 'https://' . ltrim($candidate, '/');
+                                      }
+                                      $isValidUrl = filter_var($candidate, FILTER_VALIDATE_URL);
+                                      $attendeeRows[] = [
+                                          'label' => 'Instagram',
+                                          'value' => $display,
+                                          'type'  => $isValidUrl ? 'link' : 'text',
+                                          'href'  => $isValidUrl ? $candidate : '',
+                                      ];
+                                          }
+                                      }
+
+                                      if (!empty($attendee['facebook'])) {
+                                          $facebookRaw = trim((string) $attendee['facebook']);
+                                          if ($facebookRaw !== '') {
+                                              $candidate = $facebookRaw;
+                                      if (!preg_match('#^https?://#i', $candidate)) {
+                                          $candidate = 'https://' . ltrim($candidate, '/');
+                                      }
+                                      $isValidUrl = filter_var($candidate, FILTER_VALIDATE_URL);
+                                      $attendeeRows[] = [
+                                          'label' => 'Facebook',
+                                          'value' => $facebookRaw,
+                                          'type'  => $isValidUrl ? 'link' : 'text',
+                                          'href'  => $isValidUrl ? $candidate : '',
+                                      ];
+                                          }
+                                      }
+
+                                      if (!empty($attendee['whatsapp'])) {
+                                          $whatsappRaw = trim((string) $attendee['whatsapp']);
+                                          if ($whatsappRaw !== '') {
+                                              $digits = preg_replace('/\D+/', '', $whatsappRaw);
+                                              if ($digits !== '') {
+                                                  $attendeeRows[] = [
+                                                      'label' => 'WhatsApp',
+                                                      'value' => $whatsappRaw,
+                                                      'type'  => 'link',
+                                                      'href'  => 'https://wa.me/' . $digits,
+                                                  ];
+                                              }
+                                          }
+                                      }
+                                      ?>
+
+                                      <div class="tapin-pa-attendee">
+                                        <div class="tapin-pa-attendee__header">
+                                          <h6 class="tapin-pa-attendee__title">
+                                            <?php
+                                            $displayName = trim((string) ($attendee['full_name'] ?? ''));
+                                            echo esc_html($displayName !== '' ? $displayName : $this->decodeEntities('&#1488;&#1493;&#1512;&#1495;'));
+                                            ?>
+                                          </h6>
+                                          <span class="tapin-pa-attendee__badge"><?php echo esc_html($this->decodeEntities('&#1502;&#1493;&#1494;&#1502;&#1503;&#47;&#1514;')); ?></span>
+                                        </div>
+                                        <?php if ($attendeeRows): ?>
+                                          <ul class="tapin-pa-attendee__list">
+                                            <?php foreach ($attendeeRows as $row): ?>
+                                              <li>
+                                                <span class="tapin-pa-attendee__label"><?php echo esc_html($row['label']); ?></span>
+                                                <span class="tapin-pa-attendee__value">
+                                                  <?php if ($row['type'] === 'email'): ?>
+                                                    <a href="mailto:<?php echo esc_attr($row['href']); ?>"><?php echo esc_html($row['value']); ?></a>
+                                                  <?php elseif ($row['type'] === 'phone' && ($row['href'] ?? '') !== ''): ?>
+                                                    <a href="tel:<?php echo esc_attr($row['href']); ?>"><?php echo esc_html($row['value']); ?></a>
+                                                  <?php elseif ($row['type'] === 'link' && ($row['href'] ?? '') !== ''): ?>
+                                                    <a href="<?php echo esc_url($row['href']); ?>" target="_blank" rel="noopener"><?php echo esc_html($row['value']); ?></a>
+                                                  <?php else: ?>
+                                                    <?php echo esc_html($row['value']); ?>
+                                                  <?php endif; ?>
+                                                </span>
+                                              </li>
+                                            <?php endforeach; ?>
+                                          </ul>
                                         <?php endif; ?>
-                                        <?php if (!empty($attendee['phone'])): ?>
-                                          <li><span class="tapin-pa-attendee__label"><?php echo esc_html($this->decodeEntities('&#1496;&#1500;&#1508;&#1493;&#1503;')); ?>:</span><a href="tel:<?php echo esc_attr($attendee['phone']); ?>"><?php echo esc_html($attendee['phone']); ?></a></li>
-                                        <?php endif; ?>
-                                        <?php if (!empty($attendee['id_number'])): ?>
-                                          <li><span class="tapin-pa-attendee__label"><?php echo esc_html($this->decodeEntities('&#1514;&#1506;&#1493;&#1491;&#1514;&#32;&#1494;&#1492;&#1493;&#1514;')); ?>:</span><span><?php echo esc_html($attendee['id_number']); ?></span></li>
-                                        <?php endif; ?>
-                                        <?php if (!empty($attendee['birth_date'])): ?>
-                                          <li><span class="tapin-pa-attendee__label"><?php echo esc_html($this->decodeEntities('&#1514;&#1488;&#1512;&#1497;&#1498;&#32;&#1500;&#1497;&#1491;&#1492;')); ?>:</span><span><?php echo esc_html($attendee['birth_date']); ?></span></li>
-                                        <?php endif; ?>
-                                        <?php if (!empty($attendee['instagram'])): ?>
-                                          <li><span class="tapin-pa-attendee__label">Instagram:</span><a href="<?php echo esc_url($attendee['instagram']); ?>" target="_blank" rel="noopener"><?php echo esc_html($this->trimHandle($attendee['instagram'])); ?></a></li>
-                                        <?php endif; ?>
-                                        <?php if (!empty($attendee['facebook'])): ?>
-                                          <li><span class="tapin-pa-attendee__label">Facebook:</span><a href="<?php echo esc_url($attendee['facebook']); ?>" target="_blank" rel="noopener"><?php echo esc_html($attendee['facebook']); ?></a></li>
-                                        <?php endif; ?>
-                                      </ul>
-                                    </div>
-                                  <?php endforeach; ?>
+                                      </div>
+                                    <?php endforeach; ?>
+                                  </div>
                                 </div>
                               <?php endif; ?>
                             </div>
