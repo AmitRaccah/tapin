@@ -11,31 +11,31 @@ final class AttendeeFields
      */
     private const DEFINITIONS = [
         'email'      => [
-            'label' => '&#1488;&#1497;&#1502;&#1497;&#1500;',
+            'label' => 'אימייל',
             'type'  => 'email',
         ],
         'instagram'  => [
-            'label' => '&#1488;&#1497;&#1504;&#1505;&#1496;&#1490;&#1512;&#1501;',
+            'label' => 'אינסטגרם',
             'type'  => 'text',
         ],
         'facebook'   => [
-            'label' => '&#1508;&#1497;&#1495;&#1505;&#1489;&#1493;&#1511;',
+            'label' => 'פייסבוק',
             'type'  => 'text',
         ],
         'full_name'  => [
-            'label' => '&#1513;&#1501;&#32;&#1502;&#1500;&#1488;',
+            'label' => 'שם מלא',
             'type'  => 'text',
         ],
         'birth_date' => [
-            'label' => '&#1514;&#1488;&#1512;&#1497;&#1498;&#32;&#1500;&#1491;&#1492;',
+            'label' => 'תאריך לידה',
             'type'  => 'date',
         ],
         'phone'      => [
-            'label' => '&#1502;&#1505;&#1508;&#1512;&#32;&#1496;&#1500;&#1508;&#1493;&#1503;',
+            'label' => 'מספר טלפון',
             'type'  => 'text',
         ],
         'id_number'  => [
-            'label' => '&#1514;&#1506;&#1493;&#1491;&#1514;&#32;&#1494;&#1492;&#1493;&#1514;',
+            'label' => 'תעודת זהות',
             'type'  => 'text',
         ],
     ];
@@ -140,12 +140,23 @@ final class AttendeeFields
 
         switch ($key) {
             case 'email':
-                return sanitize_email($value);
+                $sanitized = sanitize_email($value);
+                if ($sanitized === '' || strpos($sanitized, '@') === false) {
+                    return '';
+                }
+                return $sanitized;
 
             case 'phone':
+                return self::normalizePhone($value);
+
             case 'id_number':
-                $value = preg_replace('/\s+/', '', $value);
-                return sanitize_text_field((string) $value);
+                return self::normalizeIdNumber($value);
+
+            case 'instagram':
+                return self::normalizeInstagramHandle($value);
+
+            case 'facebook':
+                return self::normalizeFacebookUrl($value);
 
             case 'birth_date':
                 return self::normalizeBirthDate($value);
@@ -153,6 +164,132 @@ final class AttendeeFields
             default:
                 return sanitize_text_field($value);
         }
+    }
+
+    public static function displayValue(string $key, string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        switch ($key) {
+            case 'email':
+                $email = sanitize_email($value);
+                return $email !== '' ? $email : sanitize_text_field($value);
+
+            case 'phone':
+                $digits = preg_replace('/\D+/', '', $value);
+                return strpos($value, '+') === 0 ? '+' . $digits : $digits;
+
+            case 'id_number':
+                $digits = preg_replace('/\D+/', '', $value);
+                return $digits;
+
+            case 'instagram':
+                if (preg_match('#instagram\.com/([^/?#]+)#i', $value, $matches)) {
+                    return 'https://instagram.com/' . $matches[1];
+                }
+                if ($value[0] === '@') {
+                    $handle = ltrim($value, '@/');
+                    return $handle !== '' ? 'https://instagram.com/' . $handle : '';
+                }
+                if (preg_match('/^[A-Za-z0-9._]{1,30}$/', $value)) {
+                    return 'https://instagram.com/' . $value;
+                }
+                $url = esc_url_raw($value, ['http', 'https']);
+                return $url !== '' ? $url : sanitize_text_field($value);
+
+            case 'facebook':
+                if (stripos($value, 'facebook') === false) {
+                    $handle = ltrim($value, '@/');
+                    if ($handle === '' || !preg_match('/^[A-Za-z0-9._-]{1,50}$/', $handle)) {
+                        return '';
+                    }
+                    return 'https://facebook.com/' . $handle;
+                }
+                if (!preg_match('#^https?://#i', $value)) {
+                    $value = 'https://' . ltrim($value, '/');
+                }
+                $url = esc_url_raw($value, ['http', 'https']);
+                if ($url !== '' && stripos($url, 'facebook') !== false) {
+                    return $url;
+                }
+                return sanitize_text_field($value);
+
+            case 'birth_date':
+                return self::normalizeBirthDate($value) ?: sanitize_text_field($value);
+
+            default:
+                return sanitize_text_field($value);
+        }
+    }
+
+    private static function normalizePhone(string $value): string
+    {
+        $digits = preg_replace('/\D+/', '', $value);
+        if (strlen($digits) < 10) {
+            return '';
+        }
+
+        return (strpos($value, '+') === 0) ? '+' . $digits : $digits;
+    }
+
+    private static function normalizeIdNumber(string $value): string
+    {
+        $digits = preg_replace('/\D+/', '', $value);
+        if (strlen($digits) !== 9) {
+            return '';
+        }
+        return $digits;
+    }
+
+    private static function normalizeInstagramHandle(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        $handle = '';
+        if (preg_match('#instagram\.com/([^/?#]+)#i', $value, $matches)) {
+            $handle = $matches[1];
+        } else {
+            $handle = ltrim($value, '@/');
+        }
+
+        if ($handle === '' || !preg_match('/^[A-Za-z0-9._]{1,30}$/', $handle)) {
+            return '';
+        }
+
+        return 'https://instagram.com/' . $handle;
+    }
+
+    private static function normalizeFacebookUrl(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (stripos($value, 'facebook') === false) {
+            $handle = ltrim($value, '@/');
+            if ($handle === '' || !preg_match('/^[A-Za-z0-9._-]{1,50}$/', $handle)) {
+                return '';
+            }
+            return 'https://facebook.com/' . $handle;
+        }
+
+        if (!preg_match('#^https?://#i', $value)) {
+            $value = 'https://' . ltrim($value, '/');
+        }
+
+        $url = esc_url_raw($value, ['http', 'https']);
+        if ($url === '' || stripos($url, 'facebook') === false) {
+            return '';
+        }
+
+        return $url;
     }
 
     private static function decodeEntities(string $value): string

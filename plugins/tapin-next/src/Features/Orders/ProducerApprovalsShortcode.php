@@ -234,7 +234,7 @@ final class ProducerApprovalsShortcode implements Service
                       </td>
                       <td class="muted">
                         <?php echo $order['profile']['instagram']
-                            ? '<a href="' . esc_url($order['profile']['instagram']) . '" target="_blank" rel="noopener">@' . esc_html($this->trimHandle($order['profile']['instagram'])) . '</a>'
+                            ? '<a href="' . esc_url($order['profile']['instagram']) . '" target="_blank" rel="noopener">' . esc_html($this->trimHandle($order['profile']['instagram'])) . '</a>'
                             : '<span class="muted">-</span>'; ?>
                       </td>
                       <td class="muted">
@@ -249,20 +249,20 @@ final class ProducerApprovalsShortcode implements Service
                       <td><?php echo esc_html($order['date']); ?></td>
                     </tr>
                     <?php
-                    $extraAttendees = array_slice($order['attendees'], 1);
-                    if ($extraAttendees):
+                    $attendeeCards = $order['attendees'];
+                    if ($attendeeCards):
                     ?>
                       <tr class="tapin-pa__attendees-row">
                         <td></td>
                         <td colspan="11">
                           <div class="tapin-pa__attendees">
-                            <?php foreach ($extraAttendees as $offset => $attendee): ?>
+                            <?php foreach ($attendeeCards as $offset => $attendee): ?>
                               <?php
                               $displayName = trim((string) ($attendee['full_name'] ?? ''));
                               $header = sprintf(
                                   '%s %d%s',
                                   $this->decodeEntities('משתתף'),
-                                  $offset + 2,
+                                  $offset + 1,
                                   $displayName !== '' ? ' - ' . $displayName : ''
                               );
                               ?>
@@ -335,26 +335,34 @@ final class ProducerApprovalsShortcode implements Service
             headers.forEach(function (header) {
               header.addEventListener('click', function () {
                 var tbody = table.tBodies[0];
-                var rows = Array.from(tbody.querySelectorAll('tr')).filter(function (row) {
-                  return !row.classList.contains('tapin-pa__attendees-row');
-                });
                 var columnIndex = Array.from(header.parentNode.children).indexOf(header);
                 var ascending = header.dataset.dir !== 'asc';
 
-                rows.sort(function (a, b) {
-                  var textA = (a.children[columnIndex].textContent || '').trim().toLowerCase();
-                  var textB = (b.children[columnIndex].textContent || '').trim().toLowerCase();
+                var pairs = [];
+                Array.from(tbody.querySelectorAll('tr')).forEach(function (row) {
+                  if (row.classList.contains('tapin-pa__attendees-row')) {
+                    return;
+                  }
+                  var detail = row.nextElementSibling;
+                  if (!(detail && detail.classList.contains('tapin-pa__attendees-row'))) {
+                    detail = null;
+                  }
+                  pairs.push({ master: row, detail: detail });
+                });
+
+                pairs.sort(function (a, b) {
+                  var textA = ((a.master.children[columnIndex] || {}).textContent || '').trim().toLowerCase();
+                  var textB = ((b.master.children[columnIndex] || {}).textContent || '').trim().toLowerCase();
                   if (textA < textB) return ascending ? -1 : 1;
                   if (textA > textB) return ascending ? 1 : -1;
                   return 0;
                 });
 
                 tbody.innerHTML = '';
-                rows.forEach(function (row) {
-                  tbody.appendChild(row);
-                  var nextRow = row.nextElementSibling;
-                  if (nextRow && nextRow.classList.contains('tapin-pa__attendees-row')) {
-                    tbody.appendChild(nextRow);
+                pairs.forEach(function (pair) {
+                  tbody.appendChild(pair.master);
+                  if (pair.detail) {
+                    tbody.appendChild(pair.detail);
                   }
                 });
 
@@ -506,7 +514,9 @@ final class ProducerApprovalsShortcode implements Service
     {
         $normalized = [];
         foreach (AttendeeFields::keys() as $key) {
-            $normalized[$key] = AttendeeFields::sanitizeValue($key, (string) ($data[$key] ?? ''));
+            $raw = (string) ($data[$key] ?? '');
+            $sanitized = AttendeeFields::sanitizeValue($key, $raw);
+            $normalized[$key] = $sanitized !== '' ? $sanitized : AttendeeFields::displayValue($key, $raw);
         }
         return $normalized;
     }
@@ -542,7 +552,7 @@ final class ProducerApprovalsShortcode implements Service
 
     private function getUserProfile(int $userId): array
     {
-        return [
+        $profile = [
             'first_name' => $this->getUserMetaMulti($userId, ['first_name', 'um_first_name']),
             'last_name'  => $this->getUserMetaMulti($userId, ['last_name', 'um_last_name']),
             'birthdate'  => $this->getUserMetaMulti($userId, ['birth_date', 'date_of_birth', 'um_birthdate', 'birthdate']),
@@ -551,6 +561,12 @@ final class ProducerApprovalsShortcode implements Service
             'instagram'  => $this->getUserMetaMulti($userId, ['instagram', 'instagram_url']),
             'whatsapp'   => $this->getUserMetaMulti($userId, ['whatsapp', 'whatsapp_number', 'whatsapp_phone', 'phone_whatsapp']),
         ];
+
+        $profile['facebook']  = AttendeeFields::displayValue('facebook', $profile['facebook']);
+        $profile['instagram'] = AttendeeFields::displayValue('instagram', $profile['instagram']);
+        $profile['whatsapp']  = AttendeeFields::displayValue('phone', $profile['whatsapp']);
+
+        return $profile;
     }
 
     private function getUserMetaMulti(int $userId, array $keys): string
@@ -577,7 +593,18 @@ final class ProducerApprovalsShortcode implements Service
     private function trimHandle(string $value): string
     {
         $value = trim($value);
-        return ltrim($value, '@/');
+        if ($value === '') {
+            return '';
+        }
+
+        $handle = '';
+        if (preg_match('#instagram\.com/([^/?#]+)#i', $value, $matches)) {
+            $handle = $matches[1];
+        } else {
+            $handle = ltrim($value, '@/');
+        }
+
+        return $handle !== '' ? '@' . $handle : '';
     }
 
     private function decodeEntities(string $value): string
@@ -585,4 +612,7 @@ final class ProducerApprovalsShortcode implements Service
         return html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 }
+
+
+
 

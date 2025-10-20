@@ -2,18 +2,22 @@
   const config = window.TapinPurchaseModalData || {};
   const messages = Object.assign(
     {
-      title: 'פרטי משתתפים',
-      step: 'משתתף %1$s מתוך %2$s',
-      next: 'הבא',
-      finish: 'סיום והמשך לתשלום',
-      cancel: 'ביטול',
-      required: 'יש למלא את כל השדות',
-      invalidEmail: 'כתובת האימייל אינה תקינה',
+      title: '׳₪׳¨׳˜׳™ ׳׳©׳×׳×׳₪׳™׳',
+      step: '׳׳©׳×׳×׳£ %1 ׳׳×׳•׳ %2',
+      next: '׳”׳‘׳',
+      finish: '׳¡׳™׳•׳ ׳•׳”׳׳©׳ ׳׳×׳©׳׳•׳',
+      cancel: '׳‘׳™׳˜׳•׳',
+      required: '׳™׳© ׳׳׳׳ ׳׳× ׳›׳ ׳”׳©׳“׳•׳×',
+      invalidEmail: '׳›׳×׳•׳‘׳× ׳”׳׳™׳׳™׳™׳ ׳׳™׳ ׳” ׳×׳§׳™׳ ׳”',
+      invalidInstagram: 'Instagram handle must start with @ or include instagram.com',
+      invalidFacebook: 'Facebook link must include the word facebook',
+      invalidPhone: 'Phone number must contain at least 10 digits',
+      invalidId: 'ID number must be exactly 9 digits',
     },
     config.messages || {}
   );
-
   const fieldConfig = config.fields || {};
+  const LOCKED_KEYS = ['instagram', 'facebook', 'phone'];
   const fieldKeys = Object.keys(fieldConfig);
 
   function format(str, ...args) {
@@ -76,9 +80,23 @@
     function populateForm(index) {
       const values = getPrefill(index);
       fieldKeys.forEach((key) => {
-        const input = formContainer.querySelector('[data-field="' + key + '"]');
-        if (input) {
-          input.value = values[key] || '';
+        const input = formContainer.querySelector('[data-field=\"' + key + '\"]');
+        if (!input) {
+          return;
+        }
+
+        input.value = values[key] || '';
+
+        if (LOCKED_KEYS.includes(key)) {
+          if (index === 0 && values[key]) {
+            input.setAttribute('readonly', 'readonly');
+            input.dataset.locked = 'true';
+            input.classList.add('tapin-field--locked');
+          } else {
+            input.removeAttribute('readonly');
+            input.dataset.locked = 'false';
+            input.classList.remove('tapin-field--locked');
+          }
         }
       });
       resetErrors();
@@ -174,13 +192,14 @@
 
       fieldKeys.forEach((key) => {
         const field = fieldConfig[key] || {};
-        const input = formContainer.querySelector('[data-field="' + key + '"]');
+        const input = formContainer.querySelector('[data-field=\"' + key + '\"]');
         if (!input) {
           return;
         }
 
         const value = input.value.trim();
         const type = field.type || 'text';
+        const isLocked = input.dataset.locked === 'true';
 
         if (type === 'email') {
           const emailValid = /\S+@\S+\.\S+/.test(value);
@@ -188,9 +207,39 @@
             isValid = false;
             markInvalid(input, value ? messages.invalidEmail : messages.required);
           }
-        } else if (!value) {
+        } else if (!value && !isLocked) {
           isValid = false;
           markInvalid(input, messages.required);
+        }
+
+        if (value) {
+          const lower = value.toLowerCase();
+          if (!isLocked && key === 'instagram') {
+            if (lower.indexOf('instagram.com') === -1 && value.charAt(0) !== '@') {
+              isValid = false;
+              markInvalid(input, messages.invalidInstagram || messages.required);
+            }
+          }
+          if (!isLocked && key === 'facebook') {
+            if (lower.indexOf('facebook') === -1) {
+              isValid = false;
+              markInvalid(input, messages.invalidFacebook || messages.required);
+            }
+          }
+          if (key === 'phone') {
+            const phoneDigits = value.replace(/\D+/g, '');
+            if (phoneDigits.length < 10) {
+              isValid = false;
+              markInvalid(input, messages.invalidPhone || messages.required);
+            }
+          }
+          if (key === 'id_number') {
+            const idDigits = value.replace(/\D+/g, '');
+            if (idDigits.length !== 9) {
+              isValid = false;
+              markInvalid(input, messages.invalidId || messages.required);
+            }
+          }
         }
 
         result[key] = value;

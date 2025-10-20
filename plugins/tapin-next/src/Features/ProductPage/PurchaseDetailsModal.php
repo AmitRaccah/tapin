@@ -84,8 +84,12 @@ final class PurchaseDetailsModal implements Service
                 'next'         => 'הבא',
                 'finish'       => 'סיום והמשך לתשלום',
                 'cancel'       => 'ביטול',
-                'required'     => 'יש למלא את כל השדות',
-                'invalidEmail' => 'כתובת האימייל אינה תקינה',
+                'required'         => 'יש למלא את כל השדות',
+                'invalidEmail'     => 'כתובת האימייל אינה תקינה',
+                'invalidInstagram' => 'אינסטגרם חייב להתחיל ב-@ או להכיל instagram.com',
+                'invalidFacebook'  => 'קישור הפייסבוק חייב לכלול facebook',
+                'invalidPhone'     => 'מספר הטלפון חייב לכלול לפחות 10 ספרות',
+                'invalidId'        => 'תעודת זהות חייבת להכיל 9 ספרות',
             ],
             'fields'   => $this->getFieldDefinitions(),
         ]);
@@ -347,16 +351,42 @@ final class PurchaseDetailsModal implements Service
 
                 $sanitized = AttendeeFields::sanitizeValue($fieldKey, $raw);
                 if ($sanitized === '') {
-                    continue;
+                    $display = AttendeeFields::displayValue($fieldKey, $raw);
+                    if ($display === '') {
+                        continue;
+                    }
+                    $prefill[$fieldKey] = $this->formatPrefillValue($fieldKey, $display);
+                    break;
                 }
 
-                $prefill[$fieldKey] = $sanitized;
+                $prefill[$fieldKey] = $this->formatPrefillValue($fieldKey, $sanitized);
                 break;
             }
         }
 
         return (array) apply_filters('tapin_purchase_modal_prefill', $prefill, $userId);
     }
+
+    private function formatPrefillValue(string $fieldKey, string $value): string
+    {
+        switch ($fieldKey) {
+            case 'instagram':
+                if (preg_match('#instagram\.com/([^/?#]+)#i', $value, $matches)) {
+                    return '@' . $matches[1];
+                }
+                return '@' . ltrim($value, '@/');
+
+            case 'facebook':
+                return AttendeeFields::displayValue('facebook', $value);
+
+            case 'phone':
+                return AttendeeFields::displayValue('phone', $value);
+
+            default:
+                return $value;
+        }
+    }
+
 
     /**
      * @param mixed $product
@@ -390,11 +420,26 @@ final class PurchaseDetailsModal implements Service
             $value = AttendeeFields::sanitizeValue($key, $raw);
 
             if ($value === '') {
-                if ($key === 'email') {
-                    $errors[] = sprintf('אימייל חסר או לא תקין עבור משתתף %d', $index + 1);
-                } else {
-                    $label = (string) ($definition['label'] ?? $key);
-                    $errors[] = sprintf('יש למלא את השדה %s עבור משתתף %d', $label, $index + 1);
+                switch ($key) {
+                    case 'email':
+                        $errors[] = sprintf('האימייל חייב להכיל @ עבור משתתף %d', $index + 1);
+                        break;
+                    case 'id_number':
+                        $errors[] = sprintf('תעודת זהות חייבת להכיל בדיוק 9 ספרות עבור משתתף %d', $index + 1);
+                        break;
+                    case 'instagram':
+                        $errors[] = sprintf('אינסטגרם חייב להיות תאג (@username) או קישור תקין לפרופיל עבור משתתף %d', $index + 1);
+                        break;
+                    case 'facebook':
+                        $errors[] = sprintf('קישור הפייסבוק חייב לכלול facebook עבור משתתף %d', $index + 1);
+                        break;
+                    case 'phone':
+                        $errors[] = sprintf('מספר הטלפון חייב להכיל לפחות 10 ספרות עבור משתתף %d', $index + 1);
+                        break;
+                    default:
+                        $label = (string) ($definition['label'] ?? $key);
+                        $errors[] = sprintf('יש למלא את השדה %s עבור משתתף %d', $label, $index + 1);
+                        break;
                 }
                 return null;
             }

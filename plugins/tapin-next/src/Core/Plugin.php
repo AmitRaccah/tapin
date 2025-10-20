@@ -7,7 +7,6 @@ class Plugin {
     private const FILE_INCLUDES = [
         'Support/StylesShim.php',
         'Support/ThanksNotice.php',
-        'Support/SaleWindowsSaver.php',
         'Domain/SaleWindowsRepository.php',
         'Integrations/smart-slider-compat.php',
         'Features/ProductPage/SaleWindowsCards.php',
@@ -17,7 +16,6 @@ class Plugin {
         \Tapin\Events\Support\Compat::class,
         \Tapin\Events\Support\StylesShim::class,
         \Tapin\Events\Support\ThanksNotice::class,
-        \Tapin\Events\Support\SaleWindowsSaver::class,
         \Tapin\Events\Integrations\SmartSliderCache::class,
         \Tapin\Events\Features\Producers\Portal::class,
         \Tapin\Events\Features\Producers\RequestsManager::class,

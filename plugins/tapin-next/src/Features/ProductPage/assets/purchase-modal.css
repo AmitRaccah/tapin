@@ -84,6 +84,12 @@
   box-shadow: 0 0 0 3px rgba(42, 26, 94, 0.15);
 }
 
+.tapin-field input.tapin-field--locked {
+  background-color: #f8fafc;
+  color: #475569;
+  cursor: not-allowed;
+}
+
 .tapin-field--invalid,
 .tapin-field input.tapin-field--invalid {
   border-color: #ef4444;
