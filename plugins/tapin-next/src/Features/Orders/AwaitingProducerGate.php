@@ -82,6 +82,9 @@ final class AwaitingProducerGate implements Service
         }
 
         $awaiting = self::awaitingStatusSlug();
+        if (in_array($to, ['cancelled', 'refunded', 'failed'], true)) {
+            return;
+        }
         if ($to === $awaiting) {
             return;
         }
