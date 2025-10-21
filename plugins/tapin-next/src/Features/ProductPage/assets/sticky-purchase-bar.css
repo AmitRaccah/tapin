@@ -1,0 +1,144 @@
+body.single-product {
+    padding-bottom: 88px;
+}
+
+.tapin-sticky-bar {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    z-index: 1000;
+    background: linear-gradient(135deg, #0d0d0d, #1b1b1b 55%, #262626);
+    border: 1px solid rgba(160, 160, 160, 0.6);
+    border-radius: 14px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    color: #ffffff;
+    padding: 14px 18px;
+    box-sizing: border-box;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+    transform: translateY(16px);
+    opacity: 0;
+}
+
+.tapin-sticky-bar[hidden] {
+    display: none;
+}
+
+.tapin-sticky-bar--visible {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.tapin-sticky-bar--disabled {
+    opacity: 0.8;
+}
+
+.tapin-sticky-bar--disabled .tapin-sticky-bar__buy {
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.tapin-sticky-bar__content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    max-width: 1040px;
+    margin: 0 auto;
+    flex-wrap: wrap;
+}
+
+.tapin-sticky-bar__quantity {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.tapin-sticky-bar__label {
+    letter-spacing: 0.01em;
+}
+
+.tapin-sticky-bar__qty-btn {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    border: 1px solid rgba(160, 160, 160, 0.6);
+    background: rgba(255, 255, 255, 0.05);
+    color: #ffffff;
+    font-size: 1.3rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.tapin-sticky-bar__qty-btn:focus,
+.tapin-sticky-bar__qty-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    outline: none;
+}
+
+.tapin-sticky-bar__qty-btn:active {
+    transform: scale(0.94);
+}
+
+.tapin-sticky-bar__qty-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.tapin-sticky-bar__qty-value {
+    min-width: 36px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.tapin-sticky-bar__buy {
+    flex-shrink: 0;
+    padding: 14px 28px;
+    border-radius: 10px;
+    border: none;
+    font-size: 1.05rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #f6c342, #f1a80a);
+    color: #1b1b1b;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tapin-sticky-bar__buy:hover,
+.tapin-sticky-bar__buy:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
+    outline: none;
+}
+
+.tapin-sticky-bar__buy:active {
+    transform: translateY(1px);
+}
+
+@media (max-width: 600px) {
+    .tapin-sticky-bar {
+        left: 8px;
+        right: 8px;
+        bottom: 8px;
+        padding: 12px 14px;
+    }
+
+    .tapin-sticky-bar__content {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .tapin-sticky-bar__quantity {
+        justify-content: center;
+    }
+
+    .tapin-sticky-bar__buy {
+        width: 100%;
+    }
+}
