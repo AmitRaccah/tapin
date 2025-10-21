@@ -37,7 +37,7 @@ final class AwaitingProducerGate implements Service
 
         $awaiting = self::awaitingStatusSlug();
         if ($order->get_status() !== $awaiting) {
-            $order->set_status($awaiting, 'הוזז לסטטוס ממתין לאישור מפיק.');
+            $order->set_status($awaiting, 'הוזז לסטטוס ' . AwaitingProducerStatus::STATUS_LABEL . '.');
         }
 
         $order->save();
@@ -176,17 +176,17 @@ final class AwaitingProducerGate implements Service
             return $slug;
         }
 
-        $slug = 'awaiting-producer';
+        $slug = AwaitingProducerStatus::STATUS_SLUG;
 
         if (function_exists('wc_get_order_statuses')) {
             foreach (wc_get_order_statuses() as $key => $label) {
                 $normalized = str_replace('wc-', '', (string) $key);
-                if ($normalized === 'awaiting-producer') {
+                if ($normalized === AwaitingProducerStatus::STATUS_SLUG) {
                     $slug = $normalized;
                     break;
                 }
 
-                if (stripos((string) $label, 'ממתין לאישור מפיק') !== false) {
+                if (stripos((string) $label, AwaitingProducerStatus::STATUS_LABEL) !== false) {
                     $slug = $normalized;
                 }
             }

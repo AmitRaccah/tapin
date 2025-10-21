@@ -34,7 +34,7 @@ final class ProducerApprovalsShortcode implements Service
         $producerId = (int) get_current_user_id();
 
         $awaitingIds = wc_get_orders([
-            'status' => ['wc-awaiting-producer'],
+            'status' => [AwaitingProducerStatus::STATUS_KEY],
             'limit'  => 200,
             'return' => 'ids',
         ]);
@@ -48,7 +48,7 @@ final class ProducerApprovalsShortcode implements Service
         }
 
         $pendingIds = wc_get_orders([
-            'status' => ['wc-awaiting-producer'],
+            'status' => [AwaitingProducerStatus::STATUS_KEY],
             'limit'  => 200,
             'return' => 'ids',
         ]);
@@ -89,7 +89,7 @@ final class ProducerApprovalsShortcode implements Service
                 }
 
                 $order = wc_get_order($orderId);
-                if (!$order instanceof WC_Order || 'awaiting-producer' !== $order->get_status()) {
+                if (!$order instanceof WC_Order || AwaitingProducerStatus::STATUS_SLUG !== $order->get_status()) {
                     $failed++;
                     continue;
                 }
@@ -115,7 +115,7 @@ final class ProducerApprovalsShortcode implements Service
                 $relevantIds,
                 function ($orderId) {
                     $order = wc_get_order((int) $orderId);
-                    return $order instanceof WC_Order && $order->has_status('awaiting-producer');
+                    return $order instanceof WC_Order && $order->has_status(AwaitingProducerStatus::STATUS_SLUG);
                 }
             ));
         }
@@ -268,7 +268,7 @@ final class ProducerApprovalsShortcode implements Service
                     'profile'           => (array) $order['profile'],
                     'primary_attendee'  => (array) ($order['primary_attendee'] ?? []),
                     'primary_id_number' => (string) $order['primary_id_number'],
-                    'is_pending'        => (string) $order['status'] === 'awaiting-producer',
+                    'is_pending'        => (string) $order['status'] === AwaitingProducerStatus::STATUS_SLUG,
                     'search_blob'       => $orderSearch,
                 ];
 
@@ -1149,7 +1149,7 @@ final class ProducerApprovalsShortcode implements Service
     {
         $normalized = strtolower($status);
 
-        if (in_array($normalized, ['awaiting-producer', 'pending', 'on-hold'], true)) {
+        if (in_array($normalized, [AwaitingProducerStatus::STATUS_SLUG, 'pending', 'on-hold'], true)) {
             return 'pending';
         }
 

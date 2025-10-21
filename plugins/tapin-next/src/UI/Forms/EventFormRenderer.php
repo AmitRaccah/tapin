@@ -3,7 +3,6 @@ namespace Tapin\Events\UI\Forms;
 
 use Tapin\Events\Domain\SaleWindowsRepository;
 use Tapin\Events\Support\Assets;
-use Tapin\Events\Support\MetaKeys;
 use Tapin\Events\Support\Time;
 use Tapin\Events\UI\Components\SaleWindowsRepeater;
 
@@ -12,16 +11,11 @@ final class EventFormRenderer {
         $opts = wp_parse_args($options, ['name_prefix'=>'sale_w','show_image'=>true]);
         $post = get_post($productId); if(!$post) return;
 
-        $event_dt_local = get_post_meta($productId, MetaKeys::EVENT_DATE, true);
         $reg_price = get_post_meta($productId, '_regular_price', true);
         $stock     = get_post_meta($productId, '_stock', true);
         $windows   = SaleWindowsRepository::get($productId);
 
-        $event_input = '';
-        if ($event_dt_local) {
-            try { $event_input=(new \DateTime($event_dt_local, Time::tz()))->format('Y-m-d\TH:i'); }
-            catch(\Throwable $e){ $event_input=''; }
-        } ?>
+        $event_input = Time::tsToLocalInput(Time::productEventTs($productId)); ?>
         <style><?php echo Assets::sharedCss(); ?></style>
         <div class="tapin-form-row">
           <label>כותרת</label>

@@ -8,13 +8,7 @@ final class SaleWindowsRepository {
     public static function get(int $productId): array {
         $w = get_post_meta($productId, MetaKeys::SALE_WINDOWS, true);
         $w = is_array($w) ? $w : [];
-        usort($w, function($a, $b) {
-            $as = isset($a['start']) ? (int)$a['start'] : 0;
-            $bs = isset($b['start']) ? (int)$b['start'] : 0;
-            if ($as === $bs) return 0;
-            return ($as < $bs) ? -1 : 1;
-        });
-        return $w;
+        return self::sortByStart($w);
     }
 
     public static function parseFromPost(string $prefix='sale_w'): array {
@@ -38,13 +32,7 @@ final class SaleWindowsRepository {
                 $out[] = ['start'=>$start,'end'=>$end,'price'=>$price];
             }
         }
-        usort($out, function($a, $b) {
-            $as = isset($a['start']) ? (int)$a['start'] : 0;
-            $bs = isset($b['start']) ? (int)$b['start'] : 0;
-            if ($as === $bs) return 0;
-            return ($as < $bs) ? -1 : 1;
-        });
-        return $out;
+        return self::sortByStart($out);
     }
 
     public static function save(int $productId, array $windows): void {
@@ -52,13 +40,7 @@ final class SaleWindowsRepository {
         foreach ($windows as $w){
             $norm[]=['start'=>(int)($w['start']??0),'end'=>(int)($w['end']??0),'price'=>(float)($w['price']??0)];
         }
-        usort($norm, function($a, $b) {
-            $as = isset($a['start']) ? (int)$a['start'] : 0;
-            $bs = isset($b['start']) ? (int)$b['start'] : 0;
-            if ($as === $bs) return 0;
-            return ($as < $bs) ? -1 : 1;
-        });
-        update_post_meta($productId, MetaKeys::SALE_WINDOWS, $norm);
+        update_post_meta($productId, MetaKeys::SALE_WINDOWS, self::sortByStart($norm));
     }
 
     public static function findActive(int $productId): ?array {
@@ -68,5 +50,13 @@ final class SaleWindowsRepository {
             if ($s <= $now && ($e===0 || $now < $e)) return $w;
         }
         return null;
+    }
+
+    private static function sortByStart(array $windows): array {
+        usort($windows, static function(array $a, array $b): int {
+            return (int)($a['start'] ?? 0) <=> (int)($b['start'] ?? 0);
+        });
+
+        return array_values($windows);
     }
 }
