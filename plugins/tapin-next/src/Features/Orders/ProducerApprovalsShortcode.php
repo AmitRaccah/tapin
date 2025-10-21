@@ -40,10 +40,10 @@ final class ProducerApprovalsShortcode implements Service
                 : '<div class="woocommerce-error" style="direction:rtl;text-align:right">&#1488;&#1497;&#1503;&#32;&#1500;&#1495;&#32;&#1492;&#1512;&#1513;&#1488;&#1492;&#32;&#1500;&#1510;&#1508;&#1493;&#1514;&#32;&#1489;&#1506;&#1502;&#1493;&#1491;&#32;&#1494;&#1492;.</div>';
         }
 
-        $viewer    = $guard->user instanceof WP_User ? $guard->user : wp_get_current_user();
+        $viewer     = $guard->user instanceof WP_User ? $guard->user : wp_get_current_user();
         $producerId = $viewer instanceof WP_User ? (int) $viewer->ID : (int) get_current_user_id();
 
-        $isAdministrator = $this->isAdministrator($viewer instanceof WP_User ? $viewer : null);
+        $canDownloadExport = $this->canDownloadOrders($viewer instanceof WP_User ? $viewer : null);
 
         $orderSets   = $this->resolveProducerOrderIds($producerId);
         $relevantIds = $orderSets['relevant'];
@@ -247,7 +247,7 @@ final class ProducerApprovalsShortcode implements Service
                       <span class="tapin-pa-event__chevron" aria-hidden="true">&#9662;</span>
                     </button>
                     <div class="tapin-pa-event__panel"<?php echo $isOpen ? '' : ' hidden'; ?>>
-                      <?php if ($isAdministrator && !empty($event['orders'])): ?>
+                      <?php if ($canDownloadExport && !empty($event['orders'])): ?>
                         <?php
                         $downloadUrl = wp_nonce_url(
                             add_query_arg(
@@ -764,7 +764,7 @@ final class ProducerApprovalsShortcode implements Service
         }
 
         $viewer = $guard->user instanceof WP_User ? $guard->user : wp_get_current_user();
-        if (!$this->isAdministrator($viewer instanceof WP_User ? $viewer : null)) {
+        if (!$this->canDownloadOrders($viewer instanceof WP_User ? $viewer : null)) {
             status_header(403);
             wp_die($this->decodeEntities('&#1488;&#1497;&#1503;&#32;&#1500;&#1495;&#32;&#1492;&#1512;&#1513;&#1488;&#1492;&#32;&#1500;&#1492;&#1493;&#1512;&#1491;&#32;&#1489;&#1511;&#1513;&#1493;&#1514;.'));
         }
@@ -1202,6 +1202,24 @@ final class ProducerApprovalsShortcode implements Service
 
         fclose($output);
         exit;
+    }
+
+    /**
+     * Determine whether the given user can download the event orders export.
+     *
+     * @param WP_User|null $user
+     */
+    private function canDownloadOrders(?WP_User $user): bool
+    {
+        $allowed = $this->isAdministrator($user);
+
+        /**
+         * Filters the permission to download the producer approvals export.
+         *
+         * @param bool $allowed Whether the user can download the export.
+         * @param WP_User|null $user The current viewer.
+         */
+        return (bool) apply_filters('tapin_events_can_download_producer_orders', $allowed, $user);
     }
 
     private function cleanExportValue($value): string
