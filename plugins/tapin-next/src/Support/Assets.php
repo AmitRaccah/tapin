@@ -155,6 +155,18 @@ final class Assets {
   transition: border-color .2s, box-shadow .2s;
 }
 
+.tapin-form-row__preview {
+  margin-bottom: 12px;
+}
+
+.tapin-form-row__preview-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--tapin-radius-md);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
 .tapin-form-row input:focus,
 .tapin-form-row textarea:focus {
   border-color: var(--tapin-primary-color);

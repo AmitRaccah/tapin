@@ -14,6 +14,10 @@ final class EventFormRenderer {
         $reg_price = get_post_meta($productId, '_regular_price', true);
         $stock     = get_post_meta($productId, '_stock', true);
         $windows   = SaleWindowsRepository::get($productId);
+        $thumb_html = '';
+        if ($opts['show_image']) {
+            $thumb_html = get_the_post_thumbnail($productId, 'medium', ['class' => 'tapin-form-row__preview-img']);
+        }
 
         $event_input = Time::tsToLocalInput(Time::productEventTs($productId)); ?>
         <style><?php echo Assets::sharedCss(); ?></style>
@@ -43,6 +47,11 @@ final class EventFormRenderer {
         <?php if ($opts['show_image']): ?>
         <div class="tapin-form-row">
           <label>תמונה</label>
+          <?php if ($thumb_html): ?>
+          <div class="tapin-form-row__preview">
+            <?php echo $thumb_html; ?>
+          </div>
+          <?php endif; ?>
           <input type="file" name="image" accept="image/*">
         </div>
         <?php endif; ?>
