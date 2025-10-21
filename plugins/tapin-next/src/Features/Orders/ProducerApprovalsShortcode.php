@@ -104,9 +104,9 @@ final class ProducerApprovalsShortcode implements Service
         $orders           = $orderCollections['orders'];
         $customerStats    = $orderCollections['customer_stats'];
 
-        $warnings = $this->buildWarnings($customerStats);
+        $customerWarnings = $this->buildWarnings($customerStats);
 
-        $events = $this->groupOrdersByEvent($orders);
+        $events = $this->groupOrdersByEvent($orders, $customerWarnings);
 
         ob_start(); ?>
         <style>
@@ -123,6 +123,7 @@ final class ProducerApprovalsShortcode implements Service
           .tapin-pa__buttons{display:flex;gap:8px;flex-wrap:wrap}
           .tapin-pa__events{display:grid;gap:16px}
           .tapin-pa__warning{border-radius:12px;padding:12px;margin:10px 0;border:1px solid #facc15;background:#fefce8;color:#92400e}
+          .tapin-pa-order__warnings{display:grid;gap:10px}
           .tapin-pa-event{border:1px solid #e2e8f0;border-radius:18px;box-shadow:0 6px 18px rgba(15,23,42,.08);overflow:hidden;background:#fff}
           .tapin-pa-event__header{display:flex;justify-content:space-between;align-items:center;width:100%;background:transparent;border:0;padding:18px;cursor:pointer;text-align:right}
           .tapin-pa-event__header:hover{background:#f8fafc}
@@ -196,10 +197,6 @@ final class ProducerApprovalsShortcode implements Service
         <div class="tapin-pa">
           <?php echo $notice; ?>
           <h3><?php echo esc_html($this->decodeEntities('&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;&#32;&#1502;&#1502;&#1514;&#1497;&#1504;&#1493;&#1514;&#32;&#1500;&#1488;&#1497;&#1513;&#1493;&#1512;')); ?></h3>
-
-          <?php foreach ($warnings as $warning): ?>
-            <div class="tapin-pa__warning"><?php echo wp_kses_post($warning); ?></div>
-          <?php endforeach; ?>
 
           <form method="post" id="tapinBulkForm" class="tapin-pa__form">
             <?php wp_nonce_field('tapin_pa_bulk', 'tapin_pa_bulk_nonce'); ?>
@@ -298,6 +295,13 @@ final class ProducerApprovalsShortcode implements Service
                               <span class="tapin-pa-order__status"><?php echo esc_html($statusLabel); ?></span>
                             </header>
                             <div class="tapin-pa-order__body">
+                              <?php if (!empty($orderData['warnings'])): ?>
+                                <div class="tapin-pa-order__warnings">
+                                  <?php foreach ($orderData['warnings'] as $warning): ?>
+                                    <div class="tapin-pa__warning"><?php echo wp_kses_post($warning); ?></div>
+                                  <?php endforeach; ?>
+                                </div>
+                              <?php endif; ?>
                               <?php
                               $contactRows = [];
                               $nameValue = trim((string) ($orderData['customer']['name'] ?? ''));
@@ -929,9 +933,10 @@ final class ProducerApprovalsShortcode implements Service
 
     /**
      * @param array<int,array<string,mixed>> $orders
+     * @param array<string,array<int,string>> $customerWarnings
      * @return array<int,array<string,mixed>>
      */
-    private function groupOrdersByEvent(array $orders): array
+    private function groupOrdersByEvent(array $orders, array $customerWarnings = []): array
     {
         $events = [];
 
@@ -998,6 +1003,9 @@ final class ProducerApprovalsShortcode implements Service
 
                 $orderSearch = strtolower(wp_strip_all_tags(implode(' ', array_filter($searchSegments))));
 
+                $emailKey = strtolower(trim((string) ($order['customer']['email'] ?? '')));
+                $orderWarnings = $emailKey !== '' ? (array) ($customerWarnings[$emailKey] ?? []) : [];
+
                 $events[$key]['orders'][] = [
                     'id'                => (int) ($order['id'] ?? 0),
                     'number'            => (string) ($order['number'] ?? ''),
@@ -1016,6 +1024,7 @@ final class ProducerApprovalsShortcode implements Service
                     'primary_attendee'  => (array) ($order['primary_attendee'] ?? []),
                     'primary_id_number' => (string) ($order['primary_id_number'] ?? ''),
                     'is_pending'        => (string) ($order['status'] ?? '') === AwaitingProducerStatus::STATUS_SLUG,
+                    'warnings'          => $orderWarnings,
                     'search_blob'       => $orderSearch,
                 ];
 
@@ -1611,13 +1620,14 @@ final class ProducerApprovalsShortcode implements Service
     }
 
     /**
-     * @return array<int,string>
+     * @param array<string,array<string,mixed>> $stats
+     * @return array<string,array<int,string>>
      */
     private function buildWarnings(array $stats): array
     {
         $warnings = [];
 
-        foreach ($stats as $customer) {
+        foreach ($stats as $emailKey => $customer) {
             $largeOrders = array_filter(
                 $customer['orders'],
                 static fn($entry) => $entry['quantity'] >= self::LARGE_ORDER_THRESHOLD
@@ -1626,7 +1636,12 @@ final class ProducerApprovalsShortcode implements Service
             if ($customer['total'] >= self::CUSTOMER_TOTAL_THRESHOLD || count($largeOrders) >= 2) {
                 $name  = esc_html($customer['name'] ?: $customer['email']);
                 $email = esc_html($customer['email']);
-                $warnings[] = sprintf('&#1513;&#1497;&#1501;&#32;&#1500;&#1489;: %1$s (%2$s) &#1512;&#1499;&#1513;&#32;%3$d&#32;&#1499;&#1512;&#1496;&#1497;&#1505;&#1497;&#1501;&#32;&#1489;&#1505;&#1495;&#32;&#1499;&#1493;&#1500;.', $name, $email, (int) $customer['total']);
+                $key   = strtolower(trim(is_string($emailKey) ? $emailKey : (string) $emailKey));
+                if ($key === '') {
+                    continue;
+                }
+
+                $warnings[$key][] = sprintf('&#1513;&#1497;&#1501;&#32;&#1500;&#1489;: %1$s (%2$s) &#1512;&#1499;&#1513;&#32;%3$d&#32;&#1499;&#1512;&#1496;&#1497;&#1505;&#1497;&#1501;&#32;&#1489;&#1505;&#1495;&#32;&#1499;&#1493;&#1500;.', $name, $email, (int) $customer['total']);
             }
         }
 
