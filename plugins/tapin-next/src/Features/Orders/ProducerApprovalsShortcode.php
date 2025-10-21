@@ -5,7 +5,9 @@ namespace Tapin\Events\Features\Orders;
 use Tapin\Events\Core\Service;
 use Tapin\Events\Features\Orders\AwaitingProducerGate;
 use Tapin\Events\Support\AttendeeFields;
+use Tapin\Events\Support\AttendeeSecureStorage;
 use Tapin\Events\Support\Orders;
+use Tapin\Events\Support\Security;
 use WC_Order;
 use WC_Order_Item_Product;
 use WC_Product;
@@ -14,6 +16,9 @@ final class ProducerApprovalsShortcode implements Service
 {
     private const LARGE_ORDER_THRESHOLD    = 10;
     private const CUSTOMER_TOTAL_THRESHOLD = 20;
+
+    /** @var array<int,bool> */
+    private array $auditedOrders = [];
 
     public function register(): void
     {
@@ -26,12 +31,15 @@ final class ProducerApprovalsShortcode implements Service
             return '<div class="woocommerce-info" style="direction:rtl;text-align:right">&#1497;&#1513;&#32;&#1500;&#1492;&#1510;&#1495;&#1489;&#1512;&#32;&#1499;&#1491;&#1497;&#32;&#1500;&#1510;&#1508;&#1493;&#1514;&#32;&#1489;&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;.</div>';
         }
 
-        $currentUser = wp_get_current_user();
-        if (!array_intersect((array) $currentUser->roles, ['producer', 'owner'])) {
-            return '<div class="woocommerce-error" style="direction:rtl;text-align:right">&#1488;&#1497;&#1503;&#32;&#1500;&#1495;&#32;&#1492;&#1512;&#1513;&#1488;&#1492;&#32;&#1500;&#1510;&#1508;&#1493;&#1514;&#32;&#1489;&#1506;&#1502;&#1493;&#1491;&#32;&#1494;&#1492;.</div>';
+        $guard = Security::producer();
+        if (!$guard->allowed) {
+            return $guard->message !== ''
+                ? $guard->message
+                : '<div class="woocommerce-error" style="direction:rtl;text-align:right">&#1488;&#1497;&#1503;&#32;&#1500;&#1495;&#32;&#1492;&#1512;&#1513;&#1488;&#1492;&#32;&#1500;&#1510;&#1508;&#1493;&#1514;&#32;&#1489;&#1506;&#1502;&#1493;&#1491;&#32;&#1494;&#1492;.</div>';
         }
 
-        $producerId = (int) get_current_user_id();
+        $viewer    = $guard->user instanceof \WP_User ? $guard->user : wp_get_current_user();
+        $producerId = $viewer instanceof \WP_User ? (int) $viewer->ID : (int) get_current_user_id();
 
         $awaitingIds = wc_get_orders([
             'status' => [AwaitingProducerStatus::STATUS_KEY],
@@ -1056,6 +1064,10 @@ final class ProducerApprovalsShortcode implements Service
             ? wc_get_order_status_name('wc-' . $status)
             : $status;
 
+        if ($allAttendeesList !== []) {
+            $this->logAttendeeAccess($order, $producerId, count($allAttendeesList));
+        }
+
         return [
             'id'             => $order->get_id(),
             'number'         => $order->get_order_number(),
@@ -1165,39 +1177,24 @@ final class ProducerApprovalsShortcode implements Service
      */
     private function extractAttendees(WC_Order_Item_Product $item): array
     {
-        $json = (string) $item->get_meta('_tapin_attendees_json', true);
-        if ($json === '') {
-            $json = (string) $item->get_meta('Tapin Attendees', true);
-        }
-        if ($json !== '') {
-            $decoded = json_decode($json, true);
-            if (is_array($decoded)) {
-                return array_map([$this, 'normalizeAttendee'], $decoded);
+        $decoded = AttendeeSecureStorage::decrypt((string) $item->get_meta('_tapin_attendees_json', true));
+        if ($decoded === []) {
+            $legacy = (string) $item->get_meta('Tapin Attendees', true);
+            if ($legacy !== '') {
+                $decoded = AttendeeSecureStorage::decrypt($legacy);
             }
+        }
+
+        if ($decoded !== []) {
+            return array_map([$this, 'normalizeAttendee'], $decoded);
         }
 
         $order = $item->get_order();
         if ($order instanceof WC_Order) {
-            $stored = $order->get_meta('_tapin_attendees', true);
-            if (is_array($stored)) {
-                $candidate = $stored[$item->get_id()] ?? null;
-                if ($candidate === null) {
-                    $productId = $item->get_product_id();
-                    if ($productId && isset($stored[$productId])) {
-                        $candidate = $stored[$productId];
-                    }
-                }
-                if ($candidate === null) {
-                    foreach ($stored as $entry) {
-                        if (is_array($entry)) {
-                            $candidate = $entry;
-                            break;
-                        }
-                    }
-                }
-                if (is_array($candidate)) {
-                    return array_map([$this, 'normalizeAttendee'], $candidate);
-                }
+            $aggregate = $order->get_meta('_tapin_attendees', true);
+            $aggregateDecoded = AttendeeSecureStorage::extractFromAggregate($aggregate, $item);
+            if ($aggregateDecoded !== []) {
+                return array_map([$this, 'normalizeAttendee'], $aggregateDecoded);
             }
         }
 
@@ -1247,9 +1244,49 @@ final class ProducerApprovalsShortcode implements Service
         foreach (AttendeeFields::keys() as $key) {
             $raw = (string) ($data[$key] ?? '');
             $sanitized = AttendeeFields::sanitizeValue($key, $raw);
-            $normalized[$key] = $sanitized !== '' ? $sanitized : AttendeeFields::displayValue($key, $raw);
+            if ($sanitized !== '') {
+                $normalized[$key] = $sanitized;
+                continue;
+            }
+
+            $display = AttendeeFields::displayValue($key, $raw);
+            $normalized[$key] = $display !== '' ? $display : sanitize_text_field($raw);
         }
         return $normalized;
+    }
+
+    private function logAttendeeAccess(WC_Order $order, int $viewerId, int $count): void
+    {
+        $orderId = (int) $order->get_id();
+        if ($orderId && isset($this->auditedOrders[$orderId])) {
+            return;
+        }
+
+        if ($orderId) {
+            $this->auditedOrders[$orderId] = true;
+        }
+
+        if (!function_exists('wc_get_logger')) {
+            return;
+        }
+
+        $logger = wc_get_logger();
+        $user   = get_userdata($viewerId);
+        $username = $user instanceof \WP_User ? $user->user_login : 'user-' . $viewerId;
+        $display  = $user instanceof \WP_User ? $user->display_name : '';
+        $label    = $display !== '' ? $display : $username;
+
+        $message = sprintf(
+            'Attendee data viewed by %s (ID %d) for order #%s (%d attendees)',
+            $label,
+            $viewerId,
+            $order->get_order_number(),
+            $count
+        );
+
+        $logger->info($message, ['source' => 'tapin-attendees-audit']);
+
+        do_action('tapin_events_attendee_audit_log', $orderId, $viewerId, $count, time());
     }
 
     /**

@@ -43,11 +43,17 @@ final class Security {
         $user  = $login->user;
         $roles = (array) ($user ? $user->roles : []);
 
+        $capability = Capabilities::attendeeCapability();
+        if ($capability && current_user_can($capability)) {
+            return new SecurityResult(true, '', $user);
+        }
+
         if ($allowManagers && Cap::isManager()) {
             return new SecurityResult(true, '', $user);
         }
 
-        if (array_intersect($roles, ['producer', 'owner'])) {
+        $allowedRoles = (array) apply_filters('tapin_events_allowed_producer_roles', ['producer', 'owner']);
+        if ($allowedRoles !== [] && array_intersect($roles, $allowedRoles)) {
             return new SecurityResult(true, '', $user);
         }
 

@@ -4,6 +4,7 @@ namespace Tapin\Events\Features\ProductPage;
 
 use Tapin\Events\Core\Service;
 use Tapin\Events\Support\AttendeeFields;
+use Tapin\Events\Support\AttendeeSecureStorage;
 use WC_Order;
 use WC_Order_Item_Product;
 use WC_Product;
@@ -289,6 +290,7 @@ final class PurchaseDetailsModal implements Service
     public function hideOrderItemMeta(array $hiddenKeys): array
     {
         $hiddenKeys[] = '_tapin_attendees_json';
+        $hiddenKeys[] = '_tapin_attendees_key';
         $hiddenKeys[] = 'Tapin Attendees';
         return array_values(array_unique($hiddenKeys));
     }
@@ -305,7 +307,11 @@ final class PurchaseDetailsModal implements Service
                 continue;
             }
 
-            if ($meta->key === '_tapin_attendees_json' || $meta->key === 'Tapin Attendees') {
+            if (
+                $meta->key === '_tapin_attendees_json'
+                || $meta->key === '_tapin_attendees_key'
+                || $meta->key === 'Tapin Attendees'
+            ) {
                 unset($metaData[$index]);
             }
         }
@@ -327,10 +333,20 @@ final class PurchaseDetailsModal implements Service
             return $clean;
         }, $values['tapin_attendees']);
 
-        $item->update_meta_data('_tapin_attendees_json', wp_json_encode($normalizedAttendees, JSON_UNESCAPED_UNICODE));
+        $encryptedAttendees = AttendeeSecureStorage::encryptAttendees($normalizedAttendees);
+        if ($encryptedAttendees !== '') {
+            $item->update_meta_data('_tapin_attendees_json', $encryptedAttendees);
+        }
+
+        if (!empty($values['tapin_attendees_key'])) {
+            $item->update_meta_data('_tapin_attendees_key', sanitize_text_field((string) $values['tapin_attendees_key']));
+        }
+
         $item->delete_meta_data('Tapin Attendees');
 
-        foreach ($normalizedAttendees as $index => $attendee) {
+        $maskedAttendees = AttendeeSecureStorage::maskAttendees($normalizedAttendees);
+
+        foreach ($maskedAttendees as $index => $attendee) {
             $label = sprintf('משתתף %d', $index + 1);
             $parts = [];
             foreach (AttendeeFields::summaryKeys() as $key) {
@@ -340,13 +356,19 @@ final class PurchaseDetailsModal implements Service
         }
 
         if ($order instanceof WC_Order) {
-            $existing = $order->get_meta('_tapin_attendees', true);
-            if (!is_array($existing)) {
-                $existing = [];
-            }
+            $existing = AttendeeSecureStorage::upgradeAggregate($order->get_meta('_tapin_attendees', true));
 
-            $bucketKey = $item->get_id() ?: $cartItemKey;
-            $existing[$bucketKey] = $normalizedAttendees;
+            $bucketKey = $item->get_id() ?: ($values['tapin_attendees_key'] ?? $cartItemKey);
+            $bucketKey = (string) $bucketKey;
+
+            $existing['line_items'][$bucketKey] = [
+                'item_id'    => (int) $item->get_id(),
+                'source_key' => (string) ($values['tapin_attendees_key'] ?? $cartItemKey),
+                'encrypted'  => $encryptedAttendees,
+                'masked'     => $maskedAttendees,
+                'count'      => count($normalizedAttendees),
+                'updated'    => current_time('mysql'),
+            ];
 
             $order->update_meta_data('_tapin_attendees', $existing);
         }

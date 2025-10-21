@@ -14,6 +14,7 @@ class Plugin {
 
     private const BASE_SERVICES = [
         \Tapin\Events\Support\Compat::class,
+        \Tapin\Events\Support\Capabilities::class,
         \Tapin\Events\Support\StylesShim::class,
         \Tapin\Events\Support\ThanksNotice::class,
         \Tapin\Events\Integrations\SmartSliderCache::class,
@@ -30,6 +31,7 @@ class Plugin {
         \Tapin\Events\Features\Shortcodes\EventsAdminCenter::class,
         \Tapin\Events\Features\Shortcodes\ProducerEventSales::class,
         \Tapin\Events\Features\Orders\ProducerApprovalsShortcode::class,
+        \Tapin\Events\Features\Orders\OrderMetaPrivacy::class,
         \Tapin\Events\Features\ProductPage\SaleWindowsCards::class,
         \Tapin\Events\Features\ProductPage\PurchaseDetailsModal::class,
         \Tapin\Events\Features\Orders\AwaitingProducerStatus::class,
