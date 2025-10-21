@@ -11,6 +11,7 @@ use Tapin\Events\Support\Security;
 use WC_Order;
 use WC_Order_Item_Product;
 use WC_Product;
+use WP_User;
 
 final class ProducerApprovalsShortcode implements Service
 {
@@ -23,6 +24,7 @@ final class ProducerApprovalsShortcode implements Service
     public function register(): void
     {
         add_shortcode('producer_order_approvals', [$this, 'render']);
+        add_action('admin_post_tapin_pa_export_event', [$this, 'exportEvent']);
     }
 
     public function render(): string
@@ -38,40 +40,14 @@ final class ProducerApprovalsShortcode implements Service
                 : '<div class="woocommerce-error" style="direction:rtl;text-align:right">&#1488;&#1497;&#1503;&#32;&#1500;&#1495;&#32;&#1492;&#1512;&#1513;&#1488;&#1492;&#32;&#1500;&#1510;&#1508;&#1493;&#1514;&#32;&#1489;&#1506;&#1502;&#1493;&#1491;&#32;&#1494;&#1492;.</div>';
         }
 
-        $viewer    = $guard->user instanceof \WP_User ? $guard->user : wp_get_current_user();
-        $producerId = $viewer instanceof \WP_User ? (int) $viewer->ID : (int) get_current_user_id();
+        $viewer    = $guard->user instanceof WP_User ? $guard->user : wp_get_current_user();
+        $producerId = $viewer instanceof WP_User ? (int) $viewer->ID : (int) get_current_user_id();
 
-        $awaitingIds = wc_get_orders([
-            'status' => [AwaitingProducerStatus::STATUS_KEY],
-            'limit'  => 200,
-            'return' => 'ids',
-        ]);
+        $isAdministrator = $this->isAdministrator($viewer instanceof WP_User ? $viewer : null);
 
-        foreach ($awaitingIds as $orderId) {
-            $order = wc_get_order($orderId);
-            if ($order instanceof WC_Order && !$order->get_meta('_tapin_producer_ids')) {
-                $order->update_meta_data('_tapin_producer_ids', Orders::collectProducerIds($order));
-                $order->save();
-            }
-        }
-
-        $pendingIds = wc_get_orders([
-            'status' => [AwaitingProducerStatus::STATUS_KEY],
-            'limit'  => 200,
-            'return' => 'ids',
-        ]);
-
-        $relevantIds = [];
-        foreach ($pendingIds as $orderId) {
-            $order = wc_get_order($orderId);
-            if (!$order instanceof WC_Order) {
-                continue;
-            }
-
-            if ($this->orderBelongsToProducer($order, $producerId)) {
-                $relevantIds[] = $orderId;
-            }
-        }
+        $orderSets   = $this->resolveProducerOrderIds($producerId);
+        $relevantIds = $orderSets['relevant'];
+        $displayIds  = $orderSets['display'];
 
         $notice = '';
         if (
@@ -119,194 +95,18 @@ final class ProducerApprovalsShortcode implements Service
                 );
             }
 
-            $relevantIds = array_values(array_filter(
-                $relevantIds,
-                function ($orderId) {
-                    $order = wc_get_order((int) $orderId);
-                    return $order instanceof WC_Order && $order->has_status(AwaitingProducerStatus::STATUS_SLUG);
-                }
-            ));
+            $orderSets   = $this->resolveProducerOrderIds($producerId);
+            $relevantIds = $orderSets['relevant'];
+            $displayIds  = $orderSets['display'];
         }
 
-        $displayIds = $relevantIds;
-
-        $historyStatuses = [
-            'wc-processing',
-            'wc-completed',
-            'wc-cancelled',
-            'wc-refunded',
-            'wc-failed',
-        ];
-
-        $historyIds = wc_get_orders([
-            'status' => $historyStatuses,
-            'limit'  => 200,
-            'return' => 'ids',
-        ]);
-
-        foreach ($historyIds as $orderId) {
-            if (in_array($orderId, $displayIds, true)) {
-                continue;
-            }
-
-            $order = wc_get_order($orderId);
-            if (!$order instanceof WC_Order) {
-                continue;
-            }
-
-            if ($this->orderBelongsToProducer($order, $producerId)) {
-                $displayIds[] = $orderId;
-            }
-        }
-
-        $orders = [];
-        $customerStats = [];
-
-        foreach ($displayIds as $orderId) {
-            $order = wc_get_order($orderId);
-            if (!$order instanceof WC_Order) {
-                continue;
-            }
-
-            $summary = $this->buildOrderSummary($order, $producerId);
-            if (!$summary['items']) {
-                continue;
-            }
-
-            $orders[] = $summary;
-
-            $emailKey = strtolower(trim($summary['customer']['email']));
-            if ($emailKey !== '') {
-                if (!isset($customerStats[$emailKey])) {
-                    $customerStats[$emailKey] = [
-                        'name'   => $summary['customer']['name'],
-                        'email'  => $summary['customer']['email'],
-                        'total'  => 0,
-                        'orders' => [],
-                    ];
-                }
-                $customerStats[$emailKey]['total'] += $summary['total_quantity'];
-                $customerStats[$emailKey]['orders'][] = [
-                    'order_id' => $summary['id'],
-                    'quantity' => $summary['total_quantity'],
-                ];
-            }
-        }
+        $orderCollections = $this->summarizeOrders($displayIds, $producerId);
+        $orders           = $orderCollections['orders'];
+        $customerStats    = $orderCollections['customer_stats'];
 
         $warnings = $this->buildWarnings($customerStats);
 
-        $events = [];
-        foreach ($orders as $order) {
-            if (empty($order['events'])) {
-                continue;
-            }
-
-            foreach ($order['events'] as $eventData) {
-                $eventId = (int) ($eventData['event_id'] ?? 0);
-                $productId = (int) ($eventData['product_id'] ?? 0);
-                $eventKey = $eventId ?: $productId ?: (int) $order['id'];
-                $key = (string) $eventKey;
-
-                if (!isset($events[$key])) {
-                    $events[$key] = [
-                        'id'        => $eventKey,
-                        'title'     => (string) ($eventData['title'] ?? ''),
-                        'image'     => (string) ($eventData['image'] ?? ''),
-                        'permalink' => (string) ($eventData['permalink'] ?? ''),
-                        'counts'    => ['pending' => 0, 'approved' => 0, 'cancelled' => 0],
-                        'orders'    => [],
-                        'search'    => '',
-                    ];
-
-                    if ($events[$key]['title'] === '') {
-                        $events[$key]['title'] = $this->decodeEntities('&#1488;&#1497;&#1512;&#1493;&#1506; &#1489;&#1500;&#1514;&#1497; &#1505;&#1493;&#1498;');
-                    }
-                }
-
-                $statusType = $this->classifyOrderStatus((string) $order['status']);
-                if (isset($events[$key]['counts'][$statusType])) {
-                    $events[$key]['counts'][$statusType]++;
-                }
-
-                $searchSegments = [
-                    '#' . $order['number'],
-                    (string) ($order['customer']['name'] ?? ''),
-                    (string) ($order['customer']['email'] ?? ''),
-                    (string) ($order['customer']['phone'] ?? ''),
-                    (string) $order['primary_id_number'],
-                    (string) $order['date'],
-                    (string) $order['total'],
-                    (string) ($eventData['title'] ?? ''),
-                ];
-
-                $profileUsername = (string) ($order['customer_profile']['username'] ?? '');
-                if ($profileUsername !== '') {
-                    $searchSegments[] = $profileUsername;
-                    $searchSegments[] = '@' . ltrim($profileUsername, '@');
-                }
-
-                foreach ((array) ($eventData['lines'] ?? []) as $line) {
-                    $searchSegments[] = (string) ($line['name'] ?? '');
-                }
-
-                foreach ((array) ($eventData['attendees'] ?? []) as $attendee) {
-                    foreach (['full_name', 'email', 'phone', 'id_number', 'gender'] as $field) {
-                        if (!empty($attendee[$field])) {
-                            $searchSegments[] = (string) $attendee[$field];
-                        }
-                    }
-                }
-
-                $orderSearch = strtolower(wp_strip_all_tags(implode(' ', array_filter($searchSegments))));
-
-                $events[$key]['orders'][] = [
-                    'id'                => (int) $order['id'],
-                    'number'            => (string) $order['number'],
-                    'timestamp'         => (int) ($order['timestamp'] ?? 0),
-                    'date'              => (string) $order['date'],
-                    'status'            => (string) $order['status'],
-                    'status_label'      => (string) $order['status_label'],
-                    'status_type'       => $statusType,
-                    'total'             => (string) $order['total'],
-                    'quantity'          => (int) ($eventData['quantity'] ?? 0),
-                    'lines'             => (array) ($eventData['lines'] ?? []),
-                    'attendees'         => (array) ($eventData['attendees'] ?? []),
-                    'customer'          => (array) $order['customer'],
-                    'customer_profile'  => (array) ($order['customer_profile'] ?? []),
-                    'profile'           => (array) $order['profile'],
-                    'primary_attendee'  => (array) ($order['primary_attendee'] ?? []),
-                    'primary_id_number' => (string) $order['primary_id_number'],
-                    'is_pending'        => (string) $order['status'] === AwaitingProducerStatus::STATUS_SLUG,
-                    'search_blob'       => $orderSearch,
-                ];
-
-                $events[$key]['search'] .= ' ' . $orderSearch;
-            }
-        }
-
-        foreach ($events as &$event) {
-            $event['search'] = strtolower(trim($event['title'] . ' ' . $event['search']));
-            usort($event['orders'], static function (array $a, array $b): int {
-                return ($b['timestamp'] ?? 0) <=> ($a['timestamp'] ?? 0);
-            });
-        }
-        unset($event);
-
-        uasort($events, static function (array $a, array $b): int {
-            $pendingDiff = ($b['counts']['pending'] ?? 0) <=> ($a['counts']['pending'] ?? 0);
-            if ($pendingDiff !== 0) {
-                return $pendingDiff;
-            }
-
-            $approvedDiff = ($b['counts']['approved'] ?? 0) <=> ($a['counts']['approved'] ?? 0);
-            if ($approvedDiff !== 0) {
-                return $approvedDiff;
-            }
-
-            return strcmp((string) $a['title'], (string) $b['title']);
-        });
-
-        $events = array_values($events);
+        $events = $this->groupOrdersByEvent($orders);
 
         ob_start(); ?>
         <style>
@@ -338,6 +138,8 @@ final class ProducerApprovalsShortcode implements Service
           .tapin-pa-event.is-open .tapin-pa-event__chevron{transform:rotate(180deg)}
           .tapin-pa-event__panel{padding:0 18px 18px;display:none}
           .tapin-pa-event.is-open .tapin-pa-event__panel{display:block}
+          .tapin-pa-event__actions{display:flex;justify-content:flex-end;gap:8px;margin:14px 0}
+          .tapin-pa-event__actions .btn{font-size:.85rem;padding:8px 14px}
           .tapin-pa-order{position:relative;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-top:18px;background:#ffffff;transition:background-color .25s ease,border-color .25s ease,box-shadow .25s ease;box-shadow:0 4px 14px rgba(15,23,42,.08)}
           .tapin-pa-order--alt{background:#eef2ff;border-color:#c7d2fe;box-shadow:0 10px 26px rgba(59,130,246,.12)}
           .tapin-pa-order::after{content:'';position:absolute;inset:-1px auto -1px -1px;width:5px;border-radius:14px 0 0 14px;background:#e2e8f0;transition:background-color .25s ease}
@@ -445,6 +247,26 @@ final class ProducerApprovalsShortcode implements Service
                       <span class="tapin-pa-event__chevron" aria-hidden="true">&#9662;</span>
                     </button>
                     <div class="tapin-pa-event__panel"<?php echo $isOpen ? '' : ' hidden'; ?>>
+                      <?php if ($isAdministrator && !empty($event['orders'])): ?>
+                        <?php
+                        $downloadUrl = wp_nonce_url(
+                            add_query_arg(
+                                [
+                                    'action'   => 'tapin_pa_export_event',
+                                    'event_id' => (int) ($event['id'] ?? 0),
+                                ],
+                                admin_url('admin-post.php')
+                            ),
+                            'tapin_pa_export_event_' . (int) ($event['id'] ?? 0),
+                            'tapin_pa_export_nonce'
+                        );
+                        ?>
+                        <div class="tapin-pa-event__actions">
+                          <a class="btn btn-ghost tapin-pa-event__download" href="<?php echo esc_url($downloadUrl); ?>">
+                            <?php echo esc_html($this->decodeEntities('&#1492;&#1493;&#1512;&#1491;&#1514;&#32;&#1489;&#1511;&#1513;&#1493;&#1514;')); ?>
+                          </a>
+                        </div>
+                      <?php endif; ?>
                       <?php if (!empty($event['orders'])): ?>
                         <?php foreach ($event['orders'] as $orderIndex => $orderData): ?>
                           <?php
@@ -925,6 +747,487 @@ final class ProducerApprovalsShortcode implements Service
         <?php
 
         return ob_get_clean();
+    }
+
+    public function exportEvent(): void
+    {
+        if (!is_user_logged_in()) {
+            auth_redirect();
+            return;
+        }
+
+        $guard = Security::producer();
+        if (!$guard->allowed) {
+            $message = $guard->message !== '' ? $guard->message : $this->decodeEntities('&#1488;&#1497;&#1503;&#32;&#1492;&#1512;&#1513;&#1488;&#1492;&#46;');
+            status_header(403);
+            wp_die(wp_kses_post($message));
+        }
+
+        $viewer = $guard->user instanceof WP_User ? $guard->user : wp_get_current_user();
+        if (!$this->isAdministrator($viewer instanceof WP_User ? $viewer : null)) {
+            status_header(403);
+            wp_die($this->decodeEntities('&#1488;&#1497;&#1503;&#32;&#1500;&#1495;&#32;&#1492;&#1512;&#1513;&#1488;&#1492;&#32;&#1500;&#1492;&#1493;&#1512;&#1491;&#32;&#1489;&#1511;&#1513;&#1493;&#1514;.'));
+        }
+
+        $eventId = isset($_GET['event_id']) ? absint($_GET['event_id']) : 0;
+        $nonce   = isset($_GET['tapin_pa_export_nonce']) ? sanitize_text_field(wp_unslash((string) $_GET['tapin_pa_export_nonce'])) : '';
+
+        if ($eventId <= 0 || $nonce === '' || !wp_verify_nonce($nonce, 'tapin_pa_export_event_' . $eventId)) {
+            status_header(400);
+            wp_die($this->decodeEntities('&#1488;&#1497;&#1490;&#1512;&#32;&#1488;&#1508;&#1512;&#1493;&#1497;&#32;&#1500;&#1488;&#1513;&#1512;.'));
+        }
+
+        $producerId = $viewer instanceof WP_User ? (int) $viewer->ID : (int) get_current_user_id();
+
+        $orderSets = $this->resolveProducerOrderIds($producerId);
+        $displayIds = $orderSets['display'];
+
+        if ($displayIds === []) {
+            status_header(404);
+            wp_die($this->decodeEntities('&#1488;&#1497;&#1513;&#32;&#1488;&#1497;&#1512;&#1493;&#1506;&#32;&#1500;&#1492;&#1493;&#1512;&#1491;&#46;'));
+        }
+
+        $collections   = $this->summarizeOrders($displayIds, $producerId);
+        $events        = $this->groupOrdersByEvent($collections['orders']);
+        $targetEvent   = null;
+
+        foreach ($events as $event) {
+            if ((int) ($event['id'] ?? 0) === $eventId) {
+                $targetEvent = $event;
+                break;
+            }
+        }
+
+        if ($targetEvent === null) {
+            status_header(404);
+            wp_die($this->decodeEntities('&#1488;&#1497;&#1513;&#32;&#1488;&#1497;&#1512;&#1493;&#1506;&#32;&#1500;&#1492;&#1493;&#1512;&#1491;&#46;'));
+        }
+
+        $rows = $this->buildEventExportRows($targetEvent);
+        $this->streamEventExport($targetEvent, $rows);
+    }
+
+    /**
+     * @return array{relevant: array<int,int>, display: array<int,int>}
+     */
+    private function resolveProducerOrderIds(int $producerId): array
+    {
+        $awaitingIds = wc_get_orders([
+            'status' => [AwaitingProducerStatus::STATUS_KEY],
+            'limit'  => 200,
+            'return' => 'ids',
+        ]);
+
+        foreach ($awaitingIds as $orderId) {
+            $order = wc_get_order($orderId);
+            if ($order instanceof WC_Order && !$order->get_meta('_tapin_producer_ids')) {
+                $order->update_meta_data('_tapin_producer_ids', Orders::collectProducerIds($order));
+                $order->save();
+            }
+        }
+
+        $pendingIds = wc_get_orders([
+            'status' => [AwaitingProducerStatus::STATUS_KEY],
+            'limit'  => 200,
+            'return' => 'ids',
+        ]);
+
+        $relevantIds = [];
+        foreach ($pendingIds as $orderId) {
+            $order = wc_get_order($orderId);
+            if ($order instanceof WC_Order && $this->orderBelongsToProducer($order, $producerId)) {
+                $relevantIds[] = (int) $orderId;
+            }
+        }
+
+        $relevantIds = array_values(array_unique(array_map('intval', $relevantIds)));
+
+        $displayIds = $relevantIds;
+
+        $historyStatuses = [
+            'wc-processing',
+            'wc-completed',
+            'wc-cancelled',
+            'wc-refunded',
+            'wc-failed',
+        ];
+
+        $historyIds = wc_get_orders([
+            'status' => $historyStatuses,
+            'limit'  => 200,
+            'return' => 'ids',
+        ]);
+
+        foreach ($historyIds as $orderId) {
+            if (in_array($orderId, $displayIds, true)) {
+                continue;
+            }
+
+            $order = wc_get_order($orderId);
+            if ($order instanceof WC_Order && $this->orderBelongsToProducer($order, $producerId)) {
+                $displayIds[] = (int) $orderId;
+            }
+        }
+
+        $displayIds = array_values(array_unique(array_map('intval', $displayIds)));
+
+        return [
+            'relevant' => $relevantIds,
+            'display'  => $displayIds,
+        ];
+    }
+
+    /**
+     * @param array<int,int> $orderIds
+     * @return array{orders: array<int,array<string,mixed>>, customer_stats: array<string,array<string,mixed>>}
+     */
+    private function summarizeOrders(array $orderIds, int $producerId): array
+    {
+        $orders = [];
+        $customerStats = [];
+
+        foreach ($orderIds as $orderId) {
+            $order = wc_get_order((int) $orderId);
+            if (!$order instanceof WC_Order) {
+                continue;
+            }
+
+            $summary = $this->buildOrderSummary($order, $producerId);
+            if (empty($summary['items'])) {
+                continue;
+            }
+
+            $orders[] = $summary;
+
+            $email = isset($summary['customer']['email']) ? (string) $summary['customer']['email'] : '';
+            $emailKey = strtolower(trim($email));
+            if ($emailKey === '') {
+                continue;
+            }
+
+            if (!isset($customerStats[$emailKey])) {
+                $customerStats[$emailKey] = [
+                    'name'   => (string) ($summary['customer']['name'] ?? ''),
+                    'email'  => $email,
+                    'total'  => 0,
+                    'orders' => [],
+                ];
+            }
+
+            $customerStats[$emailKey]['total'] += (int) ($summary['total_quantity'] ?? 0);
+            $customerStats[$emailKey]['orders'][] = [
+                'order_id' => (int) ($summary['id'] ?? 0),
+                'quantity' => (int) ($summary['total_quantity'] ?? 0),
+            ];
+        }
+
+        return [
+            'orders'         => $orders,
+            'customer_stats' => $customerStats,
+        ];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $orders
+     * @return array<int,array<string,mixed>>
+     */
+    private function groupOrdersByEvent(array $orders): array
+    {
+        $events = [];
+
+        foreach ($orders as $order) {
+            if (empty($order['events'])) {
+                continue;
+            }
+
+            foreach ((array) $order['events'] as $eventData) {
+                $eventId   = (int) ($eventData['event_id'] ?? 0);
+                $productId = (int) ($eventData['product_id'] ?? 0);
+                $eventKey  = $eventId ?: $productId ?: (int) ($order['id'] ?? 0);
+                $key       = (string) $eventKey;
+
+                if (!isset($events[$key])) {
+                    $events[$key] = [
+                        'id'        => $eventKey,
+                        'title'     => (string) ($eventData['title'] ?? ''),
+                        'image'     => (string) ($eventData['image'] ?? ''),
+                        'permalink' => (string) ($eventData['permalink'] ?? ''),
+                        'counts'    => ['pending' => 0, 'approved' => 0, 'cancelled' => 0],
+                        'orders'    => [],
+                        'search'    => '',
+                    ];
+
+                    if ($events[$key]['title'] === '') {
+                        $events[$key]['title'] = $this->decodeEntities('&#1488;&#1497;&#1512;&#1493;&#1506; &#1489;&#1500;&#1514;&#1497; &#1505;&#1493;&#1498;');
+                    }
+                }
+
+                $statusType = $this->classifyOrderStatus((string) ($order['status'] ?? ''));
+                if (isset($events[$key]['counts'][$statusType])) {
+                    $events[$key]['counts'][$statusType]++;
+                }
+
+                $searchSegments = [
+                    '#' . (string) ($order['number'] ?? ''),
+                    (string) ($order['customer']['name'] ?? ''),
+                    (string) ($order['customer']['email'] ?? ''),
+                    (string) ($order['customer']['phone'] ?? ''),
+                    (string) ($order['primary_id_number'] ?? ''),
+                    (string) ($order['date'] ?? ''),
+                    (string) ($order['total'] ?? ''),
+                    (string) ($eventData['title'] ?? ''),
+                ];
+
+                $profileUsername = (string) ($order['customer_profile']['username'] ?? '');
+                if ($profileUsername !== '') {
+                    $searchSegments[] = $profileUsername;
+                    $searchSegments[] = '@' . ltrim($profileUsername, '@');
+                }
+
+                foreach ((array) ($eventData['lines'] ?? []) as $line) {
+                    $searchSegments[] = (string) ($line['name'] ?? '');
+                }
+
+                foreach ((array) ($eventData['attendees'] ?? []) as $attendee) {
+                    foreach (['full_name', 'email', 'phone', 'id_number', 'gender'] as $field) {
+                        if (!empty($attendee[$field])) {
+                            $searchSegments[] = (string) $attendee[$field];
+                        }
+                    }
+                }
+
+                $orderSearch = strtolower(wp_strip_all_tags(implode(' ', array_filter($searchSegments))));
+
+                $events[$key]['orders'][] = [
+                    'id'                => (int) ($order['id'] ?? 0),
+                    'number'            => (string) ($order['number'] ?? ''),
+                    'timestamp'         => (int) ($order['timestamp'] ?? 0),
+                    'date'              => (string) ($order['date'] ?? ''),
+                    'status'            => (string) ($order['status'] ?? ''),
+                    'status_label'      => (string) ($order['status_label'] ?? ''),
+                    'status_type'       => $statusType,
+                    'total'             => (string) ($order['total'] ?? ''),
+                    'quantity'          => (int) ($eventData['quantity'] ?? 0),
+                    'lines'             => (array) ($eventData['lines'] ?? []),
+                    'attendees'         => (array) ($eventData['attendees'] ?? []),
+                    'customer'          => (array) ($order['customer'] ?? []),
+                    'customer_profile'  => (array) ($order['customer_profile'] ?? []),
+                    'profile'           => (array) ($order['profile'] ?? []),
+                    'primary_attendee'  => (array) ($order['primary_attendee'] ?? []),
+                    'primary_id_number' => (string) ($order['primary_id_number'] ?? ''),
+                    'is_pending'        => (string) ($order['status'] ?? '') === AwaitingProducerStatus::STATUS_SLUG,
+                    'search_blob'       => $orderSearch,
+                ];
+
+                $events[$key]['search'] .= ' ' . $orderSearch;
+            }
+        }
+
+        foreach ($events as &$event) {
+            $event['search'] = strtolower(trim((string) $event['title'] . ' ' . (string) $event['search']));
+            usort($event['orders'], static function (array $a, array $b): int {
+                return ($b['timestamp'] ?? 0) <=> ($a['timestamp'] ?? 0);
+            });
+        }
+        unset($event);
+
+        uasort($events, static function (array $a, array $b): int {
+            $pendingDiff = ($b['counts']['pending'] ?? 0) <=> ($a['counts']['pending'] ?? 0);
+            if ($pendingDiff !== 0) {
+                return $pendingDiff;
+            }
+
+            $approvedDiff = ($b['counts']['approved'] ?? 0) <=> ($a['counts']['approved'] ?? 0);
+            if ($approvedDiff !== 0) {
+                return $approvedDiff;
+            }
+
+            return strcmp((string) $a['title'], (string) $b['title']);
+        });
+
+        return array_values($events);
+    }
+
+    /**
+     * @param array<string,mixed> $event
+     * @return array<int,array<int,string>>
+     */
+    private function buildEventExportRows(array $event): array
+    {
+        $rows = [];
+        $eventId    = (int) ($event['id'] ?? 0);
+        $eventTitle = (string) ($event['title'] ?? '');
+        $eventLink  = (string) ($event['permalink'] ?? '');
+
+        foreach ((array) ($event['orders'] ?? []) as $order) {
+            $lineItems = array_map(
+                function (array $line): string {
+                    $name     = $this->cleanExportValue($line['name'] ?? '');
+                    $quantity = (int) ($line['quantity'] ?? 0);
+                    $total    = $this->cleanExportValue($line['total'] ?? '');
+
+                    $parts = [];
+                    if ($name !== '') {
+                        $parts[] = $name;
+                    }
+                    if ($quantity > 0) {
+                        $parts[] = '× ' . $quantity;
+                    }
+                    if ($total !== '') {
+                        $parts[] = '(' . $total . ')';
+                    }
+
+                    $result = trim(implode(' ', $parts));
+                    return $result !== '' ? $result : $total;
+                },
+                (array) ($order['lines'] ?? [])
+            );
+
+            $lineSummary = implode(' | ', array_filter($lineItems));
+
+            $orderBase = [
+                $eventId,
+                $this->cleanExportValue($eventTitle),
+                $this->cleanExportValue($eventLink),
+                $this->cleanExportValue('#' . (string) ($order['number'] ?? '')),
+                $this->cleanExportValue($order['status_label'] ?? ''),
+                $this->cleanExportValue($order['date'] ?? ''),
+                $this->cleanExportValue($order['total'] ?? ''),
+                (string) (int) ($order['quantity'] ?? 0),
+                $lineSummary,
+                $this->cleanExportValue($order['customer']['name'] ?? ''),
+                $this->cleanExportValue($order['customer']['email'] ?? ''),
+                $this->cleanExportValue($order['customer']['phone'] ?? ''),
+                $this->cleanExportValue($order['primary_id_number'] ?? ''),
+            ];
+
+            $attendees = [];
+            if (!empty($order['primary_attendee'])) {
+                $attendees[] = ['data' => (array) $order['primary_attendee'], 'primary' => true];
+            }
+            foreach ((array) ($order['attendees'] ?? []) as $attendee) {
+                $attendees[] = ['data' => (array) $attendee, 'primary' => false];
+            }
+
+            if ($attendees === []) {
+                $rows[] = array_merge($orderBase, ['', '', '', '', '', '', '', '', '', '']);
+                continue;
+            }
+
+            foreach ($attendees as $attendeeEntry) {
+                $attendee = (array) ($attendeeEntry['data'] ?? []);
+                $rows[] = array_merge(
+                    $orderBase,
+                    [
+                        $attendeeEntry['primary'] ? 'ראשי' : 'משני',
+                        $this->cleanExportValue($attendee['full_name'] ?? ''),
+                        $this->cleanExportValue($attendee['email'] ?? ''),
+                        $this->cleanExportValue($attendee['phone'] ?? ''),
+                        $this->cleanExportValue($attendee['id_number'] ?? ''),
+                        $this->cleanExportValue($attendee['birth_date'] ?? ''),
+                        $this->cleanExportValue($attendee['gender'] ?? ''),
+                        $this->cleanExportValue($attendee['instagram'] ?? ''),
+                        $this->cleanExportValue($attendee['facebook'] ?? ''),
+                        $this->cleanExportValue($attendee['whatsapp'] ?? ''),
+                    ]
+                );
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<string,mixed> $event
+     * @param array<int,array<int,string>> $rows
+     */
+    private function streamEventExport(array $event, array $rows): void
+    {
+        $filenameBase = sanitize_title($event['title'] ?? 'tapin-event');
+        if ($filenameBase === '') {
+            $filenameBase = 'tapin-event';
+        }
+
+        $filename = sprintf(
+            '%s-%d-%s.csv',
+            $filenameBase,
+            (int) ($event['id'] ?? 0),
+            gmdate('Ymd-His')
+        );
+
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $output = fopen('php://output', 'wb');
+        if ($output === false) {
+            status_header(500);
+            wp_die($this->decodeEntities('&#1502;&#1497;&#1508;&#1512;&#32;&#1489;&#1493;&#1514;&#1507;&#32;&#1488;&#1500;&#32;&#1512;&#1513;&#1493;&#1500;.'));
+        }
+
+        fwrite($output, "\xEF\xBB\xBF");
+
+        $header = [
+            'ID אירוע',
+            'שם אירוע',
+            'קישור לאירוע',
+            'מספר הזמנה',
+            'סטטוס הזמנה',
+            'תאריך הזמנה',
+            'סכום',
+            'כמות כרטיסים',
+            'שורות הזמנה',
+            'שם הלקוח',
+            'אימייל הלקוח',
+            'טלפון הלקוח',
+            'תעודת זהות ראשית',
+            'סוג משתתף',
+            'שם משתתף',
+            'אימייל משתתף',
+            'טלפון משתתף',
+            'תעודת זהות משתתף',
+            'תאריך לידה',
+            'מגדר',
+            'אינסטגרם',
+            'פייסבוק',
+            'וואטסאפ',
+        ];
+
+        fputcsv($output, $header);
+        foreach ($rows as $row) {
+            fputcsv($output, array_map([$this, 'cleanExportValue'], $row));
+        }
+
+        fclose($output);
+        exit;
+    }
+
+    private function cleanExportValue($value): string
+    {
+        if (is_array($value)) {
+            $value = implode(', ', array_filter(array_map('strval', $value)));
+        }
+
+        $text = trim((string) $value);
+        $text = wp_strip_all_tags($text);
+        $text = preg_replace('/\s+/u', ' ', $text);
+
+        return $text !== null ? trim($text) : '';
+    }
+
+    private function isAdministrator(?WP_User $user): bool
+    {
+        if (!$user instanceof WP_User) {
+            return false;
+        }
+
+        if (is_multisite() && is_super_admin((int) $user->ID)) {
+            return true;
+        }
+
+        return in_array('administrator', (array) $user->roles, true);
     }
 
     private function isProducerLineItem($item, int $producerId): bool
