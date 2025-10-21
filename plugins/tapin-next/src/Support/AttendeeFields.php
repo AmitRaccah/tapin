@@ -7,7 +7,7 @@ final class AttendeeFields
     /**
      * Front-facing field definitions used for rendering and validation.
      *
-     * @var array<string,array<string,string>>
+     * @var array<string,array<string,mixed>>
      */
     private const DEFINITIONS = [
         'email'      => [
@@ -25,6 +25,14 @@ final class AttendeeFields
         'full_name'  => [
             'label' => 'שם מלא',
             'type'  => 'text',
+        ],
+        'gender'     => [
+            'label'   => 'מגדר',
+            'type'    => 'choice',
+            'choices' => [
+                'male'   => 'זכר',
+                'female' => 'נקבה',
+            ],
         ],
         'birth_date' => [
             'label' => 'תאריך לידה',
@@ -53,6 +61,7 @@ final class AttendeeFields
         'birth_date',
         'phone',
         'id_number',
+        'gender',
     ];
 
     /**
@@ -65,6 +74,7 @@ final class AttendeeFields
         'facebook'   => ['producer_facebook', 'facebook', 'facebook_url'],
         'phone'      => ['producer_phone_public', 'producer_phone_private', 'phone_whatsapp', 'billing_phone'],
         'birth_date' => ['birth_date', 'um_birth_date', 'um_birthdate', 'date_of_birth', 'birthdate'],
+        'gender'     => ['gender', 'um_gender', 'sex'],
         'id_number'  => ['id_number', 'national_id'],
     ];
 
@@ -75,6 +85,12 @@ final class AttendeeFields
         foreach ($definitions as &$definition) {
             if (isset($definition['label'])) {
                 $definition['label'] = self::decodeEntities($definition['label']);
+            }
+
+            if (isset($definition['choices']) && is_array($definition['choices'])) {
+                foreach ($definition['choices'] as $choiceKey => $choiceLabel) {
+                    $definition['choices'][$choiceKey] = self::decodeEntities((string) $choiceLabel);
+                }
             }
         }
 
@@ -161,6 +177,9 @@ final class AttendeeFields
             case 'birth_date':
                 return self::normalizeBirthDate($value);
 
+            case 'gender':
+                return self::normalizeGender($value);
+
             default:
                 return sanitize_text_field($value);
         }
@@ -220,6 +239,23 @@ final class AttendeeFields
             case 'birth_date':
                 return self::normalizeBirthDate($value) ?: sanitize_text_field($value);
 
+            case 'gender':
+                $normalized = self::normalizeGender($value);
+                if ($normalized === 'male') {
+                    return 'זכר';
+                }
+                if ($normalized === 'female') {
+                    return 'נקבה';
+                }
+                $lower = strtolower($value);
+                if (in_array($lower, ['זכר', 'male', 'איש'], true)) {
+                    return 'זכר';
+                }
+                if (in_array($lower, ['נקבה', 'female', 'אישה', 'אשה'], true)) {
+                    return 'נקבה';
+                }
+                return sanitize_text_field($value);
+
             default:
                 return sanitize_text_field($value);
         }
@@ -242,6 +278,39 @@ final class AttendeeFields
             return '';
         }
         return $digits;
+    }
+
+    private static function normalizeGender(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if ($value === '') {
+            return '';
+        }
+
+        $map = [
+            'male'   => 'male',
+            'm'      => 'male',
+            'זכר'    => 'male',
+            'man'    => 'male',
+            'גבר'    => 'male',
+            'בן'     => 'male',
+            'boy'    => 'male',
+            'איש'    => 'male',
+            'female' => 'female',
+            'f'      => 'female',
+            'נקבה'   => 'female',
+            'אישה'   => 'female',
+            'אשה'    => 'female',
+            'בת'     => 'female',
+            'girl'   => 'female',
+            'woman'  => 'female',
+        ];
+
+        if (isset($map[$value])) {
+            return $map[$value];
+        }
+
+        return '';
     }
 
     private static function normalizeInstagramHandle(string $value): string

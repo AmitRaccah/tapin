@@ -242,7 +242,7 @@ final class ProducerApprovalsShortcode implements Service
                 }
 
                 foreach ((array) ($eventData['attendees'] ?? []) as $attendee) {
-                    foreach (['full_name', 'email', 'phone', 'id_number'] as $field) {
+                    foreach (['full_name', 'email', 'phone', 'id_number', 'gender'] as $field) {
                         if (!empty($attendee[$field])) {
                             $searchSegments[] = (string) $attendee[$field];
                         }
@@ -266,6 +266,7 @@ final class ProducerApprovalsShortcode implements Service
                     'customer'          => (array) $order['customer'],
                     'customer_profile'  => (array) ($order['customer_profile'] ?? []),
                     'profile'           => (array) $order['profile'],
+                    'primary_attendee'  => (array) ($order['primary_attendee'] ?? []),
                     'primary_id_number' => (string) $order['primary_id_number'],
                     'is_pending'        => (string) $order['status'] === 'awaiting-producer',
                     'search_blob'       => $orderSearch,
@@ -708,6 +709,19 @@ final class ProducerApprovalsShortcode implements Service
                                           }
                                       }
 
+                                      if (!empty($attendee['gender'])) {
+                                          $genderRaw = trim((string) $attendee['gender']);
+                                          $genderValue = AttendeeFields::displayValue('gender', $genderRaw);
+                                          if ($genderValue !== '') {
+                                              $attendeeRows[] = [
+                                                  'label' => $this->decodeEntities('&#1502;&#1490;&#1491;&#1512;'),
+                                                  'value' => $genderValue,
+                                                  'type'  => 'text',
+                                                  'href'  => '',
+                                              ];
+                                          }
+                                      }
+
                                       if (!empty($attendee['instagram'])) {
                                           $instagramRaw = trim((string) $attendee['instagram']);
                                           if ($instagramRaw !== '') {
@@ -952,10 +966,12 @@ final class ProducerApprovalsShortcode implements Service
      */
     private function buildOrderSummary(WC_Order $order, int $producerId): array
     {
-        $items         = [];
-        $attendeesList = [];
-        $totalQuantity = 0;
-        $eventMap      = [];
+        $items             = [];
+        $attendeesList     = [];
+        $totalQuantity     = 0;
+        $eventMap          = [];
+        $allAttendeesList  = [];
+        $primaryAttendee   = null;
 
         foreach ($order->get_items('line_item') as $item) {
             if (!$this->isProducerLineItem($item, $producerId)) {
@@ -988,11 +1004,22 @@ final class ProducerApprovalsShortcode implements Service
                 'total'    => $formattedTotal,
             ];
 
-            $lineAttendees = $this->extractAttendees($item);
+            $lineAttendees       = $this->extractAttendees($item);
+            $lineDisplayAttendees = [];
             foreach ($lineAttendees as $attendee) {
+                $allAttendeesList[] = $attendee;
+                if ($primaryAttendee === null) {
+                    $primaryAttendee = $attendee;
+                    continue;
+                }
+
                 $attendeesList[] = $attendee;
+                $lineDisplayAttendees[] = $attendee;
             }
-            $eventMap[$eventKey]['attendees'] = array_merge($eventMap[$eventKey]['attendees'], $lineAttendees);
+
+            if ($lineDisplayAttendees !== []) {
+                $eventMap[$eventKey]['attendees'] = array_merge($eventMap[$eventKey]['attendees'], $lineDisplayAttendees);
+            }
         }
 
         $userId = (int) $order->get_user_id();
@@ -1007,6 +1034,8 @@ final class ProducerApprovalsShortcode implements Service
                 'instagram'  => '',
                 'whatsapp'   => '',
             ];
+
+        $profile['gender'] = AttendeeFields::displayValue('gender', (string) ($profile['gender'] ?? ''));
 
         $profileUsername = '';
         $profileUrl = '';
@@ -1036,6 +1065,7 @@ final class ProducerApprovalsShortcode implements Service
             'total_quantity' => $totalQuantity,
             'items'          => $items,
             'attendees'      => $attendeesList,
+            'primary_attendee' => $primaryAttendee ?: [],
             'customer'       => [
                 'name'  => trim($order->get_formatted_billing_full_name()) ?: $order->get_billing_first_name() ?: ($order->get_user() ? $order->get_user()->display_name : $this->decodeEntities('&#1500;&#1511;&#1493;&#1495;&#32;&#1488;&#1504;&#1493;&#1504;&#1497;&#1502;&#1497;')),
                 'email' => $order->get_billing_email(),
@@ -1047,7 +1077,7 @@ final class ProducerApprovalsShortcode implements Service
                 'user_id'  => $userId,
             ],
             'profile'             => $profile,
-            'primary_id_number'   => $this->findPrimaryIdNumber($attendeesList),
+            'primary_id_number'   => $this->findPrimaryIdNumber($allAttendeesList),
             'status'              => $status,
             'status_label'        => $statusLabel,
             'is_approved'         => (bool) $order->get_meta('_tapin_producer_approved'),
@@ -1261,6 +1291,7 @@ final class ProducerApprovalsShortcode implements Service
         $profile['facebook']  = AttendeeFields::displayValue('facebook', $profile['facebook']);
         $profile['instagram'] = AttendeeFields::displayValue('instagram', $profile['instagram']);
         $profile['whatsapp']  = AttendeeFields::displayValue('phone', $profile['whatsapp']);
+        $profile['gender']    = AttendeeFields::displayValue('gender', $profile['gender']);
 
         return $profile;
     }

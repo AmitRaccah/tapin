@@ -17,7 +17,7 @@
     config.messages || {}
   );
   const fieldConfig = config.fields || {};
-  const LOCKED_KEYS = ['instagram', 'facebook', 'phone'];
+  const LOCKED_KEYS = ['instagram', 'facebook', 'phone', 'full_name', 'email', 'birth_date', 'gender'];
   const fieldKeys = Object.keys(fieldConfig);
 
   function format(str, ...args) {
@@ -75,27 +75,93 @@
       modal.querySelectorAll('.tapin-field input').forEach((input) => {
         input.classList.remove('tapin-field--invalid');
       });
+      modal.querySelectorAll('.tapin-choice').forEach((group) => {
+        group.classList.remove('tapin-choice--invalid');
+      });
+    }
+
+    function getChoiceGroup(fieldKey) {
+      return formContainer.querySelector('[data-choice-group=\"' + fieldKey + '\"]');
+    }
+
+    function updateChoiceState(fieldKey, value) {
+      const group = getChoiceGroup(fieldKey);
+      if (!group) {
+        return;
+      }
+      const normalized = value || '';
+      const buttons = group.querySelectorAll('[data-choice-value]');
+      buttons.forEach((btn) => {
+        const isSelected = btn.dataset.choiceValue === normalized;
+        btn.classList.toggle('is-selected', isSelected);
+        btn.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+      });
+      if (normalized === '') {
+        group.classList.remove('tapin-choice--has-value');
+      } else {
+        group.classList.add('tapin-choice--has-value');
+        group.classList.remove('tapin-choice--invalid');
+      }
+    }
+
+    function setupChoiceFields() {
+      const groups = formContainer.querySelectorAll('[data-choice-group]');
+      groups.forEach((group) => {
+        const fieldKey = group.dataset.choiceGroup;
+        if (!fieldKey) {
+          return;
+        }
+        const input = formContainer.querySelector('[data-field=\"' + fieldKey + '\"]');
+        if (!input) {
+          return;
+        }
+        group.querySelectorAll('[data-choice-value]').forEach((btn) => {
+          btn.setAttribute('aria-pressed', 'false');
+          btn.addEventListener('click', () => {
+            if (input.dataset.locked === 'true') {
+              return;
+            }
+            const choiceValue = btn.dataset.choiceValue || '';
+            input.value = choiceValue;
+            updateChoiceState(fieldKey, choiceValue);
+          });
+        });
+      });
     }
 
     function populateForm(index) {
       const values = getPrefill(index);
       fieldKeys.forEach((key) => {
+        const field = fieldConfig[key] || {};
+        const fieldType = field.type || 'text';
         const input = formContainer.querySelector('[data-field=\"' + key + '\"]');
         if (!input) {
           return;
         }
 
-        input.value = values[key] || '';
+        const value = values[key] || '';
+        input.value = value;
+
+        if (fieldType === 'choice') {
+          updateChoiceState(key, value);
+        }
 
         if (LOCKED_KEYS.includes(key)) {
-          if (index === 0 && values[key]) {
+          const choiceGroup = fieldType === 'choice' ? getChoiceGroup(key) : null;
+          if (index === 0 && value) {
             input.setAttribute('readonly', 'readonly');
             input.dataset.locked = 'true';
             input.classList.add('tapin-field--locked');
+            if (choiceGroup) {
+              choiceGroup.classList.add('tapin-choice--locked');
+            }
           } else {
             input.removeAttribute('readonly');
             input.dataset.locked = 'false';
             input.classList.remove('tapin-field--locked');
+            if (choiceGroup) {
+              choiceGroup.classList.remove('tapin-choice--locked');
+            }
           }
         }
       });
@@ -173,9 +239,15 @@
       allowSubmit = false;
     }
 
-    function markInvalid(input, message) {
+    function markInvalid(input, message, fieldType) {
       input.classList.add('tapin-field--invalid');
       const wrapper = input.closest('.tapin-field');
+      if (wrapper && fieldType === 'choice') {
+        const group = wrapper.querySelector('[data-choice-group]');
+        if (group) {
+          group.classList.add('tapin-choice--invalid');
+        }
+      }
       if (!wrapper) {
         return;
       }
@@ -197,19 +269,19 @@
           return;
         }
 
-        const value = input.value.trim();
-        const type = field.type || 'text';
+        const type = field.type || input.dataset.fieldType || 'text';
+        const value = type === 'choice' ? input.value : input.value.trim();
         const isLocked = input.dataset.locked === 'true';
 
         if (type === 'email') {
           const emailValid = /\S+@\S+\.\S+/.test(value);
           if (!emailValid) {
             isValid = false;
-            markInvalid(input, value ? messages.invalidEmail : messages.required);
+            markInvalid(input, value ? messages.invalidEmail : messages.required, type);
           }
         } else if (!value && !isLocked) {
           isValid = false;
-          markInvalid(input, messages.required);
+          markInvalid(input, messages.required, type);
         }
 
         if (value) {
@@ -217,27 +289,27 @@
           if (!isLocked && key === 'instagram') {
             if (lower.indexOf('instagram.com') === -1 && value.charAt(0) !== '@') {
               isValid = false;
-              markInvalid(input, messages.invalidInstagram || messages.required);
+              markInvalid(input, messages.invalidInstagram || messages.required, type);
             }
           }
           if (!isLocked && key === 'facebook') {
             if (lower.indexOf('facebook') === -1) {
               isValid = false;
-              markInvalid(input, messages.invalidFacebook || messages.required);
+              markInvalid(input, messages.invalidFacebook || messages.required, type);
             }
           }
           if (key === 'phone') {
             const phoneDigits = value.replace(/\D+/g, '');
             if (phoneDigits.length < 10) {
               isValid = false;
-              markInvalid(input, messages.invalidPhone || messages.required);
+              markInvalid(input, messages.invalidPhone || messages.required, type);
             }
           }
           if (key === 'id_number') {
             const idDigits = value.replace(/\D+/g, '');
             if (idDigits.length !== 9) {
               isValid = false;
-              markInvalid(input, messages.invalidId || messages.required);
+              markInvalid(input, messages.invalidId || messages.required, type);
             }
           }
         }
@@ -304,6 +376,8 @@
     if (nextButton) {
       nextButton.addEventListener('click', handleNext);
     }
+
+    setupChoiceFields();
 
     closeButtons.forEach((btn) => {
       btn.addEventListener('click', () => {

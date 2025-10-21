@@ -119,17 +119,42 @@ final class PurchaseDetailsModal implements Service
                         $label = (string) ($definition['label'] ?? $fieldKey);
                         $type  = (string) ($definition['type'] ?? 'text');
                         $inputType = in_array($type, ['email', 'date'], true) ? $type : 'text';
+                        $choices = isset($definition['choices']) && is_array($definition['choices'])
+                            ? $definition['choices']
+                            : [];
                         ?>
-                        <div class="tapin-field">
+                        <div class="tapin-field<?php echo $type === 'choice' ? ' tapin-field--choice' : ''; ?>">
                             <label for="tapin-field-<?php echo esc_attr($fieldKey); ?>">
                                 <?php echo esc_html($label); ?> <span class="tapin-required">*</span>
                             </label>
-                            <input
-                                type="<?php echo esc_attr($inputType); ?>"
-                                id="tapin-field-<?php echo esc_attr($fieldKey); ?>"
-                                data-field="<?php echo esc_attr($fieldKey); ?>"
-                                required
-                            >
+                            <?php if ($type === 'choice'): ?>
+                                <div class="tapin-choice" data-choice-group="<?php echo esc_attr($fieldKey); ?>">
+                                    <?php foreach ($choices as $choiceValue => $choiceLabel): ?>
+                                        <button
+                                            type="button"
+                                            class="tapin-choice__option"
+                                            data-choice-value="<?php echo esc_attr((string) $choiceValue); ?>"
+                                        >
+                                            <?php echo esc_html((string) $choiceLabel); ?>
+                                        </button>
+                                    <?php endforeach; ?>
+                                </div>
+                                <input
+                                    type="hidden"
+                                    id="tapin-field-<?php echo esc_attr($fieldKey); ?>"
+                                    data-field="<?php echo esc_attr($fieldKey); ?>"
+                                    data-field-type="choice"
+                                    required
+                                >
+                            <?php else: ?>
+                                <input
+                                    type="<?php echo esc_attr($inputType); ?>"
+                                    id="tapin-field-<?php echo esc_attr($fieldKey); ?>"
+                                    data-field="<?php echo esc_attr($fieldKey); ?>"
+                                    data-field-type="<?php echo esc_attr($type); ?>"
+                                    required
+                                >
+                            <?php endif; ?>
                             <p class="tapin-field__error" data-error-role="message"></p>
                         </div>
                     <?php endforeach; ?>
@@ -382,6 +407,15 @@ final class PurchaseDetailsModal implements Service
             case 'phone':
                 return AttendeeFields::displayValue('phone', $value);
 
+            case 'gender':
+                $normalized = AttendeeFields::sanitizeValue('gender', $value);
+                if ($normalized !== '') {
+                    return $normalized;
+                }
+                $display = AttendeeFields::displayValue('gender', $value);
+                $fallback = AttendeeFields::sanitizeValue('gender', $display);
+                return $fallback !== '' ? $fallback : '';
+
             default:
                 return $value;
         }
@@ -418,6 +452,14 @@ final class PurchaseDetailsModal implements Service
         foreach ($definitions as $key => $definition) {
             $raw   = isset($attendee[$key]) ? (string) $attendee[$key] : '';
             $value = AttendeeFields::sanitizeValue($key, $raw);
+
+            if ($value === '' && $raw !== '') {
+                $display = AttendeeFields::displayValue($key, $raw);
+                if ($display !== '') {
+                    $fallback = AttendeeFields::sanitizeValue($key, $display);
+                    $value = $fallback !== '' ? $fallback : $display;
+                }
+            }
 
             if ($value === '') {
                 switch ($key) {
