@@ -34,6 +34,10 @@
     }
 
     const modal = document.getElementById('tapinPurchaseModal');
+    if (modal && document.body && modal.parentElement !== document.body) {
+      // Move the modal to the document body so it is not constrained by parent stacking contexts.
+      document.body.appendChild(modal);
+    }
     const hiddenField = document.getElementById('tapinAttendeesField');
     const submitButton = form.querySelector('.single_add_to_cart_button');
     const qtyInput = form.querySelector('input.qty, input[name="quantity"]');
