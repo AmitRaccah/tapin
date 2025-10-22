@@ -57,31 +57,38 @@ final class StickyPurchaseBar implements Service
         if (!$this->isEligibleProduct()) {
             return;
         }
+        $product = wc_get_product(get_the_ID());
+        $price   = $product instanceof WC_Product ? wc_get_price_to_display($product) : null;
+
+        if ($product instanceof WC_Product && method_exists($product, 'get_currency')) {
+            $currency = (string) $product->get_currency();
+        } else {
+            $currency = get_woocommerce_currency();
+        }
+
+        $formattedPrice = '';
+
+        if ($price !== null) {
+            $formattedPrice = trim(wp_strip_all_tags(wc_price(
+                $price,
+                [
+                    'currency'           => $currency,
+                    'decimals'           => wc_get_price_decimals(),
+                    'price_format'       => '%2$s%1$s',
+                    'decimal_separator'  => wc_get_price_decimal_separator(),
+                    'thousand_separator' => wc_get_price_thousand_separator(),
+                ]
+            )));
+        }
         ?>
         <div id="tapinStickyPurchaseBar" class="tapin-sticky-bar" hidden>
             <div class="tapin-sticky-bar__content">
-                <div class="tapin-sticky-bar__quantity" dir="rtl">
-                    <span
-                        class="tapin-sticky-bar__label"
-                        data-role="label"
-                        data-singular="כרטיס"
-                        data-plural="כרטיסים"
-                    >כרטיסים</span>
-                    <button
-                        type="button"
-                        class="tapin-sticky-bar__qty-btn"
-                        data-action="decrease"
-                        aria-label="פחות כרטיס"
-                    >-</button>
-                    <span class="tapin-sticky-bar__qty-value" data-role="quantity" aria-live="polite" aria-atomic="true">1</span>
-                    <button
-                        type="button"
-                        class="tapin-sticky-bar__qty-btn"
-                        data-action="increase"
-                        aria-label="עוד כרטיס"
-                    >+</button>
-                </div>
-                <button type="button" class="tapin-sticky-bar__buy" data-role="submit">לקנייה</button>
+                <button type="button" class="tapin-sticky-bar__buy" data-role="submit">
+                    <span class="tapin-sticky-bar__buy-main">
+                        <?php echo esc_html($formattedPrice ? 'החל מ ' . $formattedPrice : 'החל מ'); ?>
+                    </span>
+                    <span class="tapin-sticky-bar__buy-note">כולל עמלת רכישה</span>
+                </button>
             </div>
         </div>
         <?php

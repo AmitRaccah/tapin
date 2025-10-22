@@ -38,75 +38,22 @@ body.single-product {
     box-shadow: none;
 }
 
-.tapin-sticky-bar__content {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 18px;
-    max-width: 1040px;
-    margin: 0 auto;
-    flex-wrap: wrap;
-}
-
-.tapin-sticky-bar__quantity {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 1.1rem;
-    font-weight: 600;
-}
-
-.tapin-sticky-bar__label {
-    letter-spacing: 0.01em;
-}
-
-.tapin-sticky-bar__qty-btn {
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
-    border: 1px solid rgba(160, 160, 160, 0.6);
-    background: rgba(255, 255, 255, 0.05);
-    color: #ffffff;
-    font-size: 1.3rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.2s ease, transform 0.2s ease;
-}
-
-.tapin-sticky-bar__qty-btn:focus,
-.tapin-sticky-bar__qty-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
-    outline: none;
-}
-
-.tapin-sticky-bar__qty-btn:active {
-    transform: scale(0.94);
-}
-
-.tapin-sticky-bar__qty-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    transform: none;
-}
-
-.tapin-sticky-bar__qty-value {
-    min-width: 36px;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-}
-
 .tapin-sticky-bar__buy {
     flex-shrink: 0;
-    padding: 14px 28px;
+    padding: 12px 28px;
     border-radius: 10px;
     border: none;
-    font-size: 1.05rem;
-    font-weight: 700;
     background: linear-gradient(135deg, #f6c342, #f1a80a);
     color: #1b1b1b;
     cursor: pointer;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    text-align: center;
 }
 
 .tapin-sticky-bar__buy:hover,
@@ -120,6 +67,30 @@ body.single-product {
     transform: translateY(1px);
 }
 
+.tapin-sticky-bar__buy-main {
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.tapin-sticky-bar__buy-note {
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1;
+    color: rgba(27, 27, 27, 0.72);
+    white-space: nowrap;
+}
+
+.tapin-sticky-bar__content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    max-width: 640px;
+    margin: 0 auto;
+}
+
 @media (max-width: 600px) {
     .tapin-sticky-bar {
         left: 8px;
@@ -131,11 +102,7 @@ body.single-product {
     .tapin-sticky-bar__content {
         flex-direction: column;
         align-items: stretch;
-        gap: 12px;
-    }
-
-    .tapin-sticky-bar__quantity {
-        justify-content: center;
+        gap: 8px;
     }
 
     .tapin-sticky-bar__buy {

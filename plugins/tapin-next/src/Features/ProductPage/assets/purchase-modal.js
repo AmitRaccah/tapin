@@ -3,6 +3,13 @@
   const messages = Object.assign(
     {
       title: '׳₪׳¨׳˜׳™ ׳׳©׳×׳×׳₪׳™׳',
+      quantityTitle: '',
+      quantitySubtitle: '',
+      quantityNext: '',
+      quantitySingular: '',
+      quantityPlural: '',
+      quantityIncrease: '',
+      quantityDecrease: '',
       step: '׳׳©׳×׳×׳£ %1 ׳׳×׳•׳ %2',
       next: '׳”׳‘׳',
       finish: '׳¡׳™׳•׳ ׳•׳”׳׳©׳ ׳׳×׳©׳׳•׳',
@@ -47,7 +54,12 @@
     }
 
     const formContainer = modal.querySelector('[data-form-container]');
-    if (!formContainer) {
+    const quantityStep = modal.querySelector('[data-quantity-step]');
+    const quantityValueEl = modal.querySelector('[data-quantity-value]');
+    const quantityDecreaseBtn = modal.querySelector('[data-quantity-action="decrease"]');
+    const quantityIncreaseBtn = modal.querySelector('[data-quantity-action="increase"]');
+
+    if (!formContainer || !quantityStep || !quantityValueEl) {
       return;
     }
 
@@ -61,6 +73,187 @@
     let totalAttendees = 1;
     let currentIndex = 0;
     let attendees = [];
+    let isQuantityPhase = true;
+    let selectedQuantity = 1;
+
+    function toNumber(value) {
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : NaN;
+    }
+
+    function getPrecision(num) {
+      if (!Number.isFinite(num)) {
+        return 0;
+      }
+      const str = num.toString();
+      const idx = str.indexOf('.');
+      return idx >= 0 ? str.length - idx - 1 : 0;
+    }
+
+    function getStep() {
+      if (!qtyInput) {
+        return 1;
+      }
+      const stepAttr = toNumber(qtyInput.getAttribute('step'));
+      return Number.isFinite(stepAttr) && stepAttr > 0 ? stepAttr : 1;
+    }
+
+    function getMin() {
+      if (!qtyInput) {
+        return 1;
+      }
+      const minAttr = toNumber(qtyInput.getAttribute('min'));
+      return Number.isFinite(minAttr) ? minAttr : 1;
+    }
+
+    function getMax() {
+      if (!qtyInput) {
+        return Infinity;
+      }
+      const maxAttr = toNumber(qtyInput.getAttribute('max'));
+      return Number.isFinite(maxAttr) ? maxAttr : Infinity;
+    }
+
+    function normalizeQuantity(value) {
+      const min = getMin();
+      const max = getMax();
+      const step = getStep();
+
+      let result = Number.isFinite(value) ? value : min;
+      if (Number.isFinite(max)) {
+        result = Math.max(min, Math.min(max, result));
+      } else {
+        result = Math.max(min, result);
+      }
+
+      if (!Number.isFinite(result)) {
+        result = min;
+      }
+
+      const precision = Math.max(getPrecision(step), getPrecision(min));
+      const multiplier = Math.pow(10, precision);
+      const minScaled = Math.round(min * multiplier);
+      const stepScaled = Math.max(1, Math.round(step * multiplier));
+      const valueScaled = Math.round(result * multiplier);
+      let steps = Math.round((valueScaled - minScaled) / stepScaled);
+      if (steps < 0) {
+        steps = 0;
+      }
+      let normalizedScaled = minScaled + steps * stepScaled;
+
+      if (Number.isFinite(max)) {
+        const maxScaled = Math.round(max * multiplier);
+        if (normalizedScaled > maxScaled) {
+          normalizedScaled = maxScaled;
+        }
+      }
+
+      return normalizedScaled / multiplier;
+    }
+
+    function formatQuantity(value) {
+      const precision = Math.max(getPrecision(getStep()), getPrecision(getMin()));
+      if (precision > 0) {
+        return value.toFixed(precision);
+      }
+      return String(Math.round(value));
+    }
+
+    function updateQuantityUI(value) {
+      const normalized = normalizeQuantity(value);
+      selectedQuantity = normalized;
+      const formatted = formatQuantity(normalized);
+      const min = getMin();
+      const max = getMax();
+      const controlsDisabled = qtyInput ? qtyInput.disabled : false;
+      totalAttendees = Math.max(1, Math.round(normalized));
+
+      if (quantityValueEl) {
+        quantityValueEl.textContent = formatted;
+        const baseLabel = Math.round(normalized) === 1
+          ? messages.quantitySingular || ''
+          : messages.quantityPlural || '';
+        const ariaLabel = (baseLabel ? baseLabel + ' ' : '') + formatted;
+        quantityValueEl.setAttribute('aria-label', ariaLabel.trim());
+      }
+
+      if (quantityDecreaseBtn) {
+        quantityDecreaseBtn.disabled = controlsDisabled || normalized <= min;
+        if (messages.quantityDecrease) {
+          quantityDecreaseBtn.setAttribute('aria-label', messages.quantityDecrease);
+        }
+      }
+
+      if (quantityIncreaseBtn) {
+        quantityIncreaseBtn.disabled = controlsDisabled || (Number.isFinite(max) && normalized >= max);
+        if (messages.quantityIncrease) {
+          quantityIncreaseBtn.setAttribute('aria-label', messages.quantityIncrease);
+        }
+      }
+
+      return normalized;
+    }
+
+    function setQtyInputValue(value) {
+      if (!qtyInput) {
+        return;
+      }
+      const normalized = normalizeQuantity(value);
+      const formatted = formatQuantity(normalized);
+      if (qtyInput.value !== formatted) {
+        qtyInput.value = formatted;
+        qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+        qtyInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+
+    function syncQuantityFromInput() {
+      if (!qtyInput) {
+        return;
+      }
+      updateQuantityUI(toNumber(qtyInput.value));
+    }
+
+    function showQuantityPhase() {
+      isQuantityPhase = true;
+      totalAttendees = Math.max(1, Math.round(selectedQuantity));
+
+      if (quantityStep) {
+        quantityStep.removeAttribute('hidden');
+      }
+      if (formContainer) {
+        formContainer.setAttribute('hidden', 'hidden');
+      }
+      if (titleEl) {
+        titleEl.textContent = messages.quantityTitle || messages.title || '';
+      }
+      if (stepText) {
+        stepText.textContent = messages.quantitySubtitle || '';
+      }
+      updateStepIndicator();
+      updateNextButtonText();
+    }
+
+    function showAttendeePhase() {
+      isQuantityPhase = false;
+      if (quantityStep) {
+        quantityStep.setAttribute('hidden', 'hidden');
+      }
+      if (formContainer) {
+        formContainer.removeAttribute('hidden');
+      }
+      if (titleEl) {
+        titleEl.textContent = messages.title || '';
+      }
+      updateStepIndicator();
+      updateNextButtonText();
+      populateForm(currentIndex);
+
+      const firstInput = formContainer.querySelector('input');
+      if (firstInput) {
+        firstInput.focus();
+      }
+    }
 
     function getPrefill(index) {
       if (index === 0 && config.prefill) {
@@ -173,31 +366,27 @@
     }
 
     function openModal() {
-      const qty = qtyInput ? parseInt(qtyInput.value, 10) : 1;
-      totalAttendees = Number.isFinite(qty) && qty > 0 ? qty : 1;
+      const qty = qtyInput ? toNumber(qtyInput.value) : NaN;
+      selectedQuantity = updateQuantityUI(qty);
+      totalAttendees = Math.max(1, Math.round(selectedQuantity));
       attendees = [];
       currentIndex = 0;
       allowSubmit = false;
       hiddenField.value = '';
-
-      if (titleEl) {
-        titleEl.textContent = messages.title;
-      }
+      resetErrors();
 
       if (cancelButton) {
         cancelButton.textContent = messages.cancel;
       }
 
-      updateStepIndicator();
-      updateNextButtonText();
-      populateForm(currentIndex);
+      showQuantityPhase();
 
       modal.classList.add('is-open');
       modal.removeAttribute('hidden');
 
-      const firstInput = formContainer.querySelector('input');
-      if (firstInput) {
-        firstInput.focus();
+      const focusTarget = quantityIncreaseBtn || quantityDecreaseBtn;
+      if (focusTarget) {
+        focusTarget.focus();
       }
     }
 
@@ -218,11 +407,19 @@
       if (!stepText) {
         return;
       }
+      if (isQuantityPhase) {
+        stepText.textContent = messages.quantitySubtitle || '';
+        return;
+      }
       stepText.textContent = format(messages.step, currentIndex + 1, totalAttendees);
     }
 
     function updateNextButtonText() {
       if (!nextButton) {
+        return;
+      }
+      if (isQuantityPhase) {
+        nextButton.textContent = messages.quantityNext || messages.next;
         return;
       }
       nextButton.textContent = currentIndex + 1 === totalAttendees ? messages.finish : messages.next;
@@ -334,6 +531,16 @@
     }
 
     function handleNext() {
+      if (isQuantityPhase) {
+        const normalized = updateQuantityUI(selectedQuantity);
+        setQtyInputValue(normalized);
+        attendees = [];
+        currentIndex = 0;
+        hiddenField.value = '';
+        showAttendeePhase();
+        return;
+      }
+
       const data = collectCurrentStep();
       if (!data) {
         return;
@@ -350,6 +557,23 @@
       }
 
       finalize();
+    }
+
+    if (quantityDecreaseBtn) {
+      quantityDecreaseBtn.addEventListener('click', () => {
+        updateQuantityUI(selectedQuantity - getStep());
+      });
+    }
+
+    if (quantityIncreaseBtn) {
+      quantityIncreaseBtn.addEventListener('click', () => {
+        updateQuantityUI(selectedQuantity + getStep());
+      });
+    }
+
+    if (qtyInput) {
+      qtyInput.addEventListener('input', syncQuantityFromInput);
+      qtyInput.addEventListener('change', syncQuantityFromInput);
     }
 
     form.addEventListener('submit', (event) => {

@@ -46,6 +46,71 @@
   font-size: 0.95rem;
 }
 
+.tapin-quantity-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.tapin-quantity-step[hidden] {
+  display: none;
+}
+
+.tapin-quantity-step__controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  box-shadow: inset 0 1px 1px rgba(15, 23, 42, 0.06);
+}
+
+.tapin-quantity-step__btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid #cbd5f5;
+  background: #fff;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1f2937;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.tapin-quantity-step__btn:hover,
+.tapin-quantity-step__btn:focus {
+  background: #f1f5f9;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  outline: none;
+}
+
+.tapin-quantity-step__btn:active {
+  transform: scale(0.96);
+}
+
+.tapin-quantity-step__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.tapin-quantity-step__value {
+  min-width: 48px;
+  text-align: center;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #111827;
+  font-variant-numeric: tabular-nums;
+}
+
 .tapin-purchase-modal__close {
   position: absolute;
   inset-inline-start: 12px;
@@ -199,6 +264,26 @@
   .tapin-purchase-modal__dialog {
     padding: 24px 20px 20px;
     width: min(94vw, 520px);
+  }
+
+  .tapin-quantity-step {
+    margin-bottom: 20px;
+  }
+
+  .tapin-quantity-step__controls {
+    gap: 12px;
+    padding: 12px 16px;
+  }
+
+  .tapin-quantity-step__btn {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+  }
+
+  .tapin-quantity-step__value {
+    min-width: 44px;
+    font-size: 1.4rem;
   }
 
   .tapin-purchase-modal__actions {

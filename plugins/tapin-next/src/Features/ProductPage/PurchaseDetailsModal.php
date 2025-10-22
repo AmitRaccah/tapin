@@ -85,6 +85,13 @@ final class PurchaseDetailsModal implements Service
                 'next'         => 'הבא',
                 'finish'       => 'סיום והמשך לתשלום',
                 'cancel'       => 'ביטול',
+                'quantityTitle'    => 'בחירת כמות כרטיסים',
+                'quantitySubtitle' => 'בחרו כמה כרטיסים תרצו לרכוש',
+                'quantityNext'     => 'המשך',
+                'quantitySingular' => 'כרטיס',
+                'quantityPlural'   => 'כרטיסים',
+                'quantityIncrease' => 'עוד כרטיס',
+                'quantityDecrease' => 'פחות כרטיס',
                 'required'         => 'יש למלא את כל השדות',
                 'invalidEmail'     => 'כתובת האימייל אינה תקינה',
                 'invalidInstagram' => 'אינסטגרם חייב להתחיל ב-@ או להכיל instagram.com',
@@ -114,7 +121,29 @@ final class PurchaseDetailsModal implements Service
                 <button type="button" class="tapin-purchase-modal__close" data-modal-dismiss aria-label="סגור חלון">&times;</button>
                 <h2 id="tapinPurchaseModalTitle" class="tapin-purchase-modal__title"></h2>
                 <p class="tapin-purchase-modal__subtitle" data-step-text></p>
-                <div class="tapin-purchase-modal__form" data-form-container>
+                <div class="tapin-quantity-step" data-quantity-step hidden>
+                    <div class="tapin-quantity-step__controls" dir="ltr">
+                        <button
+                            type="button"
+                            class="tapin-quantity-step__btn tapin-quantity-step__btn--decrease"
+                            data-quantity-action="decrease"
+                            aria-label="פחות כרטיס"
+                        >-</button>
+                        <span
+                            class="tapin-quantity-step__value"
+                            data-quantity-value
+                            aria-live="polite"
+                            aria-atomic="true"
+                        >1</span>
+                        <button
+                            type="button"
+                            class="tapin-quantity-step__btn tapin-quantity-step__btn--increase"
+                            data-quantity-action="increase"
+                            aria-label="עוד כרטיס"
+                        >+</button>
+                    </div>
+                </div>
+                <div class="tapin-purchase-modal__form" data-form-container hidden>
                     <?php foreach ($this->getFieldDefinitions() as $fieldKey => $definition): ?>
                         <?php
                         $label = (string) ($definition['label'] ?? $fieldKey);
