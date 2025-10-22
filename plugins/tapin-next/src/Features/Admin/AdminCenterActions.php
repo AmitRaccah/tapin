@@ -29,6 +29,7 @@ final class AdminCenterActions {
                     'title'=>$_POST['title']??'','desc'=>$_POST['desc']??'',
                     'price'=>$_POST['price']??'','stock'=>$_POST['stock']??'',
                     'event_dt'=>$_POST['event_dt']??'','image_field'=>'image',
+                    'background_field'=>'bg_image',
                     'sale_windows'=> SaleWindowsRepository::parseFromPost('sale_w')
                 ]);
                 wp_set_object_terms($pid, $termIds, 'product_cat', false);
@@ -49,6 +50,7 @@ final class AdminCenterActions {
                     'title'=>$_POST['title']??'','desc'=>$_POST['desc']??'',
                     'price'=>$_POST['price']??'','stock'=>$_POST['stock']??'',
                     'event_dt'=>$_POST['event_dt']??'','image_field'=>'image',
+                    'background_field'=>'bg_image',
                     'sale_windows'=> SaleWindowsRepository::parseFromPost('sale_w')
                 ]);
                 if (isset($_POST['cats'])) {
@@ -65,6 +67,7 @@ final class AdminCenterActions {
                     $data=$req['data'];
                     $svc->applyFields($pid, $data);
                     if (!empty($data['new_image_id'])) set_post_thumbnail($pid,(int)$data['new_image_id']);
+                    if (!empty($data['new_background_id'])) update_post_meta($pid, MetaKeys::EVENT_BG_IMAGE, (int) $data['new_background_id']);
                     delete_post_meta($pid, MetaKeys::EDIT_REQ);
                     if (function_exists('wc_delete_product_transients')) wc_delete_product_transients($pid);
                     clean_post_cache($pid);

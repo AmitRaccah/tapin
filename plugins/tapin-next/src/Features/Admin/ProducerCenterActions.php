@@ -62,6 +62,7 @@ final class ProducerCenterActions {
             'stock'        => $_POST['stock'] ?? '',
             'event_dt'     => $_POST['event_dt'] ?? '',
             'image_field'  => 'image',
+            'background_field' => 'bg_image',
             'sale_windows' => SaleWindowsRepository::parseFromPost('sale_w'),
         ]);
 
@@ -89,13 +90,25 @@ final class ProducerCenterActions {
             'sale_windows' => SaleWindowsRepository::parseFromPost('sale_w'),
         ];
 
-        if (!empty($_FILES['image']['name'])) {
+        $hasImageUpload = !empty($_FILES['image']['name']);
+        $hasBgUpload    = !empty($_FILES['bg_image']['name']);
+        if ($hasImageUpload || $hasBgUpload) {
             require_once ABSPATH . 'wp-admin/includes/file.php';
             require_once ABSPATH . 'wp-admin/includes/media.php';
             require_once ABSPATH . 'wp-admin/includes/image.php';
+        }
+
+        if ($hasImageUpload) {
             $attachment_id = media_handle_upload('image', 0);
             if (!is_wp_error($attachment_id)) {
                 $data['new_image_id'] = (int) $attachment_id;
+            }
+        }
+
+        if ($hasBgUpload) {
+            $bg_attachment_id = media_handle_upload('bg_image', 0);
+            if (!is_wp_error($bg_attachment_id)) {
+                $data['new_background_id'] = (int) $bg_attachment_id;
             }
         }
 

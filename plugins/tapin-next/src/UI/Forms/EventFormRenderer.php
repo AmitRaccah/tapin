@@ -3,6 +3,7 @@ namespace Tapin\Events\UI\Forms;
 
 use Tapin\Events\Domain\SaleWindowsRepository;
 use Tapin\Events\Support\Assets;
+use Tapin\Events\Support\MetaKeys;
 use Tapin\Events\Support\Time;
 use Tapin\Events\UI\Components\SaleWindowsRepeater;
 
@@ -15,8 +16,13 @@ final class EventFormRenderer {
         $stock     = get_post_meta($productId, '_stock', true);
         $windows   = SaleWindowsRepository::get($productId);
         $thumb_html = '';
+        $bg_html    = '';
         if ($opts['show_image']) {
             $thumb_html = get_the_post_thumbnail($productId, 'medium', ['class' => 'tapin-form-row__preview-img']);
+            $bg_id = (int) get_post_meta($productId, MetaKeys::EVENT_BG_IMAGE, true);
+            if ($bg_id) {
+                $bg_html = wp_get_attachment_image($bg_id, 'large', false, ['class' => 'tapin-form-row__preview-img']);
+            }
         }
 
         $event_input = Time::tsToLocalInput(Time::productEventTs($productId)); ?>
@@ -53,6 +59,16 @@ final class EventFormRenderer {
           </div>
           <?php endif; ?>
           <input type="file" name="image" accept="image/*">
+        </div>
+        <div class="tapin-form-row">
+          <label>תמונת רקע לדף המכירה</label>
+          <?php if ($bg_html): ?>
+          <div class="tapin-form-row__preview">
+            <?php echo $bg_html; ?>
+          </div>
+          <?php endif; ?>
+          <input type="file" name="bg_image" accept="image/*">
+          <small style="display:block;margin-top:6px;color:#475569;font-size:.85rem;">מומלץ להעלות תמונה לרוחב של 1920 פיקסלים לפחות כדי לשמור על חדות בכל מסך.</small>
         </div>
         <?php endif; ?>
         <?php

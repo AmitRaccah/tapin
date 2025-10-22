@@ -4,6 +4,7 @@ namespace Tapin\Events\Features\Shortcodes;
 use Tapin\Events\Core\Service;
 use Tapin\Events\Domain\SaleWindowsRepository;
 use Tapin\Events\Support\Assets;
+use Tapin\Events\Support\MetaKeys;
 use Tapin\Events\Support\Time;
 
 final class ProducerEventRequest implements Service {
@@ -41,6 +42,8 @@ final class ProducerEventRequest implements Service {
                 $msg = '<div class="tapin-notice tapin-notice--success">הטופס כבר התקבל.</div>';
             } elseif (empty($_FILES['tapin_image']['name'])) {
                 $msg = '<div class="tapin-notice tapin-notice--error">יש להעלות תמונה.</div>';
+            } elseif (empty($_FILES['tapin_bg_image']['name'])) {
+                $msg = '<div class="tapin-notice tapin-notice--error">יש להעלות תמונת רקע.</div>';
             } elseif (!$title_val || !$desc_val || $price_val==='' || !$event_val || $stock_val === '' || $stock_val <= 0) {
                 $msg = '<div class="tapin-notice tapin-notice--error">יש למלא כותרת, תיאור, מחיר, כמות ותאריך/שעה.</div>';
             } elseif ($event_ts && $event_ts < time()) {
@@ -97,10 +100,19 @@ final class ProducerEventRequest implements Service {
                         $msg = '<div class="tapin-notice tapin-notice--error">שגיאה בהעלאת התמונה: '.esc_html($att_id->get_error_message()).'</div>';
                     } else {
                         set_post_thumbnail($pid, $att_id);
-                        $target = $a['redirect'] ? esc_url_raw($a['redirect']) : home_url('/');
-                        $target = add_query_arg('tapin_thanks', '1', $target);
-                        wp_safe_redirect($target);
-                        exit;
+                        $bg_id = media_handle_upload('tapin_bg_image', $pid);
+                        if (is_wp_error($bg_id)) {
+                            wp_delete_attachment($att_id, true);
+                            wp_delete_post($pid, true);
+                            delete_transient('tapin_submit_'.$unique_key);
+                            $msg = '<div class="tapin-notice tapin-notice--error">שגיאה בהעלאת תמונת הרקע: '.esc_html($bg_id->get_error_message()).'</div>';
+                        } else {
+                            update_post_meta($pid, MetaKeys::EVENT_BG_IMAGE, (int) $bg_id);
+                            $target = $a['redirect'] ? esc_url_raw($a['redirect']) : home_url('/');
+                            $target = add_query_arg('tapin_thanks', '1', $target);
+                            wp_safe_redirect($target);
+                            exit;
+                        }
                     }
                 }
             }
@@ -115,6 +127,7 @@ final class ProducerEventRequest implements Service {
             <div class="tapin-form-row"><label>כותרת האירוע *</label><input type="text" name="tapin_title" value="<?php echo esc_attr($title_val); ?>" required></div>
             <div class="tapin-form-row"><label>תיאור *</label><textarea name="tapin_desc" rows="6" required><?php echo esc_textarea($desc_val); ?></textarea></div>
             <div class="tapin-form-row"><label>תמונה *</label><input type="file" name="tapin_image" accept="image/*" required></div>
+            <div class="tapin-form-row"><label>תמונת רקע לדף המכירה *</label><input type="file" name="tapin_bg_image" accept="image/*" required><small style="display:block;margin-top:6px;color:#475569;font-size:.85rem;">מומלץ להעלות תמונה לרוחב של 1920 פיקסלים לפחות כדי לשמור על חדות בכל מסך.</small></div>
             <div class="tapin-columns-2">
               <div class="tapin-form-row"><label>מחיר *</label><input type="number" name="tapin_price" step="0.01" min="0" value="<?php echo esc_attr($price_val); ?>" required></div>
               <div class="tapin-form-row"><label>כמות *</label><input type="number" name="tapin_stock" min="1" step="1" value="<?php echo esc_attr($stock_val); ?>" required></div>

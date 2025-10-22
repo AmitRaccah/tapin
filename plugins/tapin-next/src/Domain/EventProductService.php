@@ -42,12 +42,36 @@ final class EventProductService {
             update_post_meta($pid, MetaKeys::EVENT_DATE, $local_str);
         }
 
-        if (!empty($arr['image_field'])) {
+        $uploadFields = [];
+        if (!empty($arr['image_field']) && !empty($_FILES[$arr['image_field']]['name'] ?? '')) {
+            $uploadFields['image'] = $arr['image_field'];
+        }
+        if (!empty($arr['background_field']) && !empty($_FILES[$arr['background_field']]['name'] ?? '')) {
+            $uploadFields['background'] = $arr['background_field'];
+        }
+
+        if ($uploadFields) {
             require_once ABSPATH.'wp-admin/includes/file.php';
             require_once ABSPATH.'wp-admin/includes/media.php';
             require_once ABSPATH.'wp-admin/includes/image.php';
-            $att_id = media_handle_upload($arr['image_field'], $pid);
-            if (!is_wp_error($att_id)) set_post_thumbnail($pid,$att_id);
+        }
+
+        if (isset($uploadFields['image'])) {
+            $att_id = media_handle_upload($uploadFields['image'], $pid);
+            if (!is_wp_error($att_id)) {
+                set_post_thumbnail($pid, $att_id);
+            }
+        }
+
+        if (isset($uploadFields['background'])) {
+            $bg_id = media_handle_upload($uploadFields['background'], $pid);
+            if (!is_wp_error($bg_id)) {
+                update_post_meta($pid, MetaKeys::EVENT_BG_IMAGE, (int) $bg_id);
+            }
+        }
+
+        if (!empty($arr['new_background_id'])) {
+            update_post_meta($pid, MetaKeys::EVENT_BG_IMAGE, (int) $arr['new_background_id']);
         }
     }
 }
