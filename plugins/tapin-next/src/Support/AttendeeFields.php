@@ -113,7 +113,7 @@ final class AttendeeFields
         'email'      => ['payer' => true, 'attendee' => true],
         'first_name' => ['payer' => true, 'attendee' => true],
         'last_name'  => ['payer' => true, 'attendee' => true],
-        'instagram'  => ['payer' => true, 'attendee' => false],
+        'instagram'  => ['payer' => true, 'attendee' => true],
         'tiktok'     => ['payer' => false, 'attendee' => false],
         'facebook'   => ['payer' => false, 'attendee' => false],
         'phone'      => ['payer' => true, 'attendee' => true],
