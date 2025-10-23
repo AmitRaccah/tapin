@@ -26,7 +26,6 @@ class Plugin {
     ];
 
     private const WC_SERVICES = [
-        \Tapin\Events\Features\UserProfileCompletion::class,
         \Tapin\Events\Features\Shortcodes\ProducerEventRequest::class,
         \Tapin\Events\Features\Shortcodes\EventsAdminCenter::class,
         \Tapin\Events\Features\Shortcodes\ProducerEventSales::class,

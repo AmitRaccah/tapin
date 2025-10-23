@@ -11,8 +11,9 @@ use WC_Product;
 
 final class PurchaseDetailsModal implements Service
 {
-    private const SCRIPT_HANDLE = 'tapin-purchase-modal';
-    private const STYLE_HANDLE  = 'tapin-purchase-modal';
+    private const SCRIPT_HANDLE        = 'tapin-purchase-modal';
+    private const STYLE_HANDLE         = 'tapin-purchase-modal';
+    private const SESSION_KEY_PENDING  = 'tapin_pending_checkout';
 
     /** @var array<int, array<string,string>> */
     private array $pendingAttendees = [];
@@ -38,6 +39,7 @@ final class PurchaseDetailsModal implements Service
         add_filter('woocommerce_order_item_get_formatted_meta_data', [$this, 'filterFormattedMeta'], 10, 2);
 
         add_filter('woocommerce_add_to_cart_redirect', [$this, 'maybeRedirectToCheckout'], 10, 2);
+        add_action('init', [$this, 'maybeResumePendingCheckout'], 20);
     }
 
     public function filterButtonText(string $text, $product): string
@@ -80,11 +82,13 @@ final class PurchaseDetailsModal implements Service
         wp_localize_script(self::SCRIPT_HANDLE, 'TapinPurchaseModalData', [
             'prefill'  => $this->getPrefillData(),
             'messages' => [
-                'title'        => 'פרטי משתתפים',
-                'step'         => 'משתתף %1$s מתוך %2$s',
-                'next'         => 'הבא',
-                'finish'       => 'סיום והמשך לתשלום',
-                'cancel'       => 'ביטול',
+                'title'            => 'פרטי משתתפים',
+                'payerTitle'       => 'פרטי הלקוח המשלם',
+                'participantTitle' => 'פרטי משתתף %1$s',
+                'step'             => 'משתתף %1$s מתוך %2$s',
+                'next'             => 'הבא',
+                'finish'           => 'סיום והמשך לתשלום',
+                'cancel'           => 'ביטול',
                 'quantityTitle'    => 'בחירת כמות כרטיסים',
                 'quantitySubtitle' => 'בחרו כמה כרטיסים תרצו לרכוש',
                 'quantityNext'     => 'המשך',
@@ -94,7 +98,8 @@ final class PurchaseDetailsModal implements Service
                 'quantityDecrease' => 'פחות כרטיס',
                 'required'         => 'יש למלא את כל השדות',
                 'invalidEmail'     => 'כתובת האימייל אינה תקינה',
-                'invalidInstagram' => 'אינסטגרם חייב להתחיל ב-@ או להכיל instagram.com',
+                'invalidInstagram' => 'יש להזין אינסטגרם תקין (@username או קישור לפרופיל)',
+                'invalidTikTok'    => 'יש להזין טיקטוק תקין (@username או קישור לפרופיל)',
                 'invalidFacebook'  => 'קישור הפייסבוק חייב לכלול facebook',
                 'invalidPhone'     => 'מספר הטלפון חייב לכלול לפחות 10 ספרות',
                 'invalidId'        => 'תעודת זהות חייבת להכיל 9 ספרות',
@@ -152,10 +157,28 @@ final class PurchaseDetailsModal implements Service
                         $choices = isset($definition['choices']) && is_array($definition['choices'])
                             ? $definition['choices']
                             : [];
+                        $requirements = isset($definition['required_for']) && is_array($definition['required_for'])
+                            ? $definition['required_for']
+                            : ['payer' => true, 'attendee' => true];
+                        $payerRequired = !empty($requirements['payer']);
+                        $attendeeRequired = !empty($requirements['attendee']);
+                        $requiredAttr = sprintf(
+                            ' data-required-payer="%s" data-required-attendee="%s"',
+                            $payerRequired ? 'true' : 'false',
+                            $attendeeRequired ? 'true' : 'false'
+                        );
                         ?>
-                        <div class="tapin-field<?php echo $type === 'choice' ? ' tapin-field--choice' : ''; ?>">
+                        <?php
+                        $starHidden = !$payerRequired && !$attendeeRequired;
+                        ?>
+                        <div
+                            class="tapin-field<?php echo $type === 'choice' ? ' tapin-field--choice' : ''; ?>"
+                            data-field-key="<?php echo esc_attr($fieldKey); ?>"
+                            data-required-payer="<?php echo $payerRequired ? 'true' : 'false'; ?>"
+                            data-required-attendee="<?php echo $attendeeRequired ? 'true' : 'false'; ?>"
+                        >
                             <label for="tapin-field-<?php echo esc_attr($fieldKey); ?>">
-                                <?php echo esc_html($label); ?> <span class="tapin-required">*</span>
+                                <?php echo esc_html($label); ?> <span class="tapin-required" data-required-indicator<?php echo $starHidden ? ' hidden' : ''; ?>>*</span>
                             </label>
                             <?php if ($type === 'choice'): ?>
                                 <div class="tapin-choice" data-choice-group="<?php echo esc_attr($fieldKey); ?>">
@@ -173,16 +196,14 @@ final class PurchaseDetailsModal implements Service
                                     type="hidden"
                                     id="tapin-field-<?php echo esc_attr($fieldKey); ?>"
                                     data-field="<?php echo esc_attr($fieldKey); ?>"
-                                    data-field-type="choice"
-                                    required
+                                    data-field-type="choice"<?php echo $requiredAttr; ?>
                                 >
                             <?php else: ?>
                                 <input
                                     type="<?php echo esc_attr($inputType); ?>"
                                     id="tapin-field-<?php echo esc_attr($fieldKey); ?>"
                                     data-field="<?php echo esc_attr($fieldKey); ?>"
-                                    data-field-type="<?php echo esc_attr($type); ?>"
-                                    required
+                                    data-field-type="<?php echo esc_attr($type); ?>"<?php echo $requiredAttr; ?>
                                 >
                             <?php endif; ?>
                             <p class="tapin-field__error" data-error-role="message"></p>
@@ -227,7 +248,7 @@ final class PurchaseDetailsModal implements Service
         $errors    = [];
 
         foreach ($decoded as $index => $attendee) {
-            $result = $this->sanitizeAttendee(is_array($attendee) ? $attendee : [], $index, $errors);
+            $result = $this->sanitizeAttendee(is_array($attendee) ? $attendee : [], $index, $errors, $index === 0);
             if ($result !== null) {
                 $sanitized[] = $result;
             }
@@ -240,6 +261,40 @@ final class PurchaseDetailsModal implements Service
 
             return false;
         }
+
+        if ($sanitized === []) {
+            wc_add_notice('יש למלא את פרטי המשתתפים לפני הרכישה.', 'error');
+            return false;
+        }
+
+        $payer   = $sanitized[0];
+        $userId  = get_current_user_id();
+        $created = false;
+
+        if (!$userId) {
+            $email = isset($payer['email']) ? sanitize_email($payer['email']) : '';
+            if ($email === '') {
+                wc_add_notice('כתובת האימייל אינה תקינה.', 'error');
+                return false;
+            }
+
+            $existing = get_user_by('email', $email);
+            if ($existing instanceof \WP_User) {
+                $this->storePendingCheckout($sanitized, $productId, $quantity);
+                $this->pendingAttendees = [];
+                $this->redirectToLogin();
+                return false;
+            }
+
+            $userId = $this->createTransparentUser($payer);
+            if (!$userId) {
+                return false;
+            }
+
+            $created = true;
+        }
+
+        $this->maybeUpdateUserProfile((int) $userId, $payer, $created);
 
         $this->pendingAttendees = $sanitized;
         return $passed;
@@ -255,7 +310,7 @@ final class PurchaseDetailsModal implements Service
             if (is_array($decoded)) {
                 $errors = [];
                 foreach ($decoded as $index => $attendee) {
-                    $result = $this->sanitizeAttendee(is_array($attendee) ? $attendee : [], $index, $errors);
+                    $result = $this->sanitizeAttendee(is_array($attendee) ? $attendee : [], $index, $errors, $index === 0);
                     if ($result !== null) {
                         $attendees[] = $result;
                     }
@@ -405,7 +460,11 @@ final class PurchaseDetailsModal implements Service
 
     private function getPrefillData(): array
     {
-        $prefill = array_fill_keys(AttendeeFields::keys(), '');
+        $fieldKeys = array_keys($this->getFieldDefinitions());
+        $prefill   = [];
+        foreach ($fieldKeys as $key) {
+            $prefill[$key] = '';
+        }
 
         $userId = get_current_user_id();
         if (!$userId) {
@@ -413,12 +472,25 @@ final class PurchaseDetailsModal implements Service
         }
 
         $user = get_userdata($userId);
+        $userFirstName = '';
+        $userLastName  = '';
+        $displayName   = '';
+
         if ($user) {
-            $prefill['email'] = sanitize_email($user->user_email);
-            $prefill['full_name'] = sanitize_text_field($user->display_name);
+            if (isset($prefill['email'])) {
+                $prefill['email'] = sanitize_email($user->user_email);
+            }
+
+            $userFirstName = AttendeeFields::sanitizeValue('first_name', (string) $user->first_name);
+            $userLastName  = AttendeeFields::sanitizeValue('last_name', (string) $user->last_name);
+            $displayName   = trim((string) $user->display_name);
         }
 
         foreach (AttendeeFields::prefillMeta() as $fieldKey => $metaKeys) {
+            if (!array_key_exists($fieldKey, $prefill)) {
+                continue;
+            }
+
             foreach ($metaKeys as $metaKey) {
                 $raw = (string) get_user_meta($userId, $metaKey, true);
                 if ($raw === '') {
@@ -440,6 +512,33 @@ final class PurchaseDetailsModal implements Service
             }
         }
 
+        if (isset($prefill['first_name']) && $prefill['first_name'] === '' && $userFirstName !== '') {
+            $prefill['first_name'] = $this->formatPrefillValue('first_name', $userFirstName);
+        }
+
+        if (isset($prefill['last_name']) && $prefill['last_name'] === '' && $userLastName !== '') {
+            $prefill['last_name'] = $this->formatPrefillValue('last_name', $userLastName);
+        }
+
+        if ($displayName !== '') {
+            $needsFirst = isset($prefill['first_name']) && $prefill['first_name'] === '';
+            $needsLast  = isset($prefill['last_name']) && $prefill['last_name'] === '';
+
+            if ($needsFirst || $needsLast) {
+                $parts = preg_split('/\s+/u', $displayName, -1, PREG_SPLIT_NO_EMPTY);
+                if (is_array($parts) && $parts !== []) {
+                    $firstPart = array_shift($parts);
+                    if ($needsFirst && $firstPart !== null) {
+                        $prefill['first_name'] = $this->formatPrefillValue('first_name', (string) $firstPart);
+                    }
+
+                    if ($needsLast && $parts !== []) {
+                        $prefill['last_name'] = $this->formatPrefillValue('last_name', implode(' ', $parts));
+                    }
+                }
+            }
+        }
+
         return (array) apply_filters('tapin_purchase_modal_prefill', $prefill, $userId);
     }
 
@@ -447,10 +546,8 @@ final class PurchaseDetailsModal implements Service
     {
         switch ($fieldKey) {
             case 'instagram':
-                if (preg_match('#instagram\.com/([^/?#]+)#i', $value, $matches)) {
-                    return '@' . $matches[1];
-                }
-                return '@' . ltrim($value, '@/');
+            case 'tiktok':
+                return AttendeeFields::displayValue($fieldKey, $value);
 
             case 'facebook':
                 return AttendeeFields::displayValue('facebook', $value);
@@ -495,52 +592,99 @@ final class PurchaseDetailsModal implements Service
         return $url;
     }
 
-    private function sanitizeAttendee(array $attendee, int $index, array &$errors): ?array
+    private function sanitizeAttendee(array $attendee, int $index, array &$errors, bool $isPayer): ?array
     {
         $definitions = $this->getFieldDefinitions();
         $clean       = [];
+        $attendeeLabel = $this->attendeeLabel($index);
 
         foreach ($definitions as $key => $definition) {
-            $raw   = isset($attendee[$key]) ? (string) $attendee[$key] : '';
-            $value = AttendeeFields::sanitizeValue($key, $raw);
+            $raw    = isset($attendee[$key]) ? (string) $attendee[$key] : '';
+            $raw    = is_string($raw) ? $raw : '';
+            $hasRaw = trim($raw) !== '';
+            $value  = AttendeeFields::sanitizeValue($key, $raw);
 
-            if ($value === '' && $raw !== '') {
+            if ($value === '' && $hasRaw) {
                 $display = AttendeeFields::displayValue($key, $raw);
                 if ($display !== '') {
                     $fallback = AttendeeFields::sanitizeValue($key, $display);
-                    $value = $fallback !== '' ? $fallback : $display;
+                    if ($fallback !== '') {
+                        $value = $fallback;
+                    }
                 }
             }
 
+            $requirements = isset($definition['required_for']) && is_array($definition['required_for'])
+                ? $definition['required_for']
+                : ['payer' => true, 'attendee' => true];
+            $isRequired   = $isPayer ? !empty($requirements['payer']) : !empty($requirements['attendee']);
+
             if ($value === '') {
-                switch ($key) {
-                    case 'email':
-                        $errors[] = sprintf('האימייל חייב להכיל @ עבור משתתף %d', $index + 1);
-                        break;
-                    case 'id_number':
-                        $errors[] = sprintf('תעודת זהות חייבת להכיל בדיוק 9 ספרות עבור משתתף %d', $index + 1);
-                        break;
-                    case 'instagram':
-                        $errors[] = sprintf('אינסטגרם חייב להיות תאג (@username) או קישור תקין לפרופיל עבור משתתף %d', $index + 1);
-                        break;
-                    case 'facebook':
-                        $errors[] = sprintf('קישור הפייסבוק חייב לכלול facebook עבור משתתף %d', $index + 1);
-                        break;
-                    case 'phone':
-                        $errors[] = sprintf('מספר הטלפון חייב להכיל לפחות 10 ספרות עבור משתתף %d', $index + 1);
-                        break;
-                    default:
-                        $label = (string) ($definition['label'] ?? $key);
-                        $errors[] = sprintf('יש למלא את השדה %s עבור משתתף %d', $label, $index + 1);
-                        break;
+                if ($hasRaw) {
+                    $errors[] = $this->invalidFieldMessage($key, (string) ($definition['label'] ?? $key), $attendeeLabel);
+                    return null;
                 }
-                return null;
+
+                if ($isRequired) {
+                    $errors[] = $this->missingFieldMessage($key, (string) ($definition['label'] ?? $key), $attendeeLabel);
+                    return null;
+                }
+
+                $clean[$key] = '';
+                continue;
             }
 
             $clean[$key] = $value;
         }
 
+        $firstName = isset($clean['first_name']) ? (string) $clean['first_name'] : '';
+        $lastName  = isset($clean['last_name']) ? (string) $clean['last_name'] : '';
+        $fullName  = trim($firstName . ' ' . $lastName);
+        if ($fullName === '') {
+            $fullName = $firstName !== '' ? $firstName : $lastName;
+        }
+        $clean['full_name'] = $fullName;
+
         return $clean;
+    }
+
+    private function missingFieldMessage(string $key, string $fieldLabel, string $attendeeLabel): string
+    {
+        switch ($key) {
+            case 'email':
+                return sprintf('יש להזין אימייל עבור %s', $attendeeLabel);
+            case 'instagram':
+                return sprintf('יש להזין אינסטגרם עבור %s', $attendeeLabel);
+            case 'phone':
+                return sprintf('יש להזין מספר טלפון עבור %s', $attendeeLabel);
+            default:
+                return sprintf('יש למלא את השדה %s עבור %s', $fieldLabel, $attendeeLabel);
+        }
+    }
+
+    private function invalidFieldMessage(string $key, string $fieldLabel, string $attendeeLabel): string
+    {
+        switch ($key) {
+            case 'email':
+                return sprintf('כתובת האימייל אינה תקינה עבור %s', $attendeeLabel);
+            case 'phone':
+                return sprintf('מספר הטלפון חייב לכלול לפחות 10 ספרות עבור %s', $attendeeLabel);
+            case 'id_number':
+                return sprintf('תעודת זהות חייבת להכיל בדיוק 9 ספרות עבור %s', $attendeeLabel);
+            case 'instagram':
+                return sprintf('יש להזין אינסטגרם תקין (@username או קישור לפרופיל) עבור %s', $attendeeLabel);
+            case 'tiktok':
+                return sprintf('יש להזין טיקטוק תקין (@username או קישור לפרופיל) עבור %s', $attendeeLabel);
+            case 'facebook':
+                return sprintf('קישור הפייסבוק חייב לכלול facebook עבור %s', $attendeeLabel);
+            default:
+                return sprintf('הערך שסופק עבור %s אינו תקין עבור %s', $fieldLabel, $attendeeLabel);
+        }
+    }
+
+    private function attendeeLabel(int $index): string
+    {
+        return $index === 0 ? 'הלקוח המשלם' : sprintf('משתתף %d', $index + 1);
     }
 
     /**
@@ -560,7 +704,307 @@ final class PurchaseDetailsModal implements Service
             unset($definition);
         }
 
+        foreach ($definitions as $key => &$definition) {
+            $definition['required_for'] = AttendeeFields::requiredFor($key);
+        }
+        unset($definition);
+
         return $definitions;
+    }
+
+    public function maybeResumePendingCheckout(): void
+    {
+        if (!is_user_logged_in() || !function_exists('WC')) {
+            return;
+        }
+
+        if (is_admin() && !wp_doing_ajax()) {
+            return;
+        }
+
+        $session = WC()->session;
+        if (!$session) {
+            return;
+        }
+
+        $pending = $session->get(self::SESSION_KEY_PENDING);
+        if (!is_array($pending) || empty($pending['attendees']) || empty($pending['product_id'])) {
+            return;
+        }
+
+        $session->set(self::SESSION_KEY_PENDING, null);
+
+        $productId = (int) ($pending['product_id'] ?? 0);
+        $quantity  = max(1, (int) ($pending['quantity'] ?? 1));
+        $rawAttendees = is_array($pending['attendees']) ? $pending['attendees'] : [];
+
+        $errors    = [];
+        $sanitized = [];
+        foreach ($rawAttendees as $index => $entry) {
+            $result = $this->sanitizeAttendee(is_array($entry) ? $entry : [], $index, $errors, $index === 0);
+            if ($result !== null) {
+                $sanitized[] = $result;
+            }
+        }
+
+        if ($errors !== [] || $sanitized === []) {
+            return;
+        }
+
+        if (!function_exists('wc_get_product')) {
+            return;
+        }
+
+        $product = wc_get_product($productId);
+        if (!$product instanceof WC_Product || !$product->is_purchasable()) {
+            return;
+        }
+
+        if (function_exists('wc_load_cart')) {
+            wc_load_cart();
+        }
+
+        $cart = WC()->cart;
+        if (!$cart) {
+            return;
+        }
+
+        $payload = wp_json_encode($sanitized);
+        if (is_string($payload)) {
+            $_POST['tapin_attendees'] = $payload;
+            $_POST['quantity']        = (string) $quantity;
+        }
+
+        $cartItemKey = $cart->add_to_cart(
+            $productId,
+            $quantity,
+            0,
+            [],
+            [
+                'tapin_attendees'     => $sanitized,
+                'tapin_attendees_key' => md5(wp_json_encode($sanitized) . microtime(true)),
+            ]
+        );
+
+        unset($_POST['tapin_attendees'], $_POST['quantity']);
+
+        if ($cartItemKey) {
+            $payer = $sanitized[0] ?? [];
+            $this->maybeUpdateUserProfile(get_current_user_id(), $payer, false);
+        }
+    }
+
+    private function storePendingCheckout(array $attendees, int $productId, int $quantity): void
+    {
+        if (!function_exists('WC')) {
+            return;
+        }
+
+        $session = WC()->session;
+        if (!$session) {
+            return;
+        }
+
+        $payload = [
+            'product_id' => (int) $productId,
+            'quantity'   => max(1, (int) $quantity),
+            'attendees'  => $attendees,
+            'timestamp'  => time(),
+        ];
+
+        $session->set(self::SESSION_KEY_PENDING, $payload);
+    }
+
+    private function redirectToLogin(): void
+    {
+        $url = $this->loginRedirectUrl();
+        if ($url === '') {
+            $url = home_url('/');
+        }
+
+        wp_safe_redirect($url);
+        exit;
+    }
+
+    private function loginRedirectUrl(): string
+    {
+        $checkout = function_exists('wc_get_checkout_url') ? wc_get_checkout_url() : home_url('/');
+
+        if (function_exists('wc_get_page_permalink')) {
+            $accountUrl = wc_get_page_permalink('myaccount');
+            if ($accountUrl) {
+                return add_query_arg('redirect_to', rawurlencode($checkout), $accountUrl);
+            }
+        }
+
+        return wp_login_url($checkout);
+    }
+
+    private function createTransparentUser(array $payer): ?int
+    {
+        $email = isset($payer['email']) ? sanitize_email($payer['email']) : '';
+        if ($email === '') {
+            wc_add_notice('כתובת האימייל אינה תקינה.', 'error');
+            return null;
+        }
+
+        $firstName = sanitize_text_field($payer['first_name'] ?? '');
+        $lastName  = sanitize_text_field($payer['last_name'] ?? '');
+        $username  = $this->generateUsername($firstName, $lastName, $email);
+        $password  = wp_generate_password(32, true);
+
+        $userId = wp_insert_user([
+            'user_login' => $username,
+            'user_pass'  => $password,
+            'user_email' => $email,
+            'role'       => 'customer',
+        ]);
+
+        if (is_wp_error($userId)) {
+            wc_add_notice('לא ניתן היה ליצור משתמש חדש, אנא נסו שוב או פנו לתמיכה.', 'error');
+            return null;
+        }
+
+        wp_set_current_user($userId);
+        wp_set_auth_cookie($userId, true);
+        if (function_exists('wc_set_customer_auth_cookie')) {
+            wc_set_customer_auth_cookie($userId);
+        }
+
+        $user = get_userdata($userId);
+        if ($user && $user->user_login) {
+            do_action('wp_login', $user->user_login, $user);
+        }
+
+        return (int) $userId;
+    }
+
+    private function generateUsername(string $firstName, string $lastName, string $email): string
+    {
+        $candidate = sanitize_user($firstName . $lastName, true);
+        if ($candidate === '') {
+            $parts = explode('@', $email);
+            $candidate = sanitize_user($parts[0] ?? '', true);
+        }
+        if ($candidate === '') {
+            $candidate = 'tapin_user';
+        }
+
+        $username = $candidate;
+        $suffix   = 1;
+        while (username_exists($username)) {
+            $username = $candidate . $suffix;
+            $suffix++;
+        }
+
+        return $username;
+    }
+
+    private function maybeUpdateUserProfile(int $userId, array $payer, bool $force = false): void
+    {
+        if ($userId <= 0) {
+            return;
+        }
+
+        $fields = [
+            'first_name' => sanitize_text_field($payer['first_name'] ?? ''),
+            'last_name'  => sanitize_text_field($payer['last_name'] ?? ''),
+            'phone'      => AttendeeFields::sanitizeValue('phone', (string) ($payer['phone'] ?? '')),
+            'instagram'  => AttendeeFields::sanitizeValue('instagram', (string) ($payer['instagram'] ?? '')),
+            'tiktok'     => AttendeeFields::sanitizeValue('tiktok', (string) ($payer['tiktok'] ?? '')),
+            'facebook'   => AttendeeFields::sanitizeValue('facebook', (string) ($payer['facebook'] ?? '')),
+            'birth_date' => AttendeeFields::sanitizeValue('birth_date', (string) ($payer['birth_date'] ?? '')),
+            'gender'     => AttendeeFields::sanitizeValue('gender', (string) ($payer['gender'] ?? '')),
+            'id_number'  => AttendeeFields::sanitizeValue('id_number', (string) ($payer['id_number'] ?? '')),
+        ];
+
+        $this->maybeUpdateMeta($userId, 'first_name', $fields['first_name'], $force);
+        $this->maybeUpdateMeta($userId, 'last_name', $fields['last_name'], $force);
+        $this->maybeUpdateMeta($userId, 'billing_first_name', $fields['first_name'], $force);
+        $this->maybeUpdateMeta($userId, 'billing_last_name', $fields['last_name'], $force);
+
+        $phone = $fields['phone'];
+        if ($phone !== '') {
+            $this->maybeUpdateMeta($userId, 'billing_phone', $phone, $force);
+            $this->maybeUpdateMeta($userId, 'phone_whatsapp', preg_replace('/\D+/', '', $phone), $force);
+        }
+
+        $instagramHandle = $fields['instagram'];
+        if ($instagramHandle !== '') {
+            $rawInstagram = (string) get_user_meta($userId, 'instagram', true);
+            $currentHandle = AttendeeFields::sanitizeValue('instagram', $rawInstagram);
+            if ($force || $currentHandle === '' || $currentHandle !== $instagramHandle || trim($rawInstagram) !== $instagramHandle) {
+                update_user_meta($userId, 'instagram', $instagramHandle);
+                update_user_meta($userId, 'instagram_url', 'https://instagram.com/' . $instagramHandle);
+            }
+        }
+
+        $tiktokHandle = $fields['tiktok'];
+        if ($tiktokHandle !== '') {
+            $rawTiktok   = (string) get_user_meta($userId, 'tiktok', true);
+            $currentTikTok = AttendeeFields::sanitizeValue('tiktok', $rawTiktok);
+            if ($force || $currentTikTok === '' || $currentTikTok !== $tiktokHandle || trim($rawTiktok) !== $tiktokHandle) {
+                update_user_meta($userId, 'tiktok', $tiktokHandle);
+                update_user_meta($userId, 'tiktok_url', 'https://www.tiktok.com/@' . $tiktokHandle);
+            }
+        }
+
+        if ($fields['facebook'] !== '') {
+            $rawFacebook    = (string) get_user_meta($userId, 'facebook', true);
+            $currentFacebook = AttendeeFields::sanitizeValue('facebook', $rawFacebook);
+            if ($force || $currentFacebook === '' || $currentFacebook !== $fields['facebook'] || trim($rawFacebook) !== $fields['facebook']) {
+                update_user_meta($userId, 'facebook', $fields['facebook']);
+                update_user_meta($userId, 'facebook_url', $fields['facebook']);
+            }
+        }
+
+        if ($fields['birth_date'] !== '') {
+            $this->maybeUpdateMeta($userId, 'birth_date', $fields['birth_date'], $force);
+            $this->maybeUpdateMeta($userId, 'um_birth_date', $fields['birth_date'], $force);
+        }
+
+        if ($fields['gender'] !== '') {
+            $this->maybeUpdateMeta($userId, 'gender', $fields['gender'], $force);
+            $this->maybeUpdateMeta($userId, 'um_gender', $fields['gender'], $force);
+        }
+
+        if ($fields['id_number'] !== '') {
+            $this->maybeUpdateMeta($userId, 'id_number', $fields['id_number'], $force);
+        }
+
+        $user = get_userdata($userId);
+        if ($user) {
+            $displayCandidates = trim(($fields['first_name'] ? $fields['first_name'] . ' ' : '') . $fields['last_name']);
+            if ($displayCandidates !== '') {
+                $currentDisplay = trim((string) $user->display_name);
+                $shouldUpdateDisplay = $force
+                    || $currentDisplay === ''
+                    || $currentDisplay === $user->user_login
+                    || $currentDisplay === $user->user_email;
+
+                if ($shouldUpdateDisplay) {
+                    wp_update_user([
+                        'ID'           => $userId,
+                        'display_name' => $displayCandidates,
+                        'nickname'     => $displayCandidates,
+                    ]);
+                }
+            }
+        }
+    }
+
+    private function maybeUpdateMeta(int $userId, string $metaKey, string $value, bool $force): void
+    {
+        if ($value === '') {
+            return;
+        }
+
+        $current = get_user_meta($userId, $metaKey, true);
+        if (!$force && trim((string) $current) !== '') {
+            return;
+        }
+
+        update_user_meta($userId, $metaKey, $value);
     }
 
     private function isEligibleProduct(): bool

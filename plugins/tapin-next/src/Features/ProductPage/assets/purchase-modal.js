@@ -2,29 +2,18 @@
   const config = window.TapinPurchaseModalData || {};
   const messages = Object.assign(
     {
-      title: '׳₪׳¨׳˜׳™ ׳׳©׳×׳×׳₪׳™׳',
-      quantityTitle: '',
-      quantitySubtitle: '',
-      quantityNext: '',
-      quantitySingular: '',
-      quantityPlural: '',
-      quantityIncrease: '',
-      quantityDecrease: '',
-      step: '׳׳©׳×׳×׳£ %1 ׳׳×׳•׳ %2',
-      next: '׳”׳‘׳',
-      finish: '׳¡׳™׳•׳ ׳•׳”׳׳©׳ ׳׳×׳©׳׳•׳',
-      cancel: '׳‘׳™׳˜׳•׳',
-      required: '׳™׳© ׳׳׳׳ ׳׳× ׳›׳ ׳”׳©׳“׳•׳×',
-      invalidEmail: '׳›׳×׳•׳‘׳× ׳”׳׳™׳׳™׳™׳ ׳׳™׳ ׳” ׳×׳§׳™׳ ׳”',
-      invalidInstagram: 'Instagram handle must start with @ or include instagram.com',
-      invalidFacebook: 'Facebook link must include the word facebook',
-      invalidPhone: 'Phone number must contain at least 10 digits',
-      invalidId: 'ID number must be exactly 9 digits',
+      title: 'פרטי משתתפים',
+      required: 'יש למלא את כל השדות',
+      invalidEmail: 'כתובת האימייל אינה תקינה',
+      invalidInstagram: 'יש להזין אינסטגרם תקין (@username או קישור לפרופיל)',
+      invalidTikTok: 'יש להזין טיקטוק תקין (@username או קישור לפרופיל)',
+      invalidFacebook: 'קישור הפייסבוק חייב לכלול facebook',
+      invalidPhone: 'מספר הטלפון חייב לכלול לפחות 10 ספרות',
+      invalidId: 'תעודת זהות חייבת להכיל 9 ספרות',
     },
     config.messages || {}
   );
   const fieldConfig = config.fields || {};
-  const LOCKED_KEYS = ['instagram', 'facebook', 'phone', 'full_name', 'email', 'birth_date', 'gender'];
   const fieldKeys = Object.keys(fieldConfig);
 
   function format(str, ...args) {
@@ -32,6 +21,28 @@
       const i = parseInt(index, 10) - 1;
       return typeof args[i] !== 'undefined' ? args[i] : match;
     });
+  }
+
+  function normalizeInstagram(value) {
+    const trimmed = (value || '').trim();
+    if (!trimmed) {
+      return '';
+    }
+    const match = trimmed.match(/instagram\.com\/(@?[^/?#]+)/i);
+    const handle = match ? match[1] : trimmed.replace(/^@+/, '').replace(/^\/+/, '');
+    const normalized = handle.replace(/\/+$/, '').toLowerCase();
+    return /^[a-z0-9._]{1,30}$/.test(normalized) ? normalized : '';
+  }
+
+  function normalizeTikTok(value) {
+    const trimmed = (value || '').trim();
+    if (!trimmed) {
+      return '';
+    }
+    const match = trimmed.match(/tiktok\.com\/@([^/?#]+)/i);
+    const handle = match ? match[1] : trimmed.replace(/^@+/, '').replace(/^\/+/, '');
+    const normalized = handle.replace(/\/+$/, '').toLowerCase();
+    return /^[a-z0-9._]{1,24}$/.test(normalized) ? normalized : '';
   }
 
   function init() {
@@ -194,6 +205,52 @@
       return normalized;
     }
 
+    function updateTitle() {
+      if (!titleEl) {
+        return;
+      }
+
+      if (isQuantityPhase) {
+        titleEl.textContent = messages.quantityTitle || messages.title || '';
+        return;
+      }
+
+      if (currentIndex === 0) {
+        titleEl.textContent = messages.payerTitle || messages.title || '';
+        return;
+      }
+
+      const participantTitle = messages.participantTitle || '';
+      if (participantTitle) {
+        titleEl.textContent = format(participantTitle, currentIndex + 1);
+        return;
+      }
+
+      titleEl.textContent = messages.title || '';
+    }
+
+    function updateRequiredIndicators() {
+      const isPayer = currentIndex === 0;
+      modal.querySelectorAll('.tapin-field').forEach((fieldEl) => {
+        const indicator = fieldEl.querySelector('[data-required-indicator]');
+        if (!indicator) {
+          return;
+        }
+        const input = fieldEl.querySelector('[data-field]');
+        if (!input) {
+          return;
+        }
+        const required = isPayer
+          ? input.dataset.requiredPayer === 'true'
+          : input.dataset.requiredAttendee === 'true';
+        if (required) {
+          indicator.removeAttribute('hidden');
+        } else {
+          indicator.setAttribute('hidden', 'hidden');
+        }
+      });
+    }
+
     function setQtyInputValue(value) {
       if (!qtyInput) {
         return;
@@ -224,14 +281,13 @@
       if (formContainer) {
         formContainer.setAttribute('hidden', 'hidden');
       }
-      if (titleEl) {
-        titleEl.textContent = messages.quantityTitle || messages.title || '';
-      }
+      updateTitle();
       if (stepText) {
         stepText.textContent = messages.quantitySubtitle || '';
       }
       updateStepIndicator();
       updateNextButtonText();
+      updateRequiredIndicators();
     }
 
     function showAttendeePhase() {
@@ -242,12 +298,11 @@
       if (formContainer) {
         formContainer.removeAttribute('hidden');
       }
-      if (titleEl) {
-        titleEl.textContent = messages.title || '';
-      }
+      updateTitle();
       updateStepIndicator();
       updateNextButtonText();
       populateForm(currentIndex);
+      updateRequiredIndicators();
 
       const firstInput = formContainer.querySelector('input');
       if (firstInput) {
@@ -315,9 +370,6 @@
         group.querySelectorAll('[data-choice-value]').forEach((btn) => {
           btn.setAttribute('aria-pressed', 'false');
           btn.addEventListener('click', () => {
-            if (input.dataset.locked === 'true') {
-              return;
-            }
             const choiceValue = btn.dataset.choiceValue || '';
             input.value = choiceValue;
             updateChoiceState(fieldKey, choiceValue);
@@ -343,26 +395,9 @@
           updateChoiceState(key, value);
         }
 
-        if (LOCKED_KEYS.includes(key)) {
-          const choiceGroup = fieldType === 'choice' ? getChoiceGroup(key) : null;
-          if (index === 0 && value) {
-            input.setAttribute('readonly', 'readonly');
-            input.dataset.locked = 'true';
-            input.classList.add('tapin-field--locked');
-            if (choiceGroup) {
-              choiceGroup.classList.add('tapin-choice--locked');
-            }
-          } else {
-            input.removeAttribute('readonly');
-            input.dataset.locked = 'false';
-            input.classList.remove('tapin-field--locked');
-            if (choiceGroup) {
-              choiceGroup.classList.remove('tapin-choice--locked');
-            }
-          }
-        }
       });
       resetErrors();
+      updateRequiredIndicators();
     }
 
     function openModal() {
@@ -462,6 +497,7 @@
       resetErrors();
       const result = {};
       let isValid = true;
+      const isPayer = currentIndex === 0;
 
       fieldKeys.forEach((key) => {
         const field = fieldConfig[key] || {};
@@ -472,46 +508,62 @@
 
         const type = field.type || input.dataset.fieldType || 'text';
         const value = type === 'choice' ? input.value : input.value.trim();
-        const isLocked = input.dataset.locked === 'true';
+        const required = isPayer
+          ? input.dataset.requiredPayer === 'true'
+          : input.dataset.requiredAttendee === 'true';
+
+        if (!value) {
+          if (required) {
+            isValid = false;
+            markInvalid(input, messages.required, type);
+          }
+          result[key] = value;
+          return;
+        }
 
         if (type === 'email') {
           const emailValid = /\S+@\S+\.\S+/.test(value);
           if (!emailValid) {
             isValid = false;
-            markInvalid(input, value ? messages.invalidEmail : messages.required, type);
+            markInvalid(input, messages.invalidEmail || messages.required, type);
           }
-        } else if (!value && !isLocked) {
-          isValid = false;
-          markInvalid(input, messages.required, type);
         }
 
-        if (value) {
+        if (key === 'instagram') {
+          if (!normalizeInstagram(value)) {
+            isValid = false;
+            markInvalid(input, messages.invalidInstagram || messages.required, type);
+          }
+        }
+
+        if (key === 'tiktok') {
+          if (!normalizeTikTok(value)) {
+            isValid = false;
+            markInvalid(input, messages.invalidTikTok || messages.required, type);
+          }
+        }
+
+        if (key === 'facebook') {
           const lower = value.toLowerCase();
-          if (!isLocked && key === 'instagram') {
-            if (lower.indexOf('instagram.com') === -1 && value.charAt(0) !== '@') {
-              isValid = false;
-              markInvalid(input, messages.invalidInstagram || messages.required, type);
-            }
+          if (lower.indexOf('facebook') === -1) {
+            isValid = false;
+            markInvalid(input, messages.invalidFacebook || messages.required, type);
           }
-          if (!isLocked && key === 'facebook') {
-            if (lower.indexOf('facebook') === -1) {
-              isValid = false;
-              markInvalid(input, messages.invalidFacebook || messages.required, type);
-            }
+        }
+
+        if (key === 'phone') {
+          const phoneDigits = value.replace(/\D+/g, '');
+          if (phoneDigits.length < 10) {
+            isValid = false;
+            markInvalid(input, messages.invalidPhone || messages.required, type);
           }
-          if (key === 'phone') {
-            const phoneDigits = value.replace(/\D+/g, '');
-            if (phoneDigits.length < 10) {
-              isValid = false;
-              markInvalid(input, messages.invalidPhone || messages.required, type);
-            }
-          }
-          if (key === 'id_number') {
-            const idDigits = value.replace(/\D+/g, '');
-            if (idDigits.length !== 9) {
-              isValid = false;
-              markInvalid(input, messages.invalidId || messages.required, type);
-            }
+        }
+
+        if (key === 'id_number') {
+          const idDigits = value.replace(/\D+/g, '');
+          if (idDigits.length !== 9) {
+            isValid = false;
+            markInvalid(input, messages.invalidId || messages.required, type);
           }
         }
 
@@ -552,6 +604,7 @@
         currentIndex += 1;
         updateStepIndicator();
         updateNextButtonText();
+        updateTitle();
         populateForm(currentIndex);
         return;
       }

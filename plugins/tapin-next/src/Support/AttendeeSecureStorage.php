@@ -342,6 +342,11 @@ final class AttendeeSecureStorage
                 $prefix = mb_substr($handle, 0, min(2, mb_strlen($handle)));
                 return '@' . $prefix . '***';
 
+            case 'tiktok':
+                $handle = ltrim($value, '@/');
+                $prefix = mb_substr($handle, 0, min(2, mb_strlen($handle)));
+                return '@' . $prefix . '***';
+
             case 'facebook':
                 $url = AttendeeFields::displayValue('facebook', $value);
                 if ($url === '') {

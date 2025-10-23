@@ -14,16 +14,24 @@ final class AttendeeFields
             'label' => 'אימייל',
             'type'  => 'email',
         ],
+        'first_name' => [
+            'label' => 'שם פרטי',
+            'type'  => 'text',
+        ],
+        'last_name'  => [
+            'label' => 'שם משפחה',
+            'type'  => 'text',
+        ],
         'instagram'  => [
             'label' => 'אינסטגרם',
             'type'  => 'text',
         ],
-        'facebook'   => [
-            'label' => 'פייסבוק',
+        'tiktok'     => [
+            'label' => 'טיקטוק',
             'type'  => 'text',
         ],
-        'full_name'  => [
-            'label' => 'שם מלא',
+        'facebook'   => [
+            'label' => 'פייסבוק',
             'type'  => 'text',
         ],
         'gender'     => [
@@ -49,6 +57,25 @@ final class AttendeeFields
     ];
 
     /**
+     * Keys that should be stored for each attendee (includes computed values).
+     *
+     * @var array<int,string>
+     */
+    private const STORAGE_KEYS = [
+        'email',
+        'first_name',
+        'last_name',
+        'full_name',
+        'instagram',
+        'tiktok',
+        'facebook',
+        'birth_date',
+        'phone',
+        'id_number',
+        'gender',
+    ];
+
+    /**
      * Order used when storing attendee summaries as a single string.
      *
      * @var array<int,string>
@@ -58,6 +85,7 @@ final class AttendeeFields
         'email',
         'instagram',
         'facebook',
+        'tiktok',
         'birth_date',
         'phone',
         'id_number',
@@ -70,12 +98,28 @@ final class AttendeeFields
      * @var array<string,array<int,string>>
      */
     private const PREFILL_META = [
+        'first_name' => ['first_name', 'billing_first_name'],
+        'last_name'  => ['last_name', 'billing_last_name'],
         'instagram'  => ['producer_instagram', 'instagram', 'instagram_url'],
+        'tiktok'     => ['producer_tiktok', 'tiktok', 'tiktok_url'],
         'facebook'   => ['producer_facebook', 'facebook', 'facebook_url'],
         'phone'      => ['producer_phone_public', 'producer_phone_private', 'phone_whatsapp', 'billing_phone'],
         'birth_date' => ['birth_date', 'um_birth_date', 'um_birthdate', 'date_of_birth', 'birthdate'],
         'gender'     => ['gender', 'um_gender', 'sex'],
         'id_number'  => ['id_number', 'national_id'],
+    ];
+
+    private const REQUIRED_FOR = [
+        'email'      => ['payer' => true, 'attendee' => true],
+        'first_name' => ['payer' => true, 'attendee' => true],
+        'last_name'  => ['payer' => true, 'attendee' => true],
+        'instagram'  => ['payer' => true, 'attendee' => false],
+        'tiktok'     => ['payer' => false, 'attendee' => false],
+        'facebook'   => ['payer' => false, 'attendee' => false],
+        'phone'      => ['payer' => true, 'attendee' => true],
+        'birth_date' => ['payer' => true, 'attendee' => true],
+        'gender'     => ['payer' => true, 'attendee' => true],
+        'id_number'  => ['payer' => true, 'attendee' => true],
     ];
 
     public static function definitions(): array
@@ -111,12 +155,25 @@ final class AttendeeFields
 
     public static function keys(): array
     {
-        return array_keys(self::DEFINITIONS);
+        return self::STORAGE_KEYS;
     }
 
     public static function summaryKeys(): array
     {
         return self::SUMMARY_KEYS;
+    }
+
+    public static function requiredFor(string $key): array
+    {
+        $defaults = ['payer' => true, 'attendee' => true];
+        $config   = isset(self::REQUIRED_FOR[$key]) && is_array(self::REQUIRED_FOR[$key])
+            ? self::REQUIRED_FOR[$key]
+            : $defaults;
+
+        return [
+            'payer'    => !empty($config['payer']),
+            'attendee' => !empty($config['attendee']),
+        ];
     }
 
     public static function prefillMeta(): array
@@ -162,6 +219,10 @@ final class AttendeeFields
                 }
                 return $sanitized;
 
+            case 'first_name':
+            case 'last_name':
+                return sanitize_text_field($value);
+
             case 'phone':
                 return self::normalizePhone($value);
 
@@ -170,6 +231,9 @@ final class AttendeeFields
 
             case 'instagram':
                 return self::normalizeInstagramHandle($value);
+
+            case 'tiktok':
+                return self::normalizeTikTokHandle($value);
 
             case 'facebook':
                 return self::normalizeFacebookUrl($value);
@@ -197,6 +261,10 @@ final class AttendeeFields
                 $email = sanitize_email($value);
                 return $email !== '' ? $email : sanitize_text_field($value);
 
+            case 'first_name':
+            case 'last_name':
+                return sanitize_text_field($value);
+
             case 'phone':
                 $digits = preg_replace('/\D+/', '', $value);
                 return strpos($value, '+') === 0 ? '+' . $digits : $digits;
@@ -206,18 +274,12 @@ final class AttendeeFields
                 return $digits;
 
             case 'instagram':
-                if (preg_match('#instagram\.com/([^/?#]+)#i', $value, $matches)) {
-                    return 'https://instagram.com/' . $matches[1];
-                }
-                if ($value[0] === '@') {
-                    $handle = ltrim($value, '@/');
-                    return $handle !== '' ? 'https://instagram.com/' . $handle : '';
-                }
-                if (preg_match('/^[A-Za-z0-9._]{1,30}$/', $value)) {
-                    return 'https://instagram.com/' . $value;
-                }
-                $url = esc_url_raw($value, ['http', 'https']);
-                return $url !== '' ? $url : sanitize_text_field($value);
+                $handle = self::normalizeInstagramHandle($value);
+                return $handle === '' ? '' : '@' . $handle;
+
+            case 'tiktok':
+                $handle = self::normalizeTikTokHandle($value);
+                return $handle === '' ? '' : '@' . $handle;
 
             case 'facebook':
                 if (stripos($value, 'facebook') === false) {
@@ -321,17 +383,42 @@ final class AttendeeFields
         }
 
         $handle = '';
-        if (preg_match('#instagram\.com/([^/?#]+)#i', $value, $matches)) {
+        if (preg_match('#instagram\.com/(@?[^/?#]+)#i', $value, $matches)) {
             $handle = $matches[1];
         } else {
             $handle = ltrim($value, '@/');
         }
 
-        if ($handle === '' || !preg_match('/^[A-Za-z0-9._]{1,30}$/', $handle)) {
+        $handle = strtolower(rtrim($handle, '/'));
+
+        if ($handle === '' || !preg_match('/^[a-z0-9._]{1,30}$/', $handle)) {
             return '';
         }
 
-        return 'https://instagram.com/' . $handle;
+        return $handle;
+    }
+
+    private static function normalizeTikTokHandle(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        $handle = '';
+        if (preg_match('#tiktok\.com/@([^/?#]+)#i', $value, $matches)) {
+            $handle = $matches[1];
+        } else {
+            $handle = ltrim($value, '@/');
+        }
+
+        $handle = strtolower(rtrim($handle, '/'));
+
+        if ($handle === '' || !preg_match('/^[a-z0-9._]{1,24}$/', $handle)) {
+            return '';
+        }
+
+        return $handle;
     }
 
     private static function normalizeFacebookUrl(string $value): string
