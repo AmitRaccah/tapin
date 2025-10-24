@@ -23,7 +23,7 @@ final class AttendeeFields
             'type'  => 'text',
         ],
         'instagram'  => [
-            'label' => 'אינסטגרם',
+            'label' => 'אינסטגרם תאג @',
             'type'  => 'text',
         ],
         'tiktok'     => [
