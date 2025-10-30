@@ -3,6 +3,7 @@ namespace Tapin\Events\Features\Admin;
 
 use Tapin\Events\Domain\EventProductService;
 use Tapin\Events\Domain\SaleWindowsRepository;
+use Tapin\Events\Domain\TicketTypesRepository;
 use Tapin\Events\Support\MetaKeys;
 
 final class ProducerCenterActions {
@@ -54,6 +55,9 @@ final class ProducerCenterActions {
         }
         set_transient($lock, 1, 5);
 
+        $ticketTypesPost = TicketTypesRepository::parseFromPost('ticket_type');
+        $saleWindowsPost = SaleWindowsRepository::parseFromPost('sale_w', $ticketTypesPost);
+
         $service = new EventProductService();
         $service->applyFields($pid, [
             'title'        => $_POST['title'] ?? '',
@@ -63,7 +67,8 @@ final class ProducerCenterActions {
             'event_dt'     => $_POST['event_dt'] ?? '',
             'image_field'  => 'image',
             'background_field' => 'bg_image',
-            'sale_windows' => SaleWindowsRepository::parseFromPost('sale_w'),
+            'ticket_types' => $ticketTypesPost,
+            'sale_windows' => $saleWindowsPost,
         ]);
 
         if (function_exists('wc_delete_product_transients')) {
@@ -81,13 +86,15 @@ final class ProducerCenterActions {
         }
         set_transient($lock, 1, MINUTE_IN_SECONDS);
 
+        $ticketTypesPost = TicketTypesRepository::parseFromPost('ticket_type');
         $data = [
             'title'        => sanitize_text_field($_POST['title'] ?? ''),
             'desc'         => wp_kses_post($_POST['desc'] ?? ''),
             'price'        => $_POST['price'] ?? '',
             'stock'        => $_POST['stock'] ?? '',
             'event_dt'     => sanitize_text_field($_POST['event_dt'] ?? ''),
-            'sale_windows' => SaleWindowsRepository::parseFromPost('sale_w'),
+            'ticket_types' => $ticketTypesPost,
+            'sale_windows' => SaleWindowsRepository::parseFromPost('sale_w', $ticketTypesPost),
         ];
 
         $hasImageUpload = !empty($_FILES['image']['name']);

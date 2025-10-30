@@ -12,20 +12,35 @@ final class EventProductService {
         $desc  = wp_kses_post($arr['desc'] ?? '');
         $price = ($arr['price']!=='' ? Util::fmtPriceVal($arr['price']) : '');
         $stock = isset($arr['stock']) && $arr['stock'] !== '' ? absint($arr['stock']) : null;
+        $hasTicketTypesInput = array_key_exists('ticket_types', $arr) && is_array($arr['ticket_types']);
+        $ticketTypes = $hasTicketTypesInput ? TicketTypesRepository::save($pid, $arr['ticket_types']) : null;
         $event_dt_local = sanitize_text_field($arr['event_dt'] ?? '');
         $event_ts = $event_dt_local ? Time::localStrToUtcTs($event_dt_local) : 0;
 
         if ($title !== '') wp_update_post(['ID'=>$pid,'post_title'=>$title]);
         if ($desc  !== '') wp_update_post(['ID'=>$pid,'post_content'=>$desc]);
 
-        if ($price !== '') {
-            update_post_meta($pid,'_regular_price',$price);
-            update_post_meta($pid,'_price',$price);
-        }
+        if ($hasTicketTypesInput) {
+            $minPrice = $this->minTicketBasePrice($ticketTypes ?? []);
+            if ($minPrice !== null) {
+                $formatted = function_exists('wc_format_decimal') ? wc_format_decimal($minPrice) : $minPrice;
+                update_post_meta($pid,'_regular_price',$formatted);
+                update_post_meta($pid,'_price',$formatted);
+            }
 
-        if ($stock !== null && $stock >= 0) {
+            $totalCapacity = TicketTypesRepository::totalCapacity($ticketTypes ?? []);
             update_post_meta($pid, '_manage_stock', 'yes');
-            update_post_meta($pid, '_stock', $stock);
+            update_post_meta($pid, '_stock', $totalCapacity);
+        } else {
+            if ($price !== '') {
+                update_post_meta($pid,'_regular_price',$price);
+                update_post_meta($pid,'_price',$price);
+            }
+
+            if ($stock !== null && $stock >= 0) {
+                update_post_meta($pid, '_manage_stock', 'yes');
+                update_post_meta($pid, '_stock', $stock);
+            }
         }
 
         // remove legacy sale meta
@@ -34,7 +49,8 @@ final class EventProductService {
         delete_post_meta($pid,'_sale_price_dates_to');
 
         if (array_key_exists('sale_windows', $arr) && is_array($arr['sale_windows'])) {
-            SaleWindowsRepository::save($pid, $arr['sale_windows']);
+            $typesForWindows = $ticketTypes ?? TicketTypesRepository::get($pid);
+            SaleWindowsRepository::save($pid, $arr['sale_windows'], $typesForWindows);
         }
 
         if ($event_ts) {
@@ -73,5 +89,35 @@ final class EventProductService {
         if (!empty($arr['new_background_id'])) {
             update_post_meta($pid, MetaKeys::EVENT_BG_IMAGE, (int) $arr['new_background_id']);
         }
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $ticketTypes
+     */
+    private function minTicketBasePrice(array $ticketTypes): ?float
+    {
+        $prices = [];
+        foreach ($ticketTypes as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if (!isset($entry['base_price'])) {
+                continue;
+            }
+            $raw = $entry['base_price'];
+            if ($raw === '' || $raw === null) {
+                continue;
+            }
+            $value = is_numeric($raw) ? (float) $raw : (float) Util::fmtPriceVal($raw);
+            if ($value > 0) {
+                $prices[] = $value;
+            }
+        }
+
+        if ($prices === []) {
+            return null;
+        }
+
+        return min($prices);
     }
 }

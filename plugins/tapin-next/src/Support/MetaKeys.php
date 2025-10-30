@@ -7,6 +7,8 @@ final class MetaKeys {
     public const PAUSED         = '_sale_paused';
     public const EDIT_REQ       = 'tapin_edit_request';
     public const EVENT_BG_IMAGE = '_tapin_event_bg_image';
+    public const TICKET_TYPES   = '_tapin_ticket_types';
+    public const TICKET_TYPE_SALES = '_tapin_ticket_type_sales';
 
     public static function define(): void {
         if (!defined('TAPIN_META_SALE_WINDOWS'))   define('TAPIN_META_SALE_WINDOWS',   self::SALE_WINDOWS);
@@ -14,5 +16,7 @@ final class MetaKeys {
         if (!defined('TAPIN_META_PAUSED'))         define('TAPIN_META_PAUSED',         self::PAUSED);
         if (!defined('TAPIN_META_EDIT_REQ'))       define('TAPIN_META_EDIT_REQ',       self::EDIT_REQ);
         if (!defined('TAPIN_META_EVENT_BG_IMAGE')) define('TAPIN_META_EVENT_BG_IMAGE', self::EVENT_BG_IMAGE);
+        if (!defined('TAPIN_META_TICKET_TYPES'))   define('TAPIN_META_TICKET_TYPES',   self::TICKET_TYPES);
+        if (!defined('TAPIN_META_TICKET_TYPE_SALES')) define('TAPIN_META_TICKET_TYPE_SALES', self::TICKET_TYPE_SALES);
     }
 }

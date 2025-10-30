@@ -73,6 +73,8 @@ final class AttendeeFields
         'phone',
         'id_number',
         'gender',
+        'ticket_type',
+        'ticket_type_label',
     ];
 
     /**
@@ -90,6 +92,7 @@ final class AttendeeFields
         'phone',
         'id_number',
         'gender',
+        'ticket_type_label',
     ];
 
     /**
@@ -243,6 +246,12 @@ final class AttendeeFields
 
             case 'gender':
                 return self::normalizeGender($value);
+
+            case 'ticket_type':
+                return sanitize_key($value);
+
+            case 'ticket_type_label':
+                return sanitize_text_field($value);
 
             default:
                 return sanitize_text_field($value);

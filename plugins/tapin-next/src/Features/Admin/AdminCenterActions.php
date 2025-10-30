@@ -3,6 +3,7 @@ namespace Tapin\Events\Features\Admin;
 
 use Tapin\Events\Domain\EventProductService;
 use Tapin\Events\Domain\SaleWindowsRepository;
+use Tapin\Events\Domain\TicketTypesRepository;
 use Tapin\Events\Support\MetaKeys;
 use Tapin\Events\Support\Util;
 
@@ -25,12 +26,15 @@ final class AdminCenterActions {
             case 'approve_new':
                 $termIds = Util::catSlugsToIds(isset($_POST['cats'])?(array)$_POST['cats']:[]);
                 if (!$termIds) { delete_transient($key); return '<div class="tapin-notice tapin-notice--error">יש לבחור לפחות קטגוריה אחת.</div>'; }
+                $ticketTypesPost = TicketTypesRepository::parseFromPost('ticket_type');
+                $saleWindowsPost = SaleWindowsRepository::parseFromPost('sale_w', $ticketTypesPost);
                 $svc->applyFields($pid,[
                     'title'=>$_POST['title']??'','desc'=>$_POST['desc']??'',
                     'price'=>$_POST['price']??'','stock'=>$_POST['stock']??'',
                     'event_dt'=>$_POST['event_dt']??'','image_field'=>'image',
                     'background_field'=>'bg_image',
-                    'sale_windows'=> SaleWindowsRepository::parseFromPost('sale_w')
+                    'ticket_types'=> $ticketTypesPost,
+                    'sale_windows'=> $saleWindowsPost
                 ]);
                 wp_set_object_terms($pid, $termIds, 'product_cat', false);
                 if ($pending = get_term_by('slug','pending-events','product_cat')) wp_remove_object_terms($pid, [(int)$pending->term_id], 'product_cat');
@@ -46,12 +50,15 @@ final class AdminCenterActions {
                 return '<div class="tapin-notice tapin-notice--success">האירוע אושר ופורסם.</div>';
 
             case 'quick_save':
+                $ticketTypesPost = TicketTypesRepository::parseFromPost('ticket_type');
+                $saleWindowsPost = SaleWindowsRepository::parseFromPost('sale_w', $ticketTypesPost);
                 $svc->applyFields($pid,[
                     'title'=>$_POST['title']??'','desc'=>$_POST['desc']??'',
                     'price'=>$_POST['price']??'','stock'=>$_POST['stock']??'',
                     'event_dt'=>$_POST['event_dt']??'','image_field'=>'image',
                     'background_field'=>'bg_image',
-                    'sale_windows'=> SaleWindowsRepository::parseFromPost('sale_w')
+                    'ticket_types'=> $ticketTypesPost,
+                    'sale_windows'=> $saleWindowsPost
                 ]);
                 if (isset($_POST['cats'])) {
                     $termIds = Util::catSlugsToIds((array)$_POST['cats']);

@@ -169,9 +169,98 @@ final class Assets {
 
 .tapin-form-row input:focus,
 .tapin-form-row textarea:focus {
+    border-color: var(--tapin-primary-color);
+    box-shadow: 0 0 0 3px rgba(42,26,94,0.1);
+    outline: none;
+}
+
+.tapin-ticket-types {
+  border: 1px solid var(--tapin-border-color);
+  border-radius: var(--tapin-radius-lg);
+  padding: 16px;
+  background: var(--tapin-ghost-bg);
+}
+
+.tapin-ticket-types__rows {
+  display: grid;
+  gap: 16px;
+}
+
+.tapin-ticket-type {
+  position: relative;
+  padding: 16px 16px 12px;
+  padding-inline-end: 52px;
+  border: 1px solid var(--tapin-border-color);
+  border-radius: var(--tapin-radius-md);
+  background: #fff;
+}
+
+.tapin-ticket-type__grid {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  .tapin-ticket-type__grid {
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 16px;
+  }
+}
+
+.tapin-ticket-type__field label {
+  display: block;
+  font-size: .9rem;
+  margin-bottom: 6px;
+  color: var(--tapin-text-light);
+  font-weight: 600;
+}
+
+.tapin-ticket-type__field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--tapin-border-color);
+  border-radius: var(--tapin-radius-md);
+  background: #fff;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.tapin-ticket-type__field input:focus {
   border-color: var(--tapin-primary-color);
-  box-shadow: 0 0 0 3px rgba(42,26,94,0.1);
+  box-shadow: 0 0 0 2px rgba(42,26,94,0.08);
   outline: none;
+}
+
+.tapin-ticket-type__remove {
+  position: absolute;
+  top: 12px;
+  inset-inline-end: 12px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--tapin-border-color);
+  background: #fff;
+  color: var(--tapin-text-light);
+  cursor: pointer;
+  transition: all .2s;
+}
+
+.tapin-ticket-type__remove:hover {
+  color: var(--tapin-danger-bg);
+  border-color: var(--tapin-danger-bg);
+}
+
+.tapin-ticket-types__add {
+  margin-top: 16px;
+}
+
+.tapin-ticket-types__hint {
+  display: block;
+  margin-top: 8px;
+  color: var(--tapin-text-light);
+  font-size: .8rem;
 }
 
 .tapin-columns-2 {
@@ -354,6 +443,49 @@ CSS;
   line-height: 1.3;
 }
 
+.tapin-pw-card__tickets {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--tapin-border-color);
+  display: grid;
+  gap: 6px;
+}
+
+.tapin-pw-card__ticket {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: .85rem;
+}
+
+.tapin-pw-card__ticket-price {
+  font-weight: 600;
+  color: var(--tapin-primary-color);
+}
+
+.tapin-pw-card__tickets {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--tapin-border-color);
+  padding-top: 10px;
+}
+
+.tapin-pw-card__ticket {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: .9rem;
+  color: var(--tapin-text-dark);
+}
+
+.tapin-pw-card__ticket-price {
+  font-weight: 600;
+}
+
+.tapin-pw-card--past .tapin-pw-card__ticket {
+  color: #94a3b8;
+}
+
 .tapin-pw-card__badge {
   font-size: .8rem;
   font-weight: 700;
@@ -384,41 +516,117 @@ CSS;
     private const REPEATER_CSS = <<<'CSS'
 .tapin-sale-w {
   border: 1px solid var(--tapin-border-color);
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: var(--tapin-radius-lg);
+  padding: 16px;
+  background: var(--tapin-ghost-bg);
+}
+
+.tapin-sale-w__rows {
+  display: grid;
+  gap: 16px;
 }
 
 .tapin-sale-w__row {
+  position: relative;
+  border: 1px solid var(--tapin-border-color);
+  border-radius: var(--tapin-radius-md);
+  background: #fff;
+  padding: 16px;
   display: grid;
-  grid-template-columns: 1fr 1fr 160px 40px;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 14px;
 }
 
-.tapin-sale-w__row:last-child {
-  margin-bottom: 0;
+.tapin-sale-w__dates {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  .tapin-sale-w__dates {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+.tapin-sale-w__dates input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--tapin-border-color);
+  border-radius: var(--tapin-radius-md);
+  background: #fff;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.tapin-sale-w__prices {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  .tapin-sale-w__prices {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+  }
+}
+
+.tapin-sale-w__price-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tapin-sale-w__price-field span {
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--tapin-text-light);
+}
+
+.tapin-sale-w__price-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--tapin-border-color);
+  border-radius: var(--tapin-radius-md);
+  background: #fff;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.tapin-sale-w__price-field input:focus,
+.tapin-sale-w__dates input:focus {
+  border-color: var(--tapin-primary-color);
+  box-shadow: 0 0 0 2px rgba(42,26,94,0.08);
+  outline: none;
 }
 
 .tapin-sale-w__remove {
-  width: 40px;
-  height: 40px;
+  position: absolute;
+  top: 12px;
+  inset-inline-end: 12px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-radius: 999px;
   border: 1px solid var(--tapin-border-color);
-  border-radius: 8px;
   background: #fff;
+  color: var(--tapin-text-light);
   cursor: pointer;
+  transition: all .2s;
+}
+
+.tapin-sale-w__remove:hover {
+  color: var(--tapin-danger-bg);
+  border-color: var(--tapin-danger-bg);
 }
 
 .tapin-sale-w__add {
-  margin-top: 10px;
+  margin-top: 16px;
 }
 
-@media (max-width: 640px) {
-  .tapin-sale-w__row {
-    grid-template-columns: 1fr;
-  }
+.tapin-sale-w__hint {
+  margin-top: 10px;
+  font-size: .8rem;
+  color: var(--tapin-text-light);
 }
 CSS;
 
