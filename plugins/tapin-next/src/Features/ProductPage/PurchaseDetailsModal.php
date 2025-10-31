@@ -24,6 +24,8 @@ final class PurchaseDetailsModal implements Service
     private array $ticketTypeCache  = [];
     /** @var array<string,array<string,mixed>> */
     private array $currentTicketTypeIndex = [];
+    /** @var array<string,string>|null */
+    private ?array $modalMessages = null;
 
     public function register(): void
     {
@@ -58,7 +60,7 @@ final class PurchaseDetailsModal implements Service
             return $text;
         }
 
-        return 'לקנייה';
+        return __('בחירת כרטיסים', 'tapin');
     }
 
     public function enqueueAssets(): void
@@ -91,31 +93,56 @@ final class PurchaseDetailsModal implements Service
         wp_localize_script(self::SCRIPT_HANDLE, 'TapinPurchaseModalData', [
             'prefill'     => $this->getPrefillData(),
             'ticketTypes' => $ticketCache['list'],
-            'messages'    => [
-                'title'               => 'Purchase Details',
-                'ticketStepTitle'     => 'Choose Your Tickets',
-                'ticketStepSubtitle'  => 'Select how many tickets you need from each available type.',
-                'ticketStepNext'      => 'Continue',
-                'ticketStepError'     => 'Select at least one ticket to continue.',
-                'ticketStepSoldOut'   => 'Sold out',
-                'ticketTotalLabel'    => 'Total tickets:',
-                'ticketHintLabel'     => 'Ticket type:',
-                'payerTitle'          => 'Buyer Details',
-                'participantTitle'    => 'Participant %1$s',
-                'step'                => 'Participant %1$s of %2$s',
-                'next'                => 'Next',
-                'finish'              => 'Complete Purchase',
-                'cancel'              => 'Cancel',
-                'required'            => 'This field is required.',
-                'invalidEmail'        => 'Enter a valid email address.',
-                'invalidInstagram'    => 'Enter a valid Instagram handle.',
-                'invalidTikTok'       => 'Enter a valid TikTok handle.',
-                'invalidFacebook'     => 'Enter a valid Facebook URL.',
-                'invalidPhone'        => 'Enter a valid phone number (10 digits).',
-                'invalidId'           => 'Enter a valid ID number (9 digits).',
-            ],
+            'messages'    => $this->getModalMessages(),
             'fields'      => $this->getFieldDefinitions(),
         ]);
+    }
+
+
+    /**
+     * Returns localized strings for the purchase modal UI.
+     *
+     * @return array<string,string>
+     */
+    private function getModalMessages(): array
+    {
+        if ($this->modalMessages !== null) {
+            return $this->modalMessages;
+        }
+
+        $this->modalMessages = [
+            'title'               => __('פרטי ההזמנה', 'tapin'),
+            'ticketStepTitle'     => __('בחרו את הכרטיסים שלכם', 'tapin'),
+            'ticketStepSubtitle'  => __('בחרו כמה כרטיסים ברצונכם לרכוש מכל סוג זמין.', 'tapin'),
+            'ticketStepNext'      => __('המשך', 'tapin'),
+            'ticketStepError'     => __('בחרו לפחות כרטיס אחד כדי להמשיך.', 'tapin'),
+            'ticketStepSoldOut'   => __('אזל המלאי', 'tapin'),
+            'ticketStepIncluded'  => __('כלול', 'tapin'),
+            'ticketStepAvailability' => __('זמין: %s', 'tapin'),
+            'ticketStepNoLimit'   => __('ללא הגבלה', 'tapin'),
+            'ticketStepDecrease'  => __('הפחת כרטיס', 'tapin'),
+            'ticketStepIncrease'  => __('הוסף כרטיס', 'tapin'),
+            'ticketTotalLabel'    => __('סה״כ כרטיסים:', 'tapin'),
+            'ticketHintLabel'     => __('סוג הכרטיס:', 'tapin'),
+            'ticketSelectPlaceholder' => __('בחרו סוג כרטיס', 'tapin'),
+            'ticketSelectError'   => __('בחרו סוג כרטיס עבור משתתף זה.', 'tapin'),
+            'payerTitle'          => __('פרטי המזמין', 'tapin'),
+            'participantTitle'    => __('משתתף %1$s', 'tapin'),
+            'step'                => __('משתתף %1$s מתוך %2$s', 'tapin'),
+            'next'                => __('הבא', 'tapin'),
+            'finish'              => __('סיום והמשך לתשלום', 'tapin'),
+            'cancel'              => __('ביטול', 'tapin'),
+            'close'               => __('סגירת חלון', 'tapin'),
+            'required'            => __('שדה חובה.', 'tapin'),
+            'invalidEmail'        => __('הזינו כתובת דוא״ל תקינה.', 'tapin'),
+            'invalidInstagram'    => __('הזינו שם משתמש אינסטגרם תקין.', 'tapin'),
+            'invalidTikTok'       => __('הזינו שם משתמש טיקטוק תקין.', 'tapin'),
+            'invalidFacebook'     => __('הזינו כתובת פייסבוק תקינה.', 'tapin'),
+            'invalidPhone'        => __('הזינו מספר טלפון תקין (10 ספרות).', 'tapin'),
+            'invalidId'           => __('הזינו מספר זהות תקין (9 ספרות).', 'tapin'),
+        ];
+
+        return $this->modalMessages;
     }
 
     public function renderHiddenField(): void
@@ -134,11 +161,12 @@ final class PurchaseDetailsModal implements Service
         $productId   = (int) get_the_ID();
         $ticketCache = $productId ? $this->ensureTicketTypeCache($productId) : ['list' => [], 'index' => []];
         $ticketTypes = $ticketCache['list'];
+        $messages   = $this->getModalMessages();
         ?>
         <div id="tapinPurchaseModal" class="tapin-purchase-modal" hidden>
             <div class="tapin-purchase-modal__backdrop" data-modal-dismiss></div>
             <div class="tapin-purchase-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="tapinPurchaseModalTitle">
-                <button type="button" class="tapin-purchase-modal__close" data-modal-dismiss aria-label="סגור חלון">&times;</button>
+                <button type="button" class="tapin-purchase-modal__close" data-modal-dismiss aria-label="<?php echo esc_attr($messages['close'] ?? __('סגירת חלון', 'tapin')); ?>">&times;</button>
                 <h2 id="tapinPurchaseModalTitle" class="tapin-purchase-modal__title"></h2>
                 <p class="tapin-purchase-modal__subtitle" data-step-text></p>
                 <div class="tapin-ticket-step" data-ticket-step>
@@ -151,7 +179,7 @@ final class PurchaseDetailsModal implements Service
                             $available   = isset($type['available']) ? (int) $type['available'] : 0;
                             $capacity    = isset($type['capacity']) ? (int) $type['capacity'] : 0;
                             $isSoldOut   = $capacity > 0 && $available <= 0;
-                            $priceHtml   = $price > 0 ? wc_price($price) : esc_html__('Included', 'tapin');
+                            $priceHtml   = $price > 0 ? wc_price($price) : esc_html($messages['ticketStepIncluded'] ?? __('כלול', 'tapin'));
                             ?>
                             <div
                                 class="tapin-ticket-card<?php echo $isSoldOut ? ' tapin-ticket-card--soldout' : ''; ?>"
@@ -171,26 +199,27 @@ final class PurchaseDetailsModal implements Service
                                     <span class="tapin-ticket-card__price"><?php echo $priceHtml; ?></span>
                                 </div>
                                 <div class="tapin-ticket-card__meta">
-                                    <?php if ($capacity > 0): ?>
-                                        <?php echo esc_html(sprintf('Available: %d', max(0, $available))); ?>
-                                    <?php else: ?>
-                                        <?php esc_html_e('No limit', 'tapin'); ?>
-                                    <?php endif; ?>
+                                <?php
+                                $availabilityText = $capacity > 0
+                                    ? sprintf((string) ($messages['ticketStepAvailability'] ?? __('זמין: %s', 'tapin')), max(0, $available))
+                                    : (string) ($messages['ticketStepNoLimit'] ?? __('ללא הגבלה', 'tapin'));
+                                echo esc_html($availabilityText);
+                                ?>
                                 </div>
                                 <div class="tapin-ticket-card__actions">
-                                    <button type="button" class="tapin-ticket-card__btn" data-ticket-action="decrease" aria-label="<?php esc_attr_e('Decrease', 'tapin'); ?>">-</button>
+                                    <button type="button" class="tapin-ticket-card__btn" data-ticket-action="decrease" aria-label="<?php echo esc_attr($messages['ticketStepDecrease'] ?? __('הפחת כרטיס', 'tapin')); ?>">-</button>
                                     <span class="tapin-ticket-card__quantity" data-ticket-quantity>0</span>
-                                    <button type="button" class="tapin-ticket-card__btn" data-ticket-action="increase" aria-label="<?php esc_attr_e('Increase', 'tapin'); ?>">+</button>
+                                    <button type="button" class="tapin-ticket-card__btn" data-ticket-action="increase" aria-label="<?php echo esc_attr($messages['ticketStepIncrease'] ?? __('הוסף כרטיס', 'tapin')); ?>">+</button>
                                 </div>
                                 <?php if ($isSoldOut): ?>
-                                    <div class="tapin-ticket-card__soldout"><?php esc_html_e('Sold out', 'tapin'); ?></div>
+                                    <div class="tapin-ticket-card__soldout"><?php echo esc_html($messages['ticketStepSoldOut'] ?? __('אזל המלאי', 'tapin')); ?></div>
                                 <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
                     </div>
                     <div class="tapin-ticket-step__footer">
                         <div class="tapin-ticket-step__total">
-                            <span class="tapin-ticket-step__total-label" data-ticket-total-label><?php esc_html_e('Total tickets:', 'tapin'); ?></span>
+                            <span class="tapin-ticket-step__total-label" data-ticket-total-label><?php echo esc_html($messages['ticketTotalLabel'] ?? __('סה״כ כרטיסים:', 'tapin')); ?></span>
                             <span class="tapin-ticket-step__total-value" data-ticket-total-count>0</span>
                         </div>
                         <p class="tapin-ticket-step__error" data-ticket-error hidden></p>
@@ -198,6 +227,23 @@ final class PurchaseDetailsModal implements Service
                 </div>
                 <div class="tapin-purchase-modal__form" data-form-container hidden>
                     <div class="tapin-ticket-hint" data-ticket-hint hidden></div>
+                    <div
+                        class="tapin-field tapin-field--select"
+                        data-ticket-type-field
+                        data-required-payer="true"
+                        data-required-attendee="true"
+                    >
+                        <label for="tapinTicketTypeSelect">
+                            <?php esc_html_e('סוג הכרטיס', 'tapin'); ?> <span class="tapin-required" data-required-indicator>*</span>
+                        </label>
+                        <select
+                            id="tapinTicketTypeSelect"
+                            data-ticket-type-select
+                            data-field="ticket_type_select"
+                        >
+                        </select>
+                        <p class="tapin-field__error" data-ticket-type-error></p>
+                    </div>
                     <?php foreach ($this->getFieldDefinitions() as $fieldKey => $definition): ?>
                         <?php
                         $label = (string) ($definition['label'] ?? $fieldKey);
@@ -315,7 +361,7 @@ final class PurchaseDetailsModal implements Service
         }
 
         if ($sanitized === []) {
-            wc_add_notice('יש למלא את פרטי המשתתפים לפני הרכישה.', 'error');
+            wc_add_notice(__('לא נמצאו משתתפים תקינים לעיבוד. אנא נסו שוב.', 'tapin'), 'error');
             return false;
         }
 
@@ -323,7 +369,7 @@ final class PurchaseDetailsModal implements Service
         foreach ($sanitized as $entry) {
             $typeId = isset($entry['ticket_type']) ? (string) $entry['ticket_type'] : '';
             if ($typeId === '' || !isset($this->currentTicketTypeIndex[$typeId])) {
-                wc_add_notice('Selected ticket type is not available.', 'error');
+                wc_add_notice(__('סוג הכרטיס שנבחר אינו זמין.', 'tapin'), 'error');
                 return false;
             }
             $typeCounts[$typeId] = ($typeCounts[$typeId] ?? 0) + 1;
@@ -335,7 +381,7 @@ final class PurchaseDetailsModal implements Service
             $available = isset($context['available']) ? (int) $context['available'] : 0;
             if ($capacity > 0 && $available >= 0 && $count > $available) {
                 $name = (string) ($context['name'] ?? $typeId);
-                wc_add_notice(sprintf('Not enough availability for %s.', $name), 'error');
+                wc_add_notice(sprintf(__('אין מספיק זמינות עבור %s.', 'tapin'), esc_html($name)), 'error');
                 return false;
             }
         }
@@ -428,7 +474,7 @@ final class PurchaseDetailsModal implements Service
             $name       = isset($attendee['full_name']) ? $attendee['full_name'] : '';
             $email      = isset($attendee['email']) ? $attendee['email'] : '';
             $typeLabel  = isset($attendee['ticket_type_label']) ? $attendee['ticket_type_label'] : '';
-            $summary    = sprintf('Participant %d: %s (%s)', $index + 1, esc_html($name), esc_html($email));
+            $summary    = sprintf(__('משתתף %d: %s (%s)', 'tapin'), $index + 1, esc_html($name), esc_html($email));
             if ($typeLabel !== '') {
                 $summary .= ' - ' . esc_html($typeLabel);
             }
@@ -437,7 +483,7 @@ final class PurchaseDetailsModal implements Service
 
         if ($lines !== []) {
             $itemData[] = [
-                'name'  => 'פרטי משתתפים',
+                'name'  => __('משתתפים', 'tapin'),
                 'value' => implode('<br>', array_map('wp_kses_post', $lines)),
             ];
         }
@@ -509,7 +555,7 @@ final class PurchaseDetailsModal implements Service
         $maskedAttendees = AttendeeSecureStorage::maskAttendees($normalizedAttendees);
 
         foreach ($maskedAttendees as $index => $attendee) {
-            $label = sprintf('משתתף %d', $index + 1);
+            $label = sprintf(__('משתתף %d', 'tapin'), $index + 1);
             $parts = [];
             foreach (AttendeeFields::summaryKeys() as $key) {
                 $parts[] = isset($attendee[$key]) ? (string) $attendee[$key] : '';
@@ -1149,9 +1195,9 @@ final class PurchaseDetailsModal implements Service
     private function formatTicketPrice(float $price): string
     {
         if ($price <= 0.0) {
-            return esc_html__('Included', 'tapin');
+            $messages = $this->getModalMessages();
+            return esc_html($messages['ticketStepIncluded'] ?? __('כלול', 'tapin'));
         }
-
         if (function_exists('wc_price')) {
             return wc_price($price);
         }
@@ -1161,11 +1207,12 @@ final class PurchaseDetailsModal implements Service
 
     private function formatAvailability(int $capacity, int $available): string
     {
+        $messages = $this->getModalMessages();
         if ($capacity <= 0) {
-            return esc_html__('No limit', 'tapin');
+            return esc_html($messages['ticketStepNoLimit'] ?? __('ללא הגבלה', 'tapin'));
         }
 
-        $template = esc_html__('Available: %s', 'tapin');
+        $template = (string) ($messages['ticketStepAvailability'] ?? __('זמין: %s', 'tapin'));
         return sprintf($template, max(0, $available));
     }
 

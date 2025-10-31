@@ -11,7 +11,7 @@ final class AttendeeFields
      */
     private const DEFINITIONS = [
         'email'      => [
-            'label' => 'אימייל',
+            'label' => 'דואר אלקטרוני',
             'type'  => 'email',
         ],
         'first_name' => [
@@ -23,15 +23,15 @@ final class AttendeeFields
             'type'  => 'text',
         ],
         'instagram'  => [
-            'label' => 'אינסטגרם תאג @',
+            'label' => 'שם משתמש אינסטגרם (@)',
             'type'  => 'text',
         ],
         'tiktok'     => [
-            'label' => 'טיקטוק',
+            'label' => 'שם משתמש טיקטוק',
             'type'  => 'text',
         ],
         'facebook'   => [
-            'label' => 'פייסבוק',
+            'label' => 'קישור לפייסבוק',
             'type'  => 'text',
         ],
         'gender'     => [
@@ -47,11 +47,11 @@ final class AttendeeFields
             'type'  => 'date',
         ],
         'phone'      => [
-            'label' => 'מספר טלפון',
+            'label' => 'טלפון נייד',
             'type'  => 'text',
         ],
         'id_number'  => [
-            'label' => 'תעודת זהות',
+            'label' => 'מספר זהות',
             'type'  => 'text',
         ],
     ];
@@ -362,21 +362,17 @@ final class AttendeeFields
             'male'   => 'male',
             'm'      => 'male',
             'זכר'    => 'male',
+            'בן'     => 'male',
             'man'    => 'male',
             'גבר'    => 'male',
-            'בן'     => 'male',
             'boy'    => 'male',
-            'איש'    => 'male',
             'female' => 'female',
             'f'      => 'female',
             'נקבה'   => 'female',
-            'אישה'   => 'female',
-            'אשה'    => 'female',
             'בת'     => 'female',
-            'girl'   => 'female',
             'woman'  => 'female',
+            'girl'   => 'female',
         ];
-
         if (isset($map[$value])) {
             return $map[$value];
         }

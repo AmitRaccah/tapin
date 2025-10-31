@@ -80,14 +80,20 @@ final class StickyPurchaseBar implements Service
                 ]
             )));
         }
+
+        $primaryText = $formattedPrice !== ''
+            ? sprintf(__('הזמנה ב-%s', 'tapin'), $formattedPrice)
+            : __('המשיכו לרכישה', 'tapin');
+
+        $noteText = __('כולל עמלת רכישה', 'tapin');
         ?>
         <div id="tapinStickyPurchaseBar" class="tapin-sticky-bar" hidden>
             <div class="tapin-sticky-bar__content">
                 <button type="button" class="tapin-sticky-bar__buy" data-role="submit">
                     <span class="tapin-sticky-bar__buy-main">
-                        <?php echo esc_html($formattedPrice ? 'החל מ ' . $formattedPrice : 'החל מ'); ?>
+                        <?php echo esc_html($primaryText); ?>
                     </span>
-                    <span class="tapin-sticky-bar__buy-note">כולל עמלת רכישה</span>
+                    <span class="tapin-sticky-bar__buy-note"><?php echo esc_html($noteText); ?></span>
                 </button>
             </div>
         </div>

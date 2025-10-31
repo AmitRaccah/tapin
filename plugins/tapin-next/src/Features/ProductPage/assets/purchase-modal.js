@@ -2,37 +2,100 @@
   const config = window.TapinPurchaseModalData || {};
   const messages = Object.assign(
     {
-      title: 'Purchase Details',
-      ticketStepTitle: 'Choose Your Tickets',
-      ticketStepSubtitle: 'Select how many tickets you need from each available type.',
-      ticketStepNext: 'Continue',
-      ticketStepError: 'Select at least one ticket to continue.',
-      ticketStepSoldOut: 'Sold out',
-      ticketStepIncluded: 'Included',
-      ticketStepAvailability: 'Available: %s',
-      ticketStepNoLimit: 'No limit',
-      ticketStepDecrease: 'Decrease',
-      ticketStepIncrease: 'Increase',
-      ticketTotalLabel: 'Total tickets:',
-      ticketHintLabel: 'Ticket type:',
-      payerTitle: 'Buyer Details',
-      participantTitle: 'Participant %1$s',
-      step: 'Participant %1$s of %2$s',
-      next: 'Next',
-      finish: 'Complete Purchase',
-      cancel: 'Cancel',
-      required: 'This field is required.',
-      invalidEmail: 'Enter a valid email address.',
-      invalidInstagram: 'Enter a valid Instagram handle.',
-      invalidTikTok: 'Enter a valid TikTok handle.',
-      invalidFacebook: 'Enter a valid Facebook URL.',
-      invalidPhone: 'Enter a valid phone number (10 digits).',
-      invalidId: 'Enter a valid ID number (9 digits).',
+      title: 'פרטי ההזמנה',
+      ticketStepTitle: 'בחרו את הכרטיסים שלכם',
+      ticketStepSubtitle: 'בחרו כמה כרטיסים תרצו לרכוש מכל סוג זמין.',
+      ticketStepNext: 'המשך',
+      ticketStepError: 'בחרו לפחות כרטיס אחד כדי להמשיך.',
+      ticketStepSoldOut: 'אזל המלאי',
+      ticketStepIncluded: 'כלול',
+      ticketStepAvailability: 'זמין: %s',
+      ticketStepNoLimit: 'ללא הגבלה',
+      ticketStepDecrease: 'הפחת כרטיס',
+      ticketStepIncrease: 'הוסף כרטיס',
+      ticketTotalLabel: 'סה״כ כרטיסים:',
+      ticketHintLabel: 'סוג הכרטיס:',
+      ticketSelectPlaceholder: 'בחרו סוג כרטיס',
+      ticketSelectError: 'בחרו סוג כרטיס עבור משתתף זה.',
+      payerTitle: 'פרטי המזמין',
+      participantTitle: 'משתתף %1$s',
+      step: 'משתתף %1$s מתוך %2$s',
+      next: 'הבא',
+      finish: 'סיום והמשך לתשלום',
+      cancel: 'ביטול',
+      required: 'שדה חובה.',
+      invalidEmail: 'הזינו כתובת דוא״ל תקינה.',
+      invalidInstagram: 'הזינו שם משתמש אינסטגרם תקין.',
+      invalidTikTok: 'הזינו שם משתמש טיקטוק תקין.',
+      invalidFacebook: 'הזינו כתובת פייסבוק תקינה.',
+      invalidPhone: 'הזינו מספר טלפון תקין (10 ספרות).',
+      invalidId: 'הזינו מספר זהות תקין (9 ספרות).',
     },
     config.messages || {}
   );
   const fieldConfig = config.fields || {};
   const fieldKeys = Object.keys(fieldConfig);
+
+  const heMessages = {
+    title: String.fromCharCode(0x05E4, 0x05E8, 0x05D8, 0x05D9, 0x0020, 0x05D4, 0x05D4, 0x05D6, 0x05DE, 0x05E0, 0x05D4),
+    ticketStepTitle: String.fromCharCode(
+      0x05D1, 0x05D7, 0x05E8, 0x05D5, 0x0020, 0x05D0, 0x05EA, 0x0020, 0x05D4, 0x05DB, 0x05E8, 0x05D8, 0x05D9, 0x05DD, 0x0020, 0x05E9, 0x05DC, 0x05DB, 0x05DD
+    ),
+    ticketStepSubtitle: String.fromCharCode(
+      0x05D1, 0x05D7, 0x05E8, 0x05D5, 0x0020, 0x05DB, 0x05DE, 0x05D4, 0x0020, 0x05DB, 0x05E8, 0x05D8, 0x05D9, 0x05E1, 0x05D9, 0x05DD, 0x0020, 0x05EA, 0x05E8,
+      0x05E6, 0x05D5, 0x0020, 0x05DC, 0x05E8, 0x05DB, 0x05D5, 0x05E9, 0x0020, 0x05DE, 0x05DB, 0x05DC, 0x0020, 0x05E1, 0x05D5, 0x05D2, 0x0020, 0x05D6, 0x05DE,
+      0x05D9, 0x05DF, 0x002E
+    ),
+    ticketStepNext: String.fromCharCode(0x05D4, 0x05DE, 0x05E9, 0x05DA),
+    ticketStepError: String.fromCharCode(
+      0x05D1, 0x05D7, 0x05E8, 0x05D5, 0x0020, 0x05DC, 0x05E4, 0x05D7, 0x05D5, 0x05EA, 0x0020, 0x05DB, 0x05E8, 0x05D8, 0x05D9, 0x05E1, 0x0020, 0x05D0, 0x05D7,
+      0x05D3, 0x0020, 0x05DB, 0x05D3, 0x05D9, 0x0020, 0x05DC, 0x05D4, 0x05DE, 0x05E9, 0x05D9, 0x05DA, 0x002E
+    ),
+    ticketStepSoldOut: String.fromCharCode(0x05D0, 0x05D6, 0x05DC, 0x0020, 0x05D4, 0x05DE, 0x05DC, 0x05D0, 0x05D9),
+    ticketStepIncluded: String.fromCharCode(0x05DB, 0x05DC, 0x05D5, 0x05DC),
+    ticketStepAvailability: String.fromCharCode(0x05D6, 0x05DE, 0x05D9, 0x05DF) + ': %s',
+    ticketStepNoLimit: String.fromCharCode(0x05DC, 0x05DC, 0x05D0, 0x0020, 0x05D4, 0x05D2, 0x05D1, 0x05DC, 0x05D4),
+    ticketStepDecrease: String.fromCharCode(0x05D4, 0x05E4, 0x05D7, 0x05EA, 0x0020, 0x05DB, 0x05E8, 0x05D8, 0x05D9, 0x05E1),
+    ticketStepIncrease: String.fromCharCode(0x05D4, 0x05D5, 0x05E1, 0x05E3, 0x0020, 0x05DB, 0x05E8, 0x05D8, 0x05D9, 0x05E1),
+    ticketTotalLabel: String.fromCharCode(0x05E1, 0x05D4, 0x0022, 0x05DB, 0x0020, 0x05DB, 0x05E8, 0x05D8, 0x05D9, 0x05E1, 0x05D9, 0x05DD) + ':',
+    ticketHintLabel: String.fromCharCode(0x05E1, 0x05D5, 0x05D2, 0x0020, 0x05D4, 0x05DB, 0x05E8, 0x05D8, 0x05D9, 0x05E1) + ':',
+    ticketSelectPlaceholder: String.fromCharCode(0x05D1, 0x05D7, 0x05E8, 0x05D5, 0x0020, 0x05E1, 0x05D5, 0x05D2, 0x0020, 0x05DB, 0x05E8, 0x05D8, 0x05D9, 0x05E1),
+    ticketSelectError: String.fromCharCode(
+      0x05D1, 0x05D7, 0x05E8, 0x05D5, 0x0020, 0x05E1, 0x05D5, 0x05D2, 0x0020, 0x05DB, 0x05E8, 0x05D8, 0x05D9, 0x05E1, 0x0020, 0x05E2, 0x05D1, 0x05D5, 0x05E8,
+      0x0020, 0x05DE, 0x05E9, 0x05EA, 0x05EA, 0x05E3, 0x0020, 0x05D6, 0x05D4, 0x002E
+    ),
+    payerTitle: String.fromCharCode(0x05E4, 0x05E8, 0x05D8, 0x05D9, 0x0020, 0x05D4, 0x05DE, 0x05D6, 0x05DE, 0x05D9, 0x05DF),
+    participantTitle: String.fromCharCode(0x05DE, 0x05E9, 0x05EA, 0x05EA, 0x05E3, 0x0020) + '%1$s',
+    step: String.fromCharCode(0x05DE, 0x05E9, 0x05EA, 0x05EA, 0x05E3, 0x0020) + '%1$s' + String.fromCharCode(0x0020, 0x05DE, 0x05EA, 0x05D5, 0x05DA, 0x0020) + '%2$s',
+    next: String.fromCharCode(0x05D4, 0x05D1, 0x05D0),
+    finish: String.fromCharCode(0x05E1, 0x05D9, 0x05D5, 0x05DD, 0x0020, 0x05D5, 0x05D4, 0x05DE, 0x05E9, 0x05DA, 0x0020, 0x05DC, 0x05EA, 0x05E9, 0x05DC, 0x05D5, 0x05DD),
+    cancel: String.fromCharCode(0x05D1, 0x05D9, 0x05D8, 0x05D5, 0x05DC),
+    required: String.fromCharCode(0x05E9, 0x05D3, 0x05D4, 0x0020, 0x05D7, 0x05D5, 0x05D1, 0x05D4) + '.',
+    invalidEmail: String.fromCharCode(
+      0x05D4, 0x05D6, 0x05D9, 0x05E0, 0x05D5, 0x0020, 0x05DB, 0x05EA, 0x05D5, 0x05D1, 0x05EA, 0x0020, 0x05D3, 0x05D5, 0x05D0, 0x0022, 0x05DC, 0x0020, 0x05EA,
+      0x05E7, 0x05D9, 0x05E0, 0x05D4
+    ) + '.',
+    invalidInstagram: String.fromCharCode(
+      0x05D4, 0x05D6, 0x05D9, 0x05E0, 0x05D5, 0x0020, 0x05E9, 0x05DD, 0x0020, 0x05DE, 0x05E9, 0x05EA, 0x05DE, 0x05E9, 0x0020, 0x05D0, 0x05D9, 0x05E0, 0x05E1,
+      0x05D8, 0x05D2, 0x05E8, 0x05DD, 0x0020, 0x05EA, 0x05E7, 0x05D9, 0x05DF
+    ) + '.',
+    invalidTikTok: String.fromCharCode(
+      0x05D4, 0x05D6, 0x05D9, 0x05E0, 0x05D5, 0x0020, 0x05E9, 0x05DD, 0x0020, 0x05DE, 0x05E9, 0x05EA, 0x05DE, 0x05E9, 0x0020, 0x05D8, 0x05D9, 0x05E7, 0x05D8,
+      0x05D5, 0x05E7, 0x0020, 0x05EA, 0x05E7, 0x05D9, 0x05DF
+    ) + '.',
+    invalidFacebook: String.fromCharCode(
+      0x05D4, 0x05D6, 0x05D9, 0x05E0, 0x05D5, 0x0020, 0x05DB, 0x05EA, 0x05D5, 0x05D1, 0x05EA, 0x0020, 0x05E4, 0x05D9, 0x05D9, 0x05E1, 0x05D1, 0x05D5, 0x05E7,
+      0x0020, 0x05EA, 0x05E7, 0x05D9, 0x05E0, 0x05D4
+    ) + '.',
+    invalidPhone: String.fromCharCode(
+      0x05D4, 0x05D6, 0x05D9, 0x05E0, 0x05D5, 0x0020, 0x05DE, 0x05E1, 0x05E4, 0x05E8, 0x0020, 0x05D8, 0x05DC, 0x05E4, 0x05D5, 0x05DF, 0x0020, 0x05EA, 0x05E7, 0x05D9,
+      0x05DF
+    ) + ' (10 ' + String.fromCharCode(0x05E1, 0x05E4, 0x05E8, 0x05D5, 0x05EA) + ').',
+    invalidId: String.fromCharCode(
+      0x05D4, 0x05D6, 0x05D9, 0x05E0, 0x05D5, 0x0020, 0x05DE, 0x05E1, 0x05E4, 0x05E8, 0x0020, 0x05D6, 0x05D4, 0x05D5, 0x05EA, 0x0020, 0x05EA, 0x05E7, 0x05D9, 0x05DF
+    ) + ' (9 ' + String.fromCharCode(0x05E1, 0x05E4, 0x05E8, 0x05D5, 0x05EA) + ').',
+  };
+  Object.assign(messages, heMessages);
 
   function format(str, ...args) {
     return str.replace(/%(\d+)\$s/g, (match, index) => {
@@ -97,6 +160,9 @@
     const nextButton = modal.querySelector('[data-modal-action="next"]');
     const cancelButton = modal.querySelector('[data-modal-role="cancel"]');
     const closeButtons = modal.querySelectorAll('[data-modal-dismiss]');
+    const ticketTypeFieldEl = formContainer ? formContainer.querySelector('[data-ticket-type-field]') : null;
+    const ticketTypeSelect = formContainer ? formContainer.querySelector('[data-ticket-type-select]') : null;
+    const ticketTypeErrorEl = formContainer ? formContainer.querySelector('[data-ticket-type-error]') : null;
     const ticketListEl = ticketStepEl
       ? ticketStepEl.querySelector('[data-ticket-list]') || ticketStepEl.querySelector('.tapin-ticket-step__list')
       : null;
@@ -160,7 +226,7 @@
       } else if (Number.isFinite(priceValue) && priceValue > 0) {
         priceEl.textContent = String(priceValue);
       } else {
-        priceEl.textContent = messages.ticketStepIncluded || 'Included';
+        priceEl.textContent = messages.ticketStepIncluded || 'כלול';
       }
 
       header.appendChild(titles);
@@ -175,13 +241,13 @@
           : '';
       if (!availabilityText) {
         if (capacity > 0) {
-          const template = messages.ticketStepAvailability || 'Available: %s';
+          const template = messages.ticketStepAvailability || 'זמין: %s';
           const replacement = String(Math.max(0, available));
           availabilityText = template
             .replace('%1$s', replacement)
             .replace('%s', replacement);
         } else {
-          availabilityText = messages.ticketStepNoLimit || 'No limit';
+          availabilityText = messages.ticketStepNoLimit || 'ללא הגבלה';
         }
       }
       metaEl.textContent = availabilityText;
@@ -194,7 +260,7 @@
       decreaseBtn.type = 'button';
       decreaseBtn.className = 'tapin-ticket-card__btn';
       decreaseBtn.setAttribute('data-ticket-action', 'decrease');
-      decreaseBtn.setAttribute('aria-label', messages.ticketStepDecrease || 'Decrease');
+      decreaseBtn.setAttribute('aria-label', messages.ticketStepDecrease || 'הפחת כרטיס');
       decreaseBtn.textContent = '-';
 
       const quantityEl = document.createElement('span');
@@ -206,7 +272,7 @@
       increaseBtn.type = 'button';
       increaseBtn.className = 'tapin-ticket-card__btn';
       increaseBtn.setAttribute('data-ticket-action', 'increase');
-      increaseBtn.setAttribute('aria-label', messages.ticketStepIncrease || 'Increase');
+      increaseBtn.setAttribute('aria-label', messages.ticketStepIncrease || 'הוסף כרטיס');
       increaseBtn.textContent = '+';
 
       actionsEl.appendChild(decreaseBtn);
@@ -217,7 +283,7 @@
       if (isSoldOut) {
         const soldOutEl = document.createElement('div');
         soldOutEl.className = 'tapin-ticket-card__soldout';
-        soldOutEl.textContent = messages.ticketStepSoldOut || 'Sold out';
+        soldOutEl.textContent = messages.ticketStepSoldOut || 'אזל המלאי';
         card.appendChild(soldOutEl);
       }
 
@@ -416,11 +482,21 @@
       }
 
       updateTicketTotals();
+      if (ticketTypeSelect) {
+        ticketTypeSelect.value = '';
+      }
+      if (ticketTypeErrorEl) {
+        ticketTypeErrorEl.textContent = '';
+      }
     }
 
     function buildAttendeePlan() {
       const plan = [];
-      Object.keys(ticketSelection).forEach((typeId) => {
+      ticketTypesConfig.forEach((type) => {
+        if (!type || !type.id) {
+          return;
+        }
+        const typeId = type.id;
         const qty = ticketSelection[typeId] || 0;
         const label = getTypeLabel(typeId);
         for (let i = 0; i < qty; i += 1) {
@@ -428,6 +504,126 @@
         }
       });
       return plan;
+    }
+
+    function getRemainingTypeCounts(excludeIndex = null) {
+      const remaining = {};
+      Object.keys(ticketSelection).forEach((typeId) => {
+        remaining[typeId] = ticketSelection[typeId] || 0;
+      });
+
+      attendeePlan.forEach((slot, index) => {
+        if (!slot || !slot.typeId) {
+          return;
+        }
+        if (excludeIndex !== null && index === excludeIndex) {
+          return;
+        }
+        if (typeof remaining[slot.typeId] === 'undefined') {
+          return;
+        }
+        if (remaining[slot.typeId] > 0) {
+          remaining[slot.typeId] -= 1;
+        }
+      });
+
+      return remaining;
+    }
+
+    function rebuildRemainingPlan(fromIndex) {
+      const remaining = {};
+      Object.keys(ticketSelection).forEach((typeId) => {
+        remaining[typeId] = ticketSelection[typeId] || 0;
+      });
+
+      for (let i = 0; i <= fromIndex; i += 1) {
+        const slot = attendeePlan[i];
+        if (slot && slot.typeId && typeof remaining[slot.typeId] !== 'undefined') {
+          remaining[slot.typeId] = Math.max(0, remaining[slot.typeId] - 1);
+        }
+      }
+
+      const queue = [];
+      ticketTypesConfig.forEach((type) => {
+        if (!type || !type.id) {
+          return;
+        }
+        const typeId = type.id;
+        const label = getTypeLabel(typeId);
+        const count = remaining[typeId] || 0;
+        for (let i = 0; i < count; i += 1) {
+          queue.push({ typeId, label });
+        }
+      });
+
+      for (let i = fromIndex + 1; i < attendeePlan.length; i += 1) {
+        attendeePlan[i] = queue.shift() || { typeId: '', label: '' };
+      }
+    }
+
+    function setPlanSelection(index, typeId) {
+      const label = getTypeLabel(typeId);
+      attendeePlan[index] = { typeId, label };
+      rebuildRemainingPlan(index);
+      updateTicketHint(index);
+    }
+
+    function populateTicketTypeSelect(index) {
+      if (!ticketTypeSelect) {
+        return;
+      }
+
+      const currentSelection = attendeePlan[index]?.typeId || '';
+      const remaining = getRemainingTypeCounts(index);
+
+      ticketTypeSelect.innerHTML = '';
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = messages.ticketSelectPlaceholder || '';
+      placeholder.disabled = true;
+      placeholder.hidden = true;
+      ticketTypeSelect.appendChild(placeholder);
+
+      ticketTypesConfig.forEach((type) => {
+        if (!type || !type.id) {
+          return;
+        }
+        const typeId = type.id;
+        const option = document.createElement('option');
+        option.value = typeId;
+        const available = remaining[typeId] || 0;
+        const totalForType = ticketSelection[typeId] || 0;
+        const label = getTypeLabel(typeId);
+        const isCurrent = currentSelection === typeId;
+
+        option.textContent =
+          totalForType > 1 ? `${label} (${available})` : label;
+
+        if (isCurrent) {
+          option.selected = true;
+        } else if (totalForType === 0) {
+          option.disabled = true;
+        }
+
+        ticketTypeSelect.appendChild(option);
+      });
+
+      if (currentSelection) {
+        ticketTypeSelect.value = currentSelection;
+        setPlanSelection(index, currentSelection);
+      } else {
+        ticketTypeSelect.value = '';
+      }
+
+      // Auto-select when there is a single available option
+      const enabledOptions = Array.from(ticketTypeSelect.options).filter(
+        (option) => option.value && !option.disabled
+      );
+      if (!currentSelection && enabledOptions.length === 1) {
+        ticketTypeSelect.value = enabledOptions[0].value;
+        setPlanSelection(index, enabledOptions[0].value);
+      }
     }
 
     function updateTitle() {
@@ -487,7 +683,7 @@
         ticketHintEl.textContent = '';
         return;
       }
-      ticketHintEl.textContent = (messages.ticketHintLabel || 'Ticket type:') + ' ' + slot.label;
+      ticketHintEl.textContent = (messages.ticketHintLabel || 'סוג הכרטיס:') + ' ' + slot.label;
       ticketHintEl.hidden = false;
     }
 
@@ -545,9 +741,15 @@
       modal.querySelectorAll('.tapin-field input').forEach((input) => {
         input.classList.remove('tapin-field--invalid');
       });
+      modal.querySelectorAll('.tapin-field select').forEach((select) => {
+        select.classList.remove('tapin-field--invalid');
+      });
       modal.querySelectorAll('.tapin-choice').forEach((choice) => {
         choice.classList.remove('tapin-choice--invalid');
       });
+      if (ticketTypeErrorEl) {
+        ticketTypeErrorEl.textContent = '';
+      }
     }
 
     function updateChoiceState(fieldKey, value) {
@@ -648,7 +850,7 @@
 
         if (value === '' && required) {
           isValid = false;
-          markInvalid(input, messages.required || 'Required.', fieldType);
+          markInvalid(input, messages.required || 'שדה חובה.', fieldType);
           return;
         }
 
@@ -694,6 +896,25 @@
         result[key] = value;
       });
 
+      if (ticketTypeSelect) {
+        const selectedTypeId = ticketTypeSelect.value;
+        if (!selectedTypeId) {
+          isValid = false;
+          ticketTypeSelect.classList.add('tapin-field--invalid');
+          if (ticketTypeErrorEl) {
+            ticketTypeErrorEl.textContent =
+              messages.ticketSelectError || messages.required || 'חובה לבחור סוג כרטיס.';
+          }
+        } else {
+          ticketTypeSelect.classList.remove('tapin-field--invalid');
+          if (ticketTypeErrorEl) {
+            ticketTypeErrorEl.textContent = '';
+          }
+          setPlanSelection(currentIndex, selectedTypeId);
+          populateTicketTypeSelect(currentIndex);
+        }
+      }
+
       return isValid ? result : null;
     }
 
@@ -714,6 +935,7 @@
           updateChoiceState(key, value);
         }
       });
+      populateTicketTypeSelect(index);
       resetErrors();
       updateRequiredIndicators();
     }
@@ -831,7 +1053,7 @@
       resetErrors();
 
       if (cancelButton) {
-        cancelButton.textContent = messages.cancel || 'Cancel';
+        cancelButton.textContent = messages.cancel || 'ביטול';
       }
 
       showTicketPhase();
@@ -894,6 +1116,20 @@
     }
 
     setupChoiceFields();
+    if (ticketTypeSelect) {
+      ticketTypeSelect.addEventListener('change', () => {
+        const selectedTypeId = ticketTypeSelect.value;
+        if (!selectedTypeId) {
+          return;
+        }
+        setPlanSelection(currentIndex, selectedTypeId);
+        ticketTypeSelect.classList.remove('tapin-field--invalid');
+        if (ticketTypeErrorEl) {
+          ticketTypeErrorEl.textContent = '';
+        }
+        populateTicketTypeSelect(currentIndex);
+      });
+    }
     resetTicketSelection();
     updateTicketTotals();
   }

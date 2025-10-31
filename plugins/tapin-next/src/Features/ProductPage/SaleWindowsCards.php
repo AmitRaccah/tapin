@@ -45,7 +45,7 @@ final class SaleWindowsCards implements Service
         $eventTs = Time::productEventTs($pid);
 
         echo '<style>' . Assets::saleWindowsCss() . '</style>';
-        echo '<div class="tapin-pw"><div class="tapin-pw__title">' . esc_html__('Ticket price windows', 'tapin') . '</div><div class="tapin-pw__grid">';
+        echo '<div class="tapin-pw"><div class="tapin-pw__title">' . esc_html__('חלונות תמחור כרטיסים', 'tapin') . '</div><div class="tapin-pw__grid">';
 
         foreach ($windows as $window) {
             $start = (int) ($window['start'] ?? 0);
@@ -61,12 +61,12 @@ final class SaleWindowsCards implements Service
                 $state = 'past';
             }
 
-            $startStr = $start ? Time::fmtLocal($start) : esc_html__('Start date not set', 'tapin');
-            $endStr   = $end ? Time::fmtLocal($end) : esc_html__('Until event date', 'tapin');
+            $startStr = $start ? Time::fmtLocal($start) : esc_html__('תאריך התחלה לא הוגדר', 'tapin');
+            $endStr   = $end ? Time::fmtLocal($end) : esc_html__('עד לתאריך האירוע', 'tapin');
             $badge    = match ($state) {
-                'current'  => esc_html__('On sale', 'tapin'),
-                'upcoming' => esc_html__('Upcoming', 'tapin'),
-                default    => esc_html__('Ended', 'tapin'),
+                'current'  => esc_html__('במכירה', 'tapin'),
+                'upcoming' => esc_html__('בקרוב', 'tapin'),
+                default    => esc_html__('הסתיים', 'tapin'),
             };
 
             $pricesMap   = is_array($window['prices'] ?? null) ? $window['prices'] : [];
@@ -96,8 +96,8 @@ final class SaleWindowsCards implements Service
                 . '<span class="tapin-pw-card__badge">' . esc_html($badge) . '</span>'
                 . '</div>';
             echo '<div class="tapin-pw-card__dates">'
-                . esc_html__('Starts:', 'tapin') . ' ' . esc_html($startStr)
-                . '<br>' . esc_html__('Ends:', 'tapin') . ' ' . esc_html($endStr)
+                . esc_html__('מתחיל:', 'tapin') . ' ' . esc_html($startStr)
+                . '<br>' . esc_html__('מסתיים:', 'tapin') . ' ' . esc_html($endStr)
                 . '</div>';
             if ($ticketsHtml !== '') {
                 echo '<div class="tapin-pw-card__tickets">' . $ticketsHtml . '</div>';
@@ -105,6 +105,7 @@ final class SaleWindowsCards implements Service
             echo '</div>';
         }
 
-        echo '</div><div class="tapin-pw__hint">' . esc_html__('Ticket prices change automatically according to the active window. Choose the ticket type and timing that works best for you.', 'tapin') . '</div></div>';
+        echo '</div><div class="tapin-pw__hint">' . esc_html__('מחירי הכרטיסים מתעדכנים אוטומטית לפי החלון הפעיל. בחרו את סוג הכרטיס והמועד שנוחים לכם.', 'tapin') . '</div></div>';
     }
 }
+
