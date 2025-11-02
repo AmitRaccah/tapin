@@ -82,18 +82,17 @@ final class PurchasableGate implements Service {
      */
     private function availabilityNoticeMessage(array $availability): string {
         if (!$availability['has_tickets']) {
-            return __('This event is sold out.', 'tapin');
+            return __('האירוע נמכר במלואו.', 'tapin');
         }
 
         if ($availability['sale_state'] === 'upcoming') {
-            return __('Ticket sales have not opened yet.', 'tapin');
+            return __('מכירת הכרטיסים טרם נפתחה.', 'tapin');
         }
 
         if ($availability['sale_state'] === 'ended') {
-            return __('Ticket sales for this event have ended.', 'tapin');
+            return __('מכירת הכרטיסים לאירוע הסתיימה.', 'tapin');
         }
 
         return '';
     }
 }
-

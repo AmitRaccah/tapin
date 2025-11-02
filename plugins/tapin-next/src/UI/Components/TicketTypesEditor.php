@@ -3,8 +3,6 @@
 namespace Tapin\Events\UI\Components;
 
 use Tapin\Events\Domain\TicketTypesRepository;
-use Tapin\Events\Support\Assets;
-
 final class TicketTypesEditor
 {
     /**
@@ -15,20 +13,21 @@ final class TicketTypesEditor
         $types = $ticketTypes !== [] ? $ticketTypes : TicketTypesRepository::get(0);
         if ($types === []) {
             $types = [[
-                'id'         => 'general',
-                'name'       => 'General Admission',
-                'base_price' => 0.0,
-                'capacity'   => 0,
-                'description'=> '',
+                'id'          => 'general',
+                'name'        => 'כרטיס רגיל',
+                'base_price'  => 0.0,
+                'capacity'    => 0,
+                'description' => '',
             ]];
         }
 
         $jsonTypes = wp_json_encode(array_map(static function (array $type): array {
             return [
-                'id'       => (string) ($type['id'] ?? ''),
-                'name'     => (string) ($type['name'] ?? ''),
-                'price'    => isset($type['base_price']) ? (float) $type['base_price'] : 0.0,
-                'capacity' => isset($type['capacity']) ? (int) $type['capacity'] : 0,
+                'id'          => (string) ($type['id'] ?? ''),
+                'name'        => (string) ($type['name'] ?? ''),
+                'price'       => isset($type['base_price']) ? (float) $type['base_price'] : 0.0,
+                'capacity'    => isset($type['capacity']) ? (int) $type['capacity'] : 0,
+                'description' => (string) ($type['description'] ?? ''),
             ];
         }, $types));
 
@@ -37,7 +36,7 @@ final class TicketTypesEditor
         }
         ?>
         <div class="tapin-form-row">
-            <label>Ticket types and availability</label>
+            <label>סוגי כרטיסים וזמינות</label>
             <div
                 class="tapin-ticket-types"
                 data-ticket-types
@@ -46,38 +45,38 @@ final class TicketTypesEditor
                 <div class="tapin-ticket-types__rows" data-ticket-types-rows>
                     <?php foreach ($types as $index => $type): ?>
                         <?php
-                        $id       = (string) ($type['id'] ?? '');
-                        $name     = (string) ($type['name'] ?? '');
-                        $price    = isset($type['base_price']) ? (float) $type['base_price'] : 0.0;
-                        $capacity = isset($type['capacity']) ? (int) $type['capacity'] : 0;
+                        $id          = (string) ($type['id'] ?? '');
+                        $name        = (string) ($type['name'] ?? '');
+                        $price       = isset($type['base_price']) ? (float) $type['base_price'] : 0.0;
+                        $capacity    = isset($type['capacity']) ? (int) $type['capacity'] : 0;
                         $description = (string) ($type['description'] ?? '');
                         ?>
                         <div class="tapin-ticket-type" data-ticket-type data-ticket-id="<?php echo esc_attr($id); ?>">
                             <div class="tapin-ticket-type__grid">
                                 <div class="tapin-ticket-type__field">
-                                    <label>Ticket type name</label>
+                                    <label>שם סוג הכרטיס</label>
                                     <input type="text" name="ticket_type_name[]" value="<?php echo esc_attr($name); ?>" required>
                                 </div>
                                 <div class="tapin-ticket-type__field">
-                                    <label>Base price (before sales)</label>
+                                    <label>מחיר בסיס (לפני מבצעים)</label>
                                     <input type="number" name="ticket_type_price[]" value="<?php echo esc_attr($price); ?>" min="0" step="0.01" required>
                                 </div>
                                 <div class="tapin-ticket-type__field">
-                                    <label>Available quantity</label>
+                                    <label>כמות זמינה</label>
                                     <input type="number" name="ticket_type_capacity[]" value="<?php echo esc_attr($capacity); ?>" min="0" step="1" required>
                                 </div>
                                 <div class="tapin-ticket-type__field">
-                                    <label>Short description (optional)</label>
+                                    <label>תיאור קצר (לא חובה)</label>
                                     <input type="text" name="ticket_type_description[]" value="<?php echo esc_attr($description); ?>">
                                 </div>
                             </div>
                             <input type="hidden" name="ticket_type_id[]" value="<?php echo esc_attr($id); ?>">
-                            <button type="button" class="tapin-ticket-type__remove" aria-label="Remove ticket type">&times;</button>
+                            <button type="button" class="tapin-ticket-type__remove" aria-label="מחיקת סוג הכרטיס">&times;</button>
                         </div>
                     <?php endforeach; ?>
                 </div>
-                <button type="button" class="tapin-btn tapin-btn--ghost tapin-ticket-types__add" data-ticket-types-add>+ Add ticket type</button>
-                <small class="tapin-ticket-types__hint">You can add up to 8 ticket types.</small>
+                <button type="button" class="tapin-btn tapin-btn--ghost tapin-ticket-types__add" data-ticket-types-add>+ הוספת סוג כרטיס</button>
+                <small class="tapin-ticket-types__hint">ניתן להוסיף עד 8 סוגי כרטיסים.</small>
             </div>
         </div>
         <script>
@@ -146,15 +145,15 @@ final class TicketTypesEditor
                     row.innerHTML =
                         '<div class="tapin-ticket-type__grid">' +
                             '<div class="tapin-ticket-type__field">' +
-                                '<label>שם הכרטיס</label>' +
+                                '<label>שם סוג הכרטיס</label>' +
                                 '<input type="text" name="ticket_type_name[]" value="'+escapeHtml(nameValue)+'" required>' +
                             '</div>' +
                             '<div class="tapin-ticket-type__field">' +
-                                '<label>מחיר בסיס (ללא חלון מבצע)</label>' +
+                                '<label>מחיר בסיס (לפני מבצעים)</label>' +
                                 '<input type="number" name="ticket_type_price[]" value="'+escapeAttr(priceValue)+'" min="0" step="0.01" required>' +
                             '</div>' +
                             '<div class="tapin-ticket-type__field">' +
-                                '<label>מלאי זמין לכרטיס</label>' +
+                                '<label>כמות זמינה</label>' +
                                 '<input type="number" name="ticket_type_capacity[]" value="'+escapeAttr(capacityValue)+'" min="0" step="1" required>' +
                             '</div>' +
                             '<div class="tapin-ticket-type__field">' +
@@ -163,7 +162,7 @@ final class TicketTypesEditor
                             '</div>' +
                         '</div>' +
                         '<input type="hidden" name="ticket_type_id[]" value="'+escapeAttr(typeId)+'">' +
-                        '<button type="button" class="tapin-ticket-type__remove" aria-label="הסרת סוג כרטיס">&times;</button>';
+                        '<button type="button" class="tapin-ticket-type__remove" aria-label="מחיקת סוג הכרטיס">&times;</button>';
 
                     rowsContainer.appendChild(row);
                     dispatch();
