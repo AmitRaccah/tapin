@@ -80,8 +80,12 @@
     if (refs.formContainer) {
       refs.formContainer.removeAttribute('hidden');
     }
+    if (refs.ticketTypeSelect) {
+      refs.ticketTypeSelect.focus();
+      return;
+    }
     if (refs.formContainer) {
-      var firstInput = refs.formContainer.querySelector('input');
+      var firstInput = refs.formContainer.querySelector('input, select, textarea');
       if (firstInput) {
         firstInput.focus();
       }

@@ -214,6 +214,7 @@ final class PurchaseDetailsModal implements Service
             'next'                => __('הבא', 'tapin'),
             'finish'              => __('סיום והמשך לתשלום', 'tapin'),
             'cancel'              => __('ביטול', 'tapin'),
+            'back'                => __('חזור', 'tapin'),
             'close'               => __('סגירת חלון', 'tapin'),
             'required'            => __('שדה חובה.', 'tapin'),
             'invalidEmail'        => __('הזינו כתובת דוא״ל תקינה.', 'tapin'),
@@ -389,6 +390,7 @@ final class PurchaseDetailsModal implements Service
                 </div>
                 <div class="tapin-purchase-modal__actions">
                     <button type="button" class="tapin-btn tapin-btn--ghost" data-modal-dismiss data-modal-role="cancel">ביטול</button>
+                    <button type="button" class="tapin-btn tapin-btn--secondary" data-modal-action="back" hidden><?php echo esc_html($messages['back'] ?? __('חזור', 'tapin')); ?></button>
                     <button type="button" class="tapin-btn tapin-btn--primary" data-modal-action="next">הבא</button>
                 </div>
             </div>

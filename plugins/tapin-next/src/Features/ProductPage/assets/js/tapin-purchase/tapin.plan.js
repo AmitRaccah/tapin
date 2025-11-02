@@ -15,6 +15,7 @@
   var currentIndex = 0;
   var ticketTypeSelect = null;
   var ticketHintEl = null;
+  var selectionTotals = {};
 
   function setRefs(refs) {
     ticketTypeSelect = refs.ticketTypeSelect || null;
@@ -28,20 +29,29 @@
           : namespace.Tickets.selection || {})
       : {};
     var plan = [];
+    selectionTotals = {};
+
+    Object.keys(selection).forEach(function (typeId) {
+      var count = Number(selection[typeId] || 0);
+      if (!Number.isFinite(count) || count <= 0) {
+        return;
+      }
+      selectionTotals[typeId] = count;
+      for (var i = 0; i < count; i += 1) {
+        plan.push({ typeId: '', label: '' });
+      }
+    });
+
     ticketTypes.forEach(function (type) {
       if (!type || !type.id) {
         return;
       }
       var typeId = String(type.id);
-      var count = Number(selection[typeId] || 0);
-      if (!Number.isFinite(count) || count <= 0) {
-        return;
-      }
-      var label = namespace.Tickets ? namespace.Tickets.getTypeLabel(typeId) : typeId;
-      for (var i = 0; i < count; i += 1) {
-        plan.push({ typeId: typeId, label: label });
+      if (typeof selectionTotals[typeId] === 'undefined') {
+        selectionTotals[typeId] = 0;
       }
     });
+
     attendeePlan = plan;
     totalAttendees = plan.length;
     currentIndex = 0;
@@ -49,14 +59,9 @@
   }
 
   function getRemainingTypeCounts(excludeIndex) {
-    var selection = namespace.Tickets
-      ? (typeof namespace.Tickets.getSelectionSnapshot === 'function'
-          ? namespace.Tickets.getSelectionSnapshot()
-          : namespace.Tickets.selection || {})
-      : {};
     var remaining = {};
-    Object.keys(selection).forEach(function (typeId) {
-      remaining[typeId] = Number(selection[typeId] || 0);
+    Object.keys(selectionTotals).forEach(function (typeId) {
+      remaining[typeId] = Number(selectionTotals[typeId] || 0);
     });
 
     attendeePlan.forEach(function (slot, index) {
@@ -77,51 +82,18 @@
     return remaining;
   }
 
-  function rebuildRemaining(fromIndex) {
-    var selection = namespace.Tickets
-      ? (typeof namespace.Tickets.getSelectionSnapshot === 'function'
-          ? namespace.Tickets.getSelectionSnapshot()
-          : namespace.Tickets.selection || {})
-      : {};
-    var remaining = {};
-    Object.keys(selection).forEach(function (typeId) {
-      remaining[typeId] = Number(selection[typeId] || 0);
-    });
-
-    var maxIndex = Math.min(fromIndex, attendeePlan.length - 1);
-    for (var i = 0; i <= maxIndex; i += 1) {
-      var slot = attendeePlan[i];
-      if (!slot || !slot.typeId) {
-        continue;
-      }
-      if (typeof remaining[slot.typeId] === 'undefined') {
-        continue;
-      }
-      remaining[slot.typeId] = Math.max(0, remaining[slot.typeId] - 1);
-    }
-
-    var queue = [];
-    ticketTypes.forEach(function (type) {
-      if (!type || !type.id) {
-        return;
-      }
-      var typeId = String(type.id);
-      var label = namespace.Tickets ? namespace.Tickets.getTypeLabel(typeId) : typeId;
-      var count = remaining[typeId] || 0;
-      for (var j = 0; j < count; j += 1) {
-        queue.push({ typeId: typeId, label: label });
-      }
-    });
-
-    for (var k = fromIndex + 1; k < attendeePlan.length; k += 1) {
-      attendeePlan[k] = queue.shift() || { typeId: '', label: '' };
-    }
-  }
-
   function setSelection(index, typeId) {
-    var label = namespace.Tickets ? namespace.Tickets.getTypeLabel(typeId) : typeId;
-    attendeePlan[index] = { typeId: typeId, label: label };
-    rebuildRemaining(index);
+    if (index < 0 || index >= attendeePlan.length) {
+      return;
+    }
+    var normalized = typeId ? String(typeId) : '';
+    if (!normalized) {
+      attendeePlan[index] = { typeId: '', label: '' };
+      updateHint(index);
+      return;
+    }
+    var label = namespace.Tickets ? namespace.Tickets.getTypeLabel(normalized) : normalized;
+    attendeePlan[index] = { typeId: normalized, label: label };
     updateHint(index);
   }
 
@@ -147,19 +119,20 @@
         return;
       }
       var typeId = String(type.id);
+      var totalForType = Number(selectionTotals[typeId] || 0);
+      var isCurrent = currentSelection === typeId;
+      if (!isCurrent && totalForType <= 0) {
+        return;
+      }
       var option = document.createElement('option');
       option.value = typeId;
-      var totalForType = namespace.Tickets && namespace.Tickets.selection
-        ? Number(namespace.Tickets.selection[typeId] || 0)
-        : 0;
       var available = remaining[typeId] || 0;
       var label = namespace.Tickets ? namespace.Tickets.getTypeLabel(typeId) : typeId;
-      var isCurrent = currentSelection === typeId;
       option.textContent = totalForType > 1 ? label + ' (' + available + ')' : label;
 
       if (isCurrent) {
         option.selected = true;
-      } else if (totalForType === 0) {
+      } else if (available <= 0) {
         option.disabled = true;
       }
 
@@ -168,7 +141,6 @@
 
     if (currentSelection) {
       ticketTypeSelect.value = currentSelection;
-      setSelection(index, currentSelection);
     } else {
       ticketTypeSelect.value = '';
     }
@@ -203,7 +175,6 @@
     setRefs: setRefs,
     buildFromSelection: buildFromSelection,
     getRemainingTypeCounts: getRemainingTypeCounts,
-    rebuildRemaining: rebuildRemaining,
     setSelection: setSelection,
     populateSelect: populateSelect,
     updateHint: updateHint,

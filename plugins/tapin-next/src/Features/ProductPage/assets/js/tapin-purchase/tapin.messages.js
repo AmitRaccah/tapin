@@ -31,6 +31,7 @@
     next: 'הבא',
     finish: 'סיום והמשך לתשלום',
     cancel: 'ביטול',
+    back: 'חזור',
     required: 'שדה חובה.',
     invalidEmail: 'הזינו כתובת דוא״ל תקינה.',
     invalidInstagram: 'הזינו שם משתמש אינסטגרם תקין.',

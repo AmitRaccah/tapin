@@ -36,6 +36,7 @@
       title: refs.title,
       stepText: refs.stepText,
       nextButton: refs.nextButton,
+      backButton: refs.backButton,
       cancelButton: refs.cancelButton,
       closeButtons: refs.closeButtons,
       ticketTypeSelect: refs.ticketTypeSelect,
@@ -86,10 +87,28 @@
     syncHeader();
   }
 
+  function updateBackButton() {
+    if (!refs || !refs.backButton) {
+      return;
+    }
+    var phase = namespace.Modal && typeof namespace.Modal.getPhase === 'function'
+      ? namespace.Modal.getPhase()
+      : 'ticket';
+    if (phase !== 'form' || totalAttendees <= 0) {
+      refs.backButton.setAttribute('hidden', 'hidden');
+      refs.backButton.disabled = false;
+      return;
+    }
+    refs.backButton.textContent = messages.back || refs.backButton.textContent || '';
+    refs.backButton.removeAttribute('hidden');
+    refs.backButton.disabled = false;
+  }
+
   function syncHeader() {
     namespace.Modal.updateTitle(currentIndex);
     namespace.Modal.updateStepIndicator(currentIndex, totalAttendees);
     namespace.Modal.updateNextButtonText(currentIndex, totalAttendees);
+    updateBackButton();
   }
 
   function openModal() {
@@ -173,6 +192,9 @@
     namespace.Form.updateRequiredIndicators(currentIndex === 0);
     namespace.Plan.populateSelect(currentIndex);
     namespace.Plan.updateHint(currentIndex);
+    if (refs.ticketTypeSelect) {
+      refs.ticketTypeSelect.focus();
+    }
     syncHeader();
   }
 
@@ -221,6 +243,49 @@
     namespace.Form.finalize(attendees, attendeePlan, selectionSnapshot);
   }
 
+  function handleBack() {
+    var phase = namespace.Modal && typeof namespace.Modal.getPhase === 'function'
+      ? namespace.Modal.getPhase()
+      : 'ticket';
+    if (phase !== 'form') {
+      namespace.Modal.showTicketPhase();
+      namespace.Plan.setCurrentIndex(0);
+      currentIndex = 0;
+      namespace.Form.resetErrors();
+      if (refs.ticketError) {
+        refs.ticketError.textContent = '';
+        refs.ticketError.hidden = true;
+      }
+      syncHeader();
+      return;
+    }
+
+    if (currentIndex > 0) {
+      currentIndex -= 1;
+      namespace.Plan.setCurrentIndex(currentIndex);
+      namespace.Form.resetErrors();
+      namespace.Form.prefill(currentIndex, data.prefill || null, attendees[currentIndex] || null);
+      namespace.Form.updateRequiredIndicators(currentIndex === 0);
+      namespace.Plan.populateSelect(currentIndex);
+      namespace.Plan.updateHint(currentIndex);
+      if (refs.ticketTypeSelect) {
+        refs.ticketTypeSelect.focus();
+      }
+      syncHeader();
+      return;
+    }
+
+    namespace.Modal.showTicketPhase();
+    namespace.Plan.setCurrentIndex(0);
+    namespace.Form.resetErrors();
+    if (refs.ticketError) {
+      refs.ticketError.textContent = '';
+      refs.ticketError.hidden = true;
+    }
+    currentIndex = 0;
+    syncHeader();
+  }
+
   function bindEvents() {
     if (refs.form) {
       refs.form.addEventListener('submit', handleFormSubmit);
@@ -230,6 +295,9 @@
     }
     if (refs.nextButton) {
       refs.nextButton.addEventListener('click', handleNext);
+    }
+    if (refs.backButton) {
+      refs.backButton.addEventListener('click', handleBack);
     }
     if (refs.cancelButton) {
       refs.cancelButton.addEventListener('click', function () {

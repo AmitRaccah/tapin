@@ -41,6 +41,7 @@
     var title = modal.querySelector('.tapin-purchase-modal__title');
     var stepText = modal.querySelector('[data-step-text]');
     var nextButton = modal.querySelector('[data-modal-action="next"]');
+    var backButton = modal.querySelector('[data-modal-action="back"]');
     var cancelButton = modal.querySelector('[data-modal-role="cancel"]');
     var closeButtons = modal.querySelectorAll('[data-modal-dismiss]');
     var ticketTypeField = formContainer ? formContainer.querySelector('[data-ticket-type-field]') : null;
@@ -63,6 +64,7 @@
       title: title,
       stepText: stepText,
       nextButton: nextButton,
+      backButton: backButton,
       cancelButton: cancelButton,
       closeButtons: closeButtons,
       ticketTypeField: ticketTypeField,
