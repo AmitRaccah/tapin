@@ -20,6 +20,9 @@ final class PurchaseDetailsModal implements Service
 
     /** @var array<int, array<string,string>> */
     private array $pendingAttendees = [];
+    /** @var array<int,array<string,mixed>> */
+    private array $attendeeQueue = [];
+    private bool $processingSplitAdd = false;
     private bool $redirectNextAdd   = false;
     /** @var array<int,array{list:array<int,array<string,mixed>>,index:array<string,array<string,mixed>>> */
     private array $ticketTypeCache  = [];
@@ -46,6 +49,7 @@ final class PurchaseDetailsModal implements Service
         add_action('woocommerce_checkout_create_order_line_item', [$this, 'storeOrderItemMeta'], 10, 4);
         add_filter('woocommerce_hidden_order_itemmeta', [$this, 'hideOrderItemMeta'], 10, 1);
         add_filter('woocommerce_order_item_get_formatted_meta_data', [$this, 'filterFormattedMeta'], 10, 2);
+        add_action('woocommerce_before_calculate_totals', [$this, 'applyAttendeePricing'], 20);
 
         add_filter('woocommerce_add_to_cart_redirect', [$this, 'maybeRedirectToCheckout'], 10, 2);
         add_action('init', [$this, 'maybeResumePendingCheckout'], 20);
@@ -318,6 +322,11 @@ final class PurchaseDetailsModal implements Service
     public function validateSubmission(bool $passed, int $productId, int $quantity, $variationId = 0, $variations = null): bool
     {
         $this->redirectNextAdd = false;
+        if ($this->processingSplitAdd) {
+            return $passed;
+        }
+        $this->pendingAttendees = [];
+        $this->attendeeQueue = [];
 
         if ((is_admin() && !wp_doing_ajax()) || !$this->shouldHandleProduct($productId)) {
             return $passed;
@@ -417,40 +426,105 @@ final class PurchaseDetailsModal implements Service
         $this->maybeUpdateUserProfile((int) $userId, $payer, $created);
 
         $this->pendingAttendees = $sanitized;
+        $this->attendeeQueue = $sanitized;
+        $_POST['quantity'] = 1;
+        $_REQUEST['quantity'] = 1;
         return $passed;
     }
 
     public function attachCartItemData(array $cartItemData, int $productId, int $variationId): array
     {
-        $attendees = $this->pendingAttendees;
-        $this->pendingAttendees = [];
+        $isGenerated = !empty($cartItemData['tapin_split_generated']);
+        $attendees   = [];
 
-        if ($attendees === [] && isset($_POST['tapin_attendees'])) {
-            $decoded = json_decode(wp_unslash((string) $_POST['tapin_attendees']), true);
-            if (is_array($decoded)) {
-                $errors = [];
-                foreach ($decoded as $index => $attendee) {
-                    $result = $this->sanitizeAttendee(is_array($attendee) ? $attendee : [], $index, $errors, $index === 0);
-                    if ($result !== null) {
-                        $attendees[] = $result;
-                    }
+        if ($isGenerated && isset($cartItemData['tapin_attendees']) && is_array($cartItemData['tapin_attendees'])) {
+            $attendees = array_values(array_filter($cartItemData['tapin_attendees'], 'is_array'));
+        } else {
+            if ($this->attendeeQueue !== []) {
+                $next = array_shift($this->attendeeQueue);
+                if (is_array($next)) {
+                    $attendees[] = $next;
                 }
+            } elseif ($this->pendingAttendees !== []) {
+                $next = array_shift($this->pendingAttendees);
+                if (is_array($next)) {
+                    $attendees[] = $next;
+                }
+            }
 
-                if ($errors !== []) {
-                    foreach ($errors as $message) {
-                        wc_add_notice($message, 'error');
+            if ($attendees === [] && isset($_POST['tapin_attendees'])) {
+                $decoded = json_decode(wp_unslash((string) $_POST['tapin_attendees']), true);
+                if (is_array($decoded)) {
+                    $errors = [];
+                    $rebuilt = [];
+                    foreach ($decoded as $index => $attendee) {
+                        $result = $this->sanitizeAttendee(is_array($attendee) ? $attendee : [], $index, $errors, $index === 0);
+                        if ($result !== null) {
+                            $rebuilt[] = $result;
+                        }
                     }
 
-                    return $cartItemData;
+                    if ($errors !== []) {
+                        foreach ($errors as $message) {
+                            wc_add_notice($message, 'error');
+                        }
+
+                        return $cartItemData;
+                    }
+
+                    $this->attendeeQueue = $rebuilt;
+                    $this->pendingAttendees = $rebuilt;
+                    $next = array_shift($this->attendeeQueue);
+                    if (is_array($next)) {
+                        $attendees[] = $next;
+                    }
                 }
             }
         }
 
-        if ($attendees !== []) {
-            $cartItemData['tapin_attendees'] = $attendees;
-            $cartItemData['tapin_attendees_key'] = md5(wp_json_encode($attendees) . microtime(true));
-            $this->redirectNextAdd = true;
+        if ($attendees === []) {
+            unset($cartItemData['tapin_split_generated']);
+            return $cartItemData;
         }
+
+        $attendee = $attendees[0];
+        $price    = isset($attendee['ticket_price']) ? (float) $attendee['ticket_price'] : null;
+
+        $cartItemData['tapin_attendees'] = [$attendee];
+        $cartItemData['tapin_attendees_key'] = md5(wp_json_encode($attendee) . microtime(true));
+        if ($price !== null) {
+            $cartItemData['tapin_ticket_price'] = $price;
+        }
+
+        if (!$isGenerated) {
+            $this->redirectNextAdd = true;
+
+            $remaining = $this->attendeeQueue;
+            $this->attendeeQueue = [];
+            $this->pendingAttendees = [];
+
+            if (!empty($remaining) && function_exists('WC') && WC()->cart instanceof \WC_Cart) {
+                $this->processingSplitAdd = true;
+                foreach ($remaining as $extraAttendee) {
+                    if (!is_array($extraAttendee)) {
+                        continue;
+                    }
+                    $extraPrice = isset($extraAttendee['ticket_price']) ? (float) $extraAttendee['ticket_price'] : null;
+                    $extraData = [
+                        'tapin_attendees'        => [$extraAttendee],
+                        'tapin_attendees_key'    => md5(wp_json_encode($extraAttendee) . microtime(true)),
+                        'tapin_split_generated'  => true,
+                    ];
+                    if ($extraPrice !== null) {
+                        $extraData['tapin_ticket_price'] = $extraPrice;
+                    }
+                    WC()->cart->add_to_cart($productId, 1, $variationId, [], $extraData);
+                }
+                $this->processingSplitAdd = false;
+            }
+        }
+
+        unset($cartItemData['tapin_split_generated']);
 
         return $cartItemData;
     }
@@ -459,6 +533,10 @@ final class PurchaseDetailsModal implements Service
     {
         if (isset($values['tapin_attendees'])) {
             $item['tapin_attendees'] = $values['tapin_attendees'];
+        }
+
+        if (isset($values['tapin_ticket_price'])) {
+            $item['tapin_ticket_price'] = (float) $values['tapin_ticket_price'];
         }
 
         return $item;
@@ -541,6 +619,18 @@ final class PurchaseDetailsModal implements Service
             }
             return $clean;
         }, $values['tapin_attendees']);
+        foreach ($values['tapin_attendees'] as $offset => $attendee) {
+            if (!isset($normalizedAttendees[$offset])) {
+                continue;
+            }
+            if (isset($attendee['ticket_price'])) {
+                $normalizedAttendees[$offset]['ticket_price'] = (float) $attendee['ticket_price'];
+            }
+        }
+
+        if (isset($values['tapin_ticket_price'])) {
+            $item->update_meta_data('_tapin_ticket_price', (float) $values['tapin_ticket_price']);
+        }
 
         $encryptedAttendees = AttendeeSecureStorage::encryptAttendees($normalizedAttendees);
         if ($encryptedAttendees !== '') {
@@ -725,6 +815,38 @@ final class PurchaseDetailsModal implements Service
         return $url;
     }
 
+    public function applyAttendeePricing($cart): void
+    {
+        if (!is_object($cart) || !method_exists($cart, 'get_cart')) {
+            return;
+        }
+
+        if (is_admin() && !wp_doing_ajax()) {
+            return;
+        }
+
+        foreach ($cart->get_cart() as $key => $item) {
+            $price = null;
+            if (isset($item['tapin_ticket_price'])) {
+                $price = (float) $item['tapin_ticket_price'];
+            } elseif (!empty($item['tapin_attendees'][0]['ticket_price'])) {
+                $price = (float) $item['tapin_attendees'][0]['ticket_price'];
+            }
+
+            if ($price === null) {
+                continue;
+            }
+
+            if (isset($cart->cart_contents[$key])) {
+                $cart->cart_contents[$key]['tapin_ticket_price'] = $price;
+            }
+
+            if (isset($item['data']) && $item['data'] instanceof WC_Product) {
+                $item['data']->set_price($price);
+            }
+        }
+    }
+
     private function sanitizeAttendee(array $attendee, int $index, array &$errors, bool $isPayer): ?array
     {
         $definitions = $this->getFieldDefinitions();
@@ -772,14 +894,20 @@ final class PurchaseDetailsModal implements Service
 
         $ticketTypeId = isset($attendee['ticket_type']) ? sanitize_key((string) $attendee['ticket_type']) : '';
         $ticketTypeLabel = '';
+        $ticketPrice = 0.0;
         if ($ticketTypeId !== '' && isset($this->currentTicketTypeIndex[$ticketTypeId])) {
-            $ticketTypeLabel = (string) ($this->currentTicketTypeIndex[$ticketTypeId]['name'] ?? '');
+            $context = $this->currentTicketTypeIndex[$ticketTypeId];
+            $ticketTypeLabel = (string) ($context['name'] ?? '');
+            if (isset($context['price'])) {
+                $ticketPrice = (float) $context['price'];
+            }
         }
         if ($ticketTypeLabel === '' && isset($attendee['ticket_type_label'])) {
             $ticketTypeLabel = sanitize_text_field((string) $attendee['ticket_type_label']);
         }
         $clean['ticket_type'] = $ticketTypeId;
         $clean['ticket_type_label'] = $ticketTypeLabel;
+        $clean['ticket_price'] = $ticketPrice;
 
         $firstName = isset($clean['first_name']) ? (string) $clean['first_name'] : '';
         $lastName  = isset($clean['last_name']) ? (string) $clean['last_name'] : '';
