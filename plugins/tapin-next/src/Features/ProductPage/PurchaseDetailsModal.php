@@ -7,6 +7,7 @@ use Tapin\Events\Domain\SaleWindowsRepository;
 use Tapin\Events\Domain\TicketTypesRepository;
 use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\AttendeeSecureStorage;
+use Tapin\Events\Support\ProductAvailability;
 use WC_Order;
 use WC_Order_Item_Product;
 use WC_Product;
@@ -891,7 +892,11 @@ final class PurchaseDetailsModal implements Service
         }
 
         $product = wc_get_product($productId);
-        if (!$product instanceof WC_Product || !$product->is_purchasable()) {
+        if (
+            !$product instanceof WC_Product ||
+            !$product->is_purchasable() ||
+            !ProductAvailability::isCurrentlyPurchasable($productId)
+        ) {
             return;
         }
 
@@ -1241,7 +1246,15 @@ final class PurchaseDetailsModal implements Service
             return false;
         }
 
-        return $product->is_purchasable() && $product->is_type('simple');
+        if (!$product->is_type('simple')) {
+            return false;
+        }
+
+        if (!$product->is_purchasable()) {
+            return false;
+        }
+
+        return ProductAvailability::isCurrentlyPurchasable((int) $product->get_id());
     }
 
     private function shouldHandleProduct(int $productId): bool
@@ -1255,7 +1268,15 @@ final class PurchaseDetailsModal implements Service
             return false;
         }
 
-        return $product->is_purchasable() && $product->is_type('simple');
+        if (!$product->is_type('simple')) {
+            return false;
+        }
+
+        if (!$product->is_purchasable()) {
+            return false;
+        }
+
+        return ProductAvailability::isCurrentlyPurchasable($productId);
     }
 
     private function assetVersion(string $path): string

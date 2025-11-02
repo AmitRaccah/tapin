@@ -3,6 +3,7 @@
 namespace Tapin\Events\Features\ProductPage;
 
 use Tapin\Events\Core\Service;
+use Tapin\Events\Support\ProductAvailability;
 use WC_Product;
 
 final class StickyPurchaseBar implements Service
@@ -111,7 +112,15 @@ final class StickyPurchaseBar implements Service
             return false;
         }
 
-        return $product->is_purchasable() && $product->is_type('simple');
+        if (!$product->is_type('simple')) {
+            return false;
+        }
+
+        if (!$product->is_purchasable()) {
+            return false;
+        }
+
+        return ProductAvailability::isCurrentlyPurchasable((int) $product->get_id());
     }
 
     private function assetVersion(string $path): string
