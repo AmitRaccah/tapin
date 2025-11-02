@@ -8,6 +8,7 @@ use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\AttendeeSecureStorage;
 use Tapin\Events\Support\Orders;
 use Tapin\Events\Support\Security;
+use Tapin\Events\Support\Time;
 use WC_Order;
 use WC_Order_Item_Product;
 use WC_Product;
@@ -131,6 +132,7 @@ final class ProducerApprovalsShortcode implements Service
           .tapin-pa-event__image{width:72px;height:72px;border-radius:14px;object-fit:cover;background:#f1f5f9;flex-shrink:0}
           .tapin-pa-event__text h4{margin:0;font-size:1.1rem;font-weight:700;color:#0f172a}
           .tapin-pa-event__stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:.9rem}
+          .tapin-pa-event__panel-heading{margin:18px 0 12px;font-size:1rem;font-weight:700;color:#1f2937}
           .tapin-pa-event__badge{padding:4px 10px;border-radius:999px;font-weight:600;font-size:.85rem;display:inline-flex;align-items:center}
           .tapin-pa-event__badge--pending{background:rgba(234,179,8,.18);color:#92400e}
           .tapin-pa-event__badge--approved{background:rgba(22,163,74,.18);color:#065f46}
@@ -244,6 +246,12 @@ final class ProducerApprovalsShortcode implements Service
                       <span class="tapin-pa-event__chevron" aria-hidden="true">&#9662;</span>
                     </button>
                     <div class="tapin-pa-event__panel"<?php echo $isOpen ? '' : ' hidden'; ?>>
+                      <?php if (!empty($event['event_date_label'])): ?>
+                        <?php $eventDateHeading = $this->decodeEntities('&#1514;&#1488;&#1512;&#1497;&#1498;&#32;&#1492;&#1488;&#1497;&#1512;&#1493;&#1506;'); ?>
+                        <h4 class="tapin-pa-event__panel-heading">
+                          <?php echo esc_html($eventDateHeading . ': ' . $event['event_date_label']); ?>
+                        </h4>
+                      <?php endif; ?>
                       <?php if ($canDownloadExport && !empty($event['orders'])): ?>
                         <?php
                         $downloadUrl = wp_nonce_url(
@@ -957,6 +965,9 @@ final class ProducerApprovalsShortcode implements Service
                         'title'     => (string) ($eventData['title'] ?? ''),
                         'image'     => (string) ($eventData['image'] ?? ''),
                         'permalink' => (string) ($eventData['permalink'] ?? ''),
+                        'event_date_ts'    => isset($eventData['event_date_ts']) ? (int) $eventData['event_date_ts'] : 0,
+                        'event_date_label' => (string) ($eventData['event_date_label'] ?? ''),
+                        'latest_order_ts'  => 0,
                         'counts'    => ['pending' => 0, 'approved' => 0, 'cancelled' => 0],
                         'orders'    => [],
                         'search'    => '',
@@ -981,6 +992,7 @@ final class ProducerApprovalsShortcode implements Service
                     (string) ($order['date'] ?? ''),
                     (string) ($order['total'] ?? ''),
                     (string) ($eventData['title'] ?? ''),
+                    (string) ($eventData['event_date_label'] ?? ''),
                 ];
 
                 $profileUsername = (string) ($order['customer_profile']['username'] ?? '');
@@ -1037,10 +1049,23 @@ final class ProducerApprovalsShortcode implements Service
             usort($event['orders'], static function (array $a, array $b): int {
                 return ($b['timestamp'] ?? 0) <=> ($a['timestamp'] ?? 0);
             });
+            $event['latest_order_ts'] = !empty($event['orders'])
+                ? (int) ($event['orders'][0]['timestamp'] ?? 0)
+                : (int) ($event['latest_order_ts'] ?? 0);
         }
         unset($event);
 
         uasort($events, static function (array $a, array $b): int {
+            $dateDiff = ($b['event_date_ts'] ?? 0) <=> ($a['event_date_ts'] ?? 0);
+            if ($dateDiff !== 0) {
+                return $dateDiff;
+            }
+
+            $orderDiff = ($b['latest_order_ts'] ?? 0) <=> ($a['latest_order_ts'] ?? 0);
+            if ($orderDiff !== 0) {
+                return $orderDiff;
+            }
+
             $pendingDiff = ($b['counts']['pending'] ?? 0) <=> ($a['counts']['pending'] ?? 0);
             if ($pendingDiff !== 0) {
                 return $pendingDiff;
@@ -1478,12 +1503,24 @@ final class ProducerApprovalsShortcode implements Service
             $image = (string) wc_placeholder_img_src();
         }
 
+        $eventTimestamp = $targetId ? Time::productEventTs((int) $targetId) : 0;
+        $eventDateLabel = '';
+        if ($eventTimestamp > 0) {
+            $eventDateLabel = wp_date(
+                get_option('date_format') . ' H:i',
+                $eventTimestamp,
+                wp_timezone()
+            );
+        }
+
         return [
             'event_id'   => $eventId ?: $productId ?: 0,
             'product_id' => $productId ?: 0,
             'title'      => $title,
             'permalink'  => $permalink,
             'image'      => $image,
+            'event_date_ts'    => $eventTimestamp,
+            'event_date_label' => $eventDateLabel,
         ];
     }
 
