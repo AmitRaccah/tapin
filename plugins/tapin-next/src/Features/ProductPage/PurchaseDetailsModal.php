@@ -700,7 +700,15 @@ final class PurchaseDetailsModal implements Service
      */
     public function maybeRedirectToCheckout($url, $product)
     {
-        if (!$this->redirectNextAdd) {
+        $shouldRedirect = $this->redirectNextAdd;
+
+        if (!$shouldRedirect && isset($_POST['tapin_attendees'])) {
+            if (!function_exists('wc_get_notices') || wc_get_notices('error') === []) {
+                $shouldRedirect = true;
+            }
+        }
+
+        if (!$shouldRedirect) {
             return $url;
         }
 
