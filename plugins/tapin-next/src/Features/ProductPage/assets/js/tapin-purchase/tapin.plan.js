@@ -55,6 +55,12 @@
     attendeePlan = plan;
     totalAttendees = plan.length;
     currentIndex = 0;
+
+    if (typeof window !== 'undefined' && window.TAPIN_TICKET_DEBUG) {
+      try {
+        console.debug('[tapin_tickets] plan.buildFromSelection', { totals: selectionTotals, totalAttendees: totalAttendees });
+      } catch (e) {}
+    }
     return plan.slice();
   }
 

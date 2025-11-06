@@ -8,6 +8,7 @@ use Tapin\Events\Domain\TicketTypesRepository;
 use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\AttendeeSecureStorage;
 use Tapin\Events\Support\ProductAvailability;
+use Tapin\Events\Support\TicketTypeTracer;
 use WC_Order;
 use WC_Order_Item_Product;
 use WC_Product;
@@ -49,10 +50,18 @@ final class PurchaseDetailsModal implements Service
         add_action('woocommerce_checkout_create_order_line_item', [$this, 'storeOrderItemMeta'], 10, 4);
         add_filter('woocommerce_hidden_order_itemmeta', [$this, 'hideOrderItemMeta'], 10, 1);
         add_filter('woocommerce_order_item_get_formatted_meta_data', [$this, 'filterFormattedMeta'], 10, 2);
-        add_action('woocommerce_before_calculate_totals', [$this, 'applyAttendeePricing'], 20);
+        add_action('woocommerce_before_calculate_totals', [$this, 'applyAttendeePricing'], 999);
 
         add_filter('woocommerce_add_to_cart_redirect', [$this, 'maybeRedirectToCheckout'], 10, 2);
         add_action('init', [$this, 'maybeResumePendingCheckout'], 20);
+
+        // Force quantity 1 when using Tapin attendees to prevent duplicate ghost items
+        add_filter('woocommerce_add_to_cart_quantity', function ($qty, $product_id) {
+            if (!empty($_POST['tapin_attendees']) && ProductAvailability::isCurrentlyPurchasable((int) $product_id)) {
+                return 1;
+            }
+            return $qty;
+        }, 10, 2);
     }
 
     public function filterButtonText(string $text, $product): string
@@ -422,6 +431,7 @@ final class PurchaseDetailsModal implements Service
             return false;
         }
 
+        $originalQty = (int) $quantity;
         $quantity = max(1, (int) $quantity);
         if (count($decoded) !== $quantity) {
             wc_add_notice('יש להזין פרטים עבור כל משתתף שנבחר לרכישה.', 'error');
@@ -508,6 +518,9 @@ final class PurchaseDetailsModal implements Service
         $this->attendeeQueue = $sanitized;
         $_POST['quantity'] = 1;
         $_REQUEST['quantity'] = 1;
+        if (class_exists(TicketTypeTracer::class)) {
+            TicketTypeTracer::validate((int) $productId, (int) $originalQty, (int) count($decoded), (int) count($sanitized));
+        }
         return $passed;
     }
 
@@ -531,7 +544,7 @@ final class PurchaseDetailsModal implements Service
                 }
             }
 
-            if ($attendees === [] && isset($_POST['tapin_attendees'])) {
+            if ($attendees === [] && isset($_POST['tapin_attendees']) && !$this->processingSplitAdd) {
                 $decoded = json_decode(wp_unslash((string) $_POST['tapin_attendees']), true);
                 if (is_array($decoded)) {
                     $errors = [];
@@ -568,11 +581,22 @@ final class PurchaseDetailsModal implements Service
 
         $attendee = $attendees[0];
         $price    = isset($attendee['ticket_price']) ? (float) $attendee['ticket_price'] : null;
+        if (class_exists(TicketTypeTracer::class)) {
+            $takenTypeId = isset($attendee['ticket_type']) ? (string) $attendee['ticket_type'] : '';
+            TicketTypeTracer::attachQueueState($this->processingSplitAdd, (bool) $isGenerated, $takenTypeId, (int) count($this->attendeeQueue));
+        }
 
         $cartItemData['tapin_attendees'] = [$attendee];
         $cartItemData['tapin_attendees_key'] = md5(wp_json_encode($attendee) . microtime(true));
+        $cartItemData['unique_hash'] = md5((string) $cartItemData['tapin_attendees_key']);
         if ($price !== null) {
             $cartItemData['tapin_ticket_price'] = $price;
+        }
+
+        // Debug trace for cart attachment
+        if (class_exists(TicketTypeTracer::class)) {
+            $typeId = isset($attendee['ticket_type']) ? (string) $attendee['ticket_type'] : '';
+            TicketTypeTracer::attach(!empty($cartItemData['tapin_split_generated']), $typeId, $price !== null ? (float) $price : null, (string) $cartItemData['tapin_attendees_key']);
         }
 
         if (!$isGenerated) {
@@ -592,8 +616,10 @@ final class PurchaseDetailsModal implements Service
                     $extraData = [
                         'tapin_attendees'        => [$extraAttendee],
                         'tapin_attendees_key'    => md5(wp_json_encode($extraAttendee) . microtime(true)),
+                        'unique_hash'            => '',
                         'tapin_split_generated'  => true,
                     ];
+                    $extraData['unique_hash'] = md5((string) $extraData['tapin_attendees_key']);
                     if ($extraPrice !== null) {
                         $extraData['tapin_ticket_price'] = $extraPrice;
                     }
@@ -905,11 +931,38 @@ final class PurchaseDetailsModal implements Service
         }
 
         foreach ($cart->get_cart() as $key => $item) {
-            $price = null;
-            if (isset($item['tapin_ticket_price'])) {
-                $price = (float) $item['tapin_ticket_price'];
-            } elseif (!empty($item['tapin_attendees'][0]['ticket_price'])) {
-                $price = (float) $item['tapin_attendees'][0]['ticket_price'];
+            $incomingItemPrice     = isset($item['tapin_ticket_price']) ? (float) $item['tapin_ticket_price'] : null;
+            $incomingAttendeePrice = !empty($item['tapin_attendees'][0]['ticket_price']) ? (float) $item['tapin_attendees'][0]['ticket_price'] : null;
+            $price = $incomingItemPrice ?? $incomingAttendeePrice;
+            $source = null;
+            $typeId = !empty($item['tapin_attendees'][0]['ticket_type'])
+                ? sanitize_key((string) $item['tapin_attendees'][0]['ticket_type'])
+                : '';
+            $productId = 0;
+            if (!empty($item['product_id'])) {
+                $productId = (int) $item['product_id'];
+            } elseif (!empty($item['data']) && method_exists($item['data'], 'get_id')) {
+                $productId = (int) $item['data']->get_id();
+            }
+
+            if ($incomingItemPrice !== null) {
+                $source = 'item';
+            } elseif ($incomingAttendeePrice !== null) {
+                $source = 'attendee';
+            }
+
+            if ($price === null && $typeId !== '' && $productId > 0) {
+                $cache = $this->ensureTicketTypeCache($productId);
+                if (!empty($cache['index'][$typeId]) && isset($cache['index'][$typeId]['price'])) {
+                    $price = (float) $cache['index'][$typeId]['price'];
+                    $source = 'cache';
+                }
+            }
+
+            if (class_exists(TicketTypeTracer::class) && method_exists(TicketTypeTracer::class, 'applyDetailed')) {
+                TicketTypeTracer::applyDetailed((string) $key, (int) $productId, (string) $typeId, (string) ($source ?? ''), $incomingItemPrice, $incomingAttendeePrice, $price);
+            } elseif (class_exists(TicketTypeTracer::class)) {
+                TicketTypeTracer::apply((string) $key, $incomingItemPrice, $incomingAttendeePrice, $price);
             }
 
             if ($price === null) {
@@ -971,9 +1024,11 @@ final class PurchaseDetailsModal implements Service
             $clean[$key] = $value;
         }
 
-        $ticketTypeId = isset($attendee['ticket_type']) ? sanitize_key((string) $attendee['ticket_type']) : '';
+        $ticketTypeId    = isset($attendee['ticket_type']) ? sanitize_key((string) $attendee['ticket_type']) : '';
         $ticketTypeLabel = '';
-        $ticketPrice = 0.0;
+        $ticketPrice     = 0.0;
+
+        // Primary: resolve by id
         if ($ticketTypeId !== '' && isset($this->currentTicketTypeIndex[$ticketTypeId])) {
             $context = $this->currentTicketTypeIndex[$ticketTypeId];
             $ticketTypeLabel = (string) ($context['name'] ?? '');
@@ -981,12 +1036,40 @@ final class PurchaseDetailsModal implements Service
                 $ticketPrice = (float) $context['price'];
             }
         }
-        if ($ticketTypeLabel === '' && isset($attendee['ticket_type_label'])) {
-            $ticketTypeLabel = sanitize_text_field((string) $attendee['ticket_type_label']);
+
+        // Fallback: resolve id by label if id missing
+        if ($ticketTypeId === '') {
+            $rawLabel = isset($attendee['ticket_type_label']) ? (string) $attendee['ticket_type_label'] : '';
+            $normalizedLabel = trim((function_exists('mb_strtolower') ? mb_strtolower($rawLabel) : strtolower($rawLabel)));
+            if ($normalizedLabel !== '') {
+                foreach ($this->currentTicketTypeIndex as $idCandidate => $ctx) {
+                    $nameCandidate = isset($ctx['name']) ? (string) $ctx['name'] : '';
+                    $nameCandidateNorm = trim((function_exists('mb_strtolower') ? mb_strtolower($nameCandidate) : strtolower($nameCandidate)));
+                    if ($nameCandidate !== '' && $nameCandidateNorm === $normalizedLabel) {
+                        $ticketTypeId    = (string) $idCandidate;
+                        $ticketTypeLabel = $nameCandidate;
+                        if (isset($ctx['price'])) {
+                            $ticketPrice = (float) $ctx['price'];
+                        }
+                        break;
+                    }
+                }
+            }
         }
-        $clean['ticket_type'] = $ticketTypeId;
-        $clean['ticket_type_label'] = $ticketTypeLabel;
-        $clean['ticket_price'] = $ticketPrice;
+
+        // If still unresolved, block with clear error
+        if ($ticketTypeId === '') {
+            $errors[] = __('סוג הכרטיס שנבחר אינו זמין', 'tapin');
+            return null;
+        }
+
+        $clean['ticket_type']       = $ticketTypeId;
+        $clean['ticket_type_label'] = $ticketTypeLabel !== '' ? $ticketTypeLabel : sanitize_text_field((string) ($attendee['ticket_type_label'] ?? ''));
+        $clean['ticket_price']      = $ticketPrice;
+
+        if (class_exists(TicketTypeTracer::class)) {
+            TicketTypeTracer::sanitize($attendee, (string) $clean['ticket_type'], (float) $clean['ticket_price']);
+        }
 
         $firstName = isset($clean['first_name']) ? (string) $clean['first_name'] : '';
         $lastName  = isset($clean['last_name']) ? (string) $clean['last_name'] : '';
@@ -1079,7 +1162,7 @@ final class PurchaseDetailsModal implements Service
         }
 
         $pending = $session->get(self::SESSION_KEY_PENDING);
-        if (!is_array($pending) || empty($pending['attendees']) || empty($pending['product_id'])) {
+        if (!is_array($pending) || empty($pending['attendees']) || empty($pending['product_id']) || empty($pending['created_by_login_redirect'])) {
             return;
         }
 
@@ -1143,6 +1226,10 @@ final class PurchaseDetailsModal implements Service
 
         unset($_POST['tapin_attendees'], $_POST['quantity']);
 
+        if (class_exists(TicketTypeTracer::class)) {
+            TicketTypeTracer::resume((int) $productId, (int) count($sanitized), (bool) $cartItemKey);
+        }
+
         if ($cartItemKey) {
             $payer = $sanitized[0] ?? [];
             $this->maybeUpdateUserProfile(get_current_user_id(), $payer, false);
@@ -1164,6 +1251,7 @@ final class PurchaseDetailsModal implements Service
             'product_id' => (int) $productId,
             'quantity'   => max(1, (int) $quantity),
             'attendees'  => $attendees,
+            'created_by_login_redirect' => true,
             'timestamp'  => time(),
         ];
 
@@ -1407,6 +1495,10 @@ final class PurchaseDetailsModal implements Service
                 'list'  => $list,
                 'index' => $index,
             ];
+
+            if (class_exists(TicketTypeTracer::class)) {
+                TicketTypeTracer::ensure($list);
+            }
         }
 
         return $this->ticketTypeCache[$productId];

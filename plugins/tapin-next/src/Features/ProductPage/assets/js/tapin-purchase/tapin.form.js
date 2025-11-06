@@ -321,6 +321,19 @@
       }
     });
 
+    if (typeof window !== 'undefined' && window.TAPIN_TICKET_DEBUG) {
+      try {
+        var dbg = attendees.map(function (a) {
+          return {
+            type: a && a.ticket_type ? String(a.ticket_type) : '',
+            label: a && a.ticket_type_label ? String(a.ticket_type_label) : '',
+            price: (a && typeof a.ticket_price !== 'undefined') ? a.ticket_price : null,
+          };
+        });
+        console.debug('[tapin_tickets] finalize attendees', { count: attendees.length, attendees: dbg });
+      } catch (e) {}
+    }
+
     refs.hiddenField.value = JSON.stringify(attendees);
     setQtyInputValue(attendees.length);
     allowSubmit = true;
