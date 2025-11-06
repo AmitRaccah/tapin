@@ -29,7 +29,7 @@ class Plugin {
         \Tapin\Events\Features\Shortcodes\ProducerEventRequest::class,
         \Tapin\Events\Features\Shortcodes\EventsAdminCenter::class,
         \Tapin\Events\Features\Shortcodes\ProducerEventSales::class,
-        \Tapin\Events\Features\Orders\ProducerApprovalsShortcode::class,
+        \Tapin\Events\Features\Orders\ProducerApprovals\ProducerApprovalsFeature::class,
         \Tapin\Events\Features\Orders\OrderMetaPrivacy::class,
         \Tapin\Events\Features\ProductPage\SaleWindowsCards::class,
         \Tapin\Events\Features\ProductPage\ProductBackground::class,
