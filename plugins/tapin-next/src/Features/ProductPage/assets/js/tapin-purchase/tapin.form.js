@@ -314,6 +314,16 @@
     attendees.forEach(function (attendee, index) {
       var slot = plan[index] || null;
       var selectedTypeName = slot && slot.label ? slot.label : '';
+      if (!attendee.ticket_type && attendee.ticket_type_select) {
+        attendee.ticket_type = attendee.ticket_type_select;
+      }
+      if (!attendee.ticket_type_label) {
+        if (attendee.ticket_type_select_label) {
+          attendee.ticket_type_label = attendee.ticket_type_select_label;
+        } else if (selectedTypeName) {
+          attendee.ticket_type_label = selectedTypeName;
+        }
+      }
       if (!attendee.ticket_type && slot && slot.typeId) {
         attendee.ticket_type = slot.typeId;
       }

@@ -18,6 +18,7 @@ final class PurchaseDetailsModal implements Service
     private const SCRIPT_HANDLE        = 'tapin-purchase-modal';
     private const STYLE_HANDLE         = 'tapin-purchase-modal';
     private const SESSION_KEY_PENDING  = 'tapin_pending_checkout';
+    private const PRICE_OVERRIDE_META  = '_tapin_price_override';
 
     /** @var array<int, array<string,string>> */
     private array $pendingAttendees = [];
@@ -51,6 +52,11 @@ final class PurchaseDetailsModal implements Service
         add_filter('woocommerce_hidden_order_itemmeta', [$this, 'hideOrderItemMeta'], 10, 1);
         add_filter('woocommerce_order_item_get_formatted_meta_data', [$this, 'filterFormattedMeta'], 10, 2);
         add_action('woocommerce_before_calculate_totals', [$this, 'applyAttendeePricing'], 999);
+
+        add_filter('woocommerce_product_get_price', [$this, 'filterCartProductPrice'], 9999, 2);
+        add_filter('woocommerce_product_get_regular_price', [$this, 'filterCartProductPrice'], 9999, 2);
+        add_filter('woocommerce_product_get_sale_price', [$this, 'filterCartProductSalePrice'], 9999, 2);
+        add_filter('woocommerce_product_is_on_sale', [$this, 'filterCartProductIsOnSale'], 9999, 2);
 
         add_filter('woocommerce_add_to_cart_redirect', [$this, 'maybeRedirectToCheckout'], 10, 2);
         add_action('init', [$this, 'maybeResumePendingCheckout'], 20);
@@ -1010,15 +1016,39 @@ final class PurchaseDetailsModal implements Service
                 continue;
             }
 
+            $decimals = wc_get_price_decimals();
+            $formattedPrice = wc_format_decimal($price, $decimals);
+            $numericPrice   = (float) $formattedPrice;
+            $quantity       = isset($item['quantity']) ? max(1, (int) $item['quantity']) : 1;
+            $lineTotal      = (float) wc_format_decimal($numericPrice * $quantity, $decimals);
+
             if (isset($cart->cart_contents[$key])) {
-                $cart->cart_contents[$key]['tapin_ticket_price'] = $price;
+                $cart->cart_contents[$key]['tapin_ticket_price'] = $numericPrice;
+                $cart->cart_contents[$key]['line_subtotal']      = $lineTotal;
+                $cart->cart_contents[$key]['line_total']         = $lineTotal;
+                if (isset($cart->cart_contents[$key]['line_subtotal_tax'])) {
+                    $cart->cart_contents[$key]['line_subtotal_tax'] = 0.0;
+                }
+                if (isset($cart->cart_contents[$key]['line_tax'])) {
+                    $cart->cart_contents[$key]['line_tax'] = 0.0;
+                }
+                if (isset($cart->cart_contents[$key]['line_tax_data']) && is_array($cart->cart_contents[$key]['line_tax_data'])) {
+                    $taxData = $cart->cart_contents[$key]['line_tax_data'];
+                    foreach (['total', 'subtotal'] as $taxKey) {
+                        if (isset($taxData[$taxKey]) && is_array($taxData[$taxKey])) {
+                            foreach ($taxData[$taxKey] as $taxRateId => $taxAmount) {
+                                $taxData[$taxKey][$taxRateId] = 0.0;
+                            }
+                        }
+                    }
+                    $cart->cart_contents[$key]['line_tax_data'] = $taxData;
+                }
             }
 
             if (isset($item['data']) && $item['data'] instanceof WC_Product) {
                 $productObj = $item['data'];
-                $formattedPrice = wc_format_decimal($price, wc_get_price_decimals());
                 $productObj->set_regular_price($formattedPrice);
-                $productObj->set_sale_price($formattedPrice);
+                $productObj->set_sale_price('');
                 if (method_exists($productObj, 'set_date_on_sale_from')) {
                     $productObj->set_date_on_sale_from(null);
                 }
@@ -1029,6 +1059,7 @@ final class PurchaseDetailsModal implements Service
                     $productObj->set_on_sale(false);
                 }
                 $productObj->set_price($formattedPrice);
+                $productObj->update_meta_data(self::PRICE_OVERRIDE_META, $formattedPrice);
             }
 
             if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -1044,9 +1075,58 @@ final class PurchaseDetailsModal implements Service
                     'product_regular'     => isset($item['data']) && $item['data'] instanceof WC_Product ? $item['data']->get_regular_price() : null,
                     'product_sale'        => isset($item['data']) && $item['data'] instanceof WC_Product ? $item['data']->get_sale_price() : null,
                     'product_on_sale'     => isset($item['data']) && $item['data'] instanceof WC_Product ? $item['data']->is_on_sale() : null,
+                    'override_meta'       => isset($item['data']) && $item['data'] instanceof WC_Product ? $item['data']->get_meta(self::PRICE_OVERRIDE_META, true) : null,
+                    'line_total'          => $lineTotal,
+                    'quantity'            => $quantity,
+                    'line_tax_data'       => isset($cart->cart_contents[$key]['line_tax_data']) ? $cart->cart_contents[$key]['line_tax_data'] : null,
                 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             }
         }
+    }
+
+    public function filterCartProductPrice($price, $product)
+    {
+        $override = $this->resolvePriceOverride($product);
+        if ($override === null) {
+            return $price;
+        }
+
+        return $override;
+    }
+
+    public function filterCartProductSalePrice($price, $product)
+    {
+        $override = $this->resolvePriceOverride($product);
+        if ($override === null) {
+            return $price;
+        }
+
+        return '';
+    }
+
+    public function filterCartProductIsOnSale($isOnSale, $product)
+    {
+        $override = $this->resolvePriceOverride($product);
+        if ($override === null) {
+            return $isOnSale;
+        }
+
+        return false;
+    }
+
+    private function resolvePriceOverride($product): ?string
+    {
+        if (!$product instanceof WC_Product) {
+            return null;
+        }
+
+        $raw = $product->get_meta(self::PRICE_OVERRIDE_META, true);
+        if ($raw === '' || $raw === null) {
+            return null;
+        }
+
+        $decimals = wc_get_price_decimals();
+        return wc_format_decimal($raw, $decimals);
     }
 
     private function sanitizeAttendee(array $attendee, int $index, array &$errors, bool $isPayer): ?array
