@@ -1,0 +1,88 @@
+<?php
+declare(strict_types=1);
+
+namespace Tapin\Events\Features\Orders\ProducerApprovals;
+
+final class ExportStreamer
+{
+    /**
+     * @param array<string,mixed> $event
+     * @param array<int,array<int,string>> $rows
+     */
+    public function stream(array $event, array $rows): void
+    {
+        $filenameBase = sanitize_title($event['title'] ?? 'tapin-event');
+        if ($filenameBase === '') {
+            $filenameBase = 'tapin-event';
+        }
+
+        $filename = sprintf(
+            '%s-%d-%s.csv',
+            $filenameBase,
+            (int) ($event['id'] ?? 0),
+            gmdate('Ymd-His')
+        );
+
+        nocache_headers();
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        $output = fopen('php://output', 'wb');
+        if ($output === false) {
+            status_header(500);
+            wp_die(html_entity_decode('&#1502;&#1497;&#1508;&#1512;&#32;&#1489;&#1493;&#1514;&#1507;&#32;&#1488;&#1500;&#32;&#1512;&#1513;&#1493;&#1500;.', ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        }
+
+        fwrite($output, "\xEF\xBB\xBF");
+
+        $header = [
+            'ID אירוע',
+            'שם אירוע',
+            'קישור לאירוע',
+            'מספר הזמנה',
+            'סטטוס הזמנה',
+            'תאריך הזמנה',
+            'סכום',
+            'כמות כרטיסים',
+            'שורות הזמנה',
+            'שם הלקוח',
+            'אימייל הלקוח',
+            'טלפון הלקוח',
+            'תעודת זהות ראשית',
+            'סוג משתתף',
+            'שם משתתף',
+            'אימייל משתתף',
+            'טלפון משתתף',
+            'תעודת זהות משתתף',
+            'תאריך לידה',
+            'מגדר',
+            'אינסטגרם',
+            'פייסבוק',
+            'וואטסאפ',
+        ];
+
+        fputcsv($output, $header);
+        foreach ($rows as $row) {
+            fputcsv($output, array_map([self::class, 'cleanExportValue'], $row));
+        }
+
+        fclose($output);
+        exit;
+    }
+
+    private static function cleanExportValue($value): string
+    {
+        if (is_array($value)) {
+            $value = implode(', ', array_filter(array_map('strval', $value)));
+        }
+
+        $text = trim((string) $value);
+        $text = wp_strip_all_tags($text);
+        $text = preg_replace('/\s+/u', ' ', $text);
+
+        return $text !== null ? trim($text) : '';
+    }
+}
+
