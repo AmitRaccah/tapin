@@ -1,0 +1,500 @@
+            case 'instagram':
+                return sprintf('יש להזין אינסטגרם תקין (@username או קישור לפרופיל) עבור %s', $attendeeLabel);
+            case 'tiktok':
+                return sprintf('יש להזין טיקטוק תקין (@username או קישור לפרופיל) עבור %s', $attendeeLabel);
+            case 'facebook':
+                return sprintf('קישור הפייסבוק חייב לכלול facebook עבור %s', $attendeeLabel);
+            default:
+                return sprintf('הערך שסופק עבור %s אינו תקין עבור %s', $fieldLabel, $attendeeLabel);
+        }
+    }
+
+    private function attendeeLabel(int $index): string
+    {
+        return $index === 0 ? 'הלקוח המשלם' : sprintf('משתתף %d', $index + 1);
+    }
+
+    /**
+     * @return array<string,array<string,string>>
+     */
+    private function getFieldDefinitions(): array
+    {
+        $definitions = AttendeeFields::definitions();
+        $labels = apply_filters('tapin_purchase_modal_fields', AttendeeFields::labels());
+
+        if (is_array($labels)) {
+            foreach ($definitions as $key => &$definition) {
+                if (isset($labels[$key])) {
+                    $definition['label'] = (string) $labels[$key];
+                }
+            }
+            unset($definition);
+        }
+
+        foreach ($definitions as $key => &$definition) {
+            $definition['required_for'] = AttendeeFields::requiredFor($key);
+        }
+        unset($definition);
+
+        return $definitions;
+    }
+
+    public function maybeResumePendingCheckout(): void
+    {
+        if (!is_user_logged_in() || !function_exists('WC')) {
+            return;
+        }
+
+        if (is_admin() && !wp_doing_ajax()) {
+            return;
+        }
+
+        $session = WC()->session;
+        if (!$session) {
+            return;
+        }
+
+        $pending = $session->get(self::SESSION_KEY_PENDING);
+        if (!is_array($pending) || empty($pending['attendees']) || empty($pending['product_id']) || empty($pending['created_by_login_redirect'])) {
+            return;
+        }
+
+        $session->set(self::SESSION_KEY_PENDING, null);
+
+        $productId = (int) ($pending['product_id'] ?? 0);
+        $quantity  = max(1, (int) ($pending['quantity'] ?? 1));
+        $rawAttendees = is_array($pending['attendees']) ? $pending['attendees'] : [];
+
+        $errors    = [];
+        $sanitized = [];
+        foreach ($rawAttendees as $index => $entry) {
+            $result = $this->sanitizeAttendee(is_array($entry) ? $entry : [], $index, $errors, $index === 0);
+            if ($result !== null) {
+                $sanitized[] = $result;
+            }
+        }
+
+        if ($errors !== [] || $sanitized === []) {
+            return;
+        }
+
+        if (!function_exists('wc_get_product')) {
+            return;
+        }
+
+        $product = wc_get_product($productId);
+        if (
+            !$product instanceof WC_Product ||
+            !$product->is_purchasable() ||
+            !ProductAvailability::isCurrentlyPurchasable($productId)
+        ) {
+            return;
+        }
+
+        if (function_exists('wc_load_cart')) {
+            wc_load_cart();
+        }
+
+        $cart = WC()->cart;
+        if (!$cart) {
+            return;
+        }
+
+        $payload = wp_json_encode($sanitized);
+        if (is_string($payload)) {
+            $_POST['tapin_attendees'] = $payload;
+            $_POST['quantity']        = (string) $quantity;
+        }
+
+        $cartItemKey = $cart->add_to_cart(
+            $productId,
+            $quantity,
+            0,
+            [],
+            [
+                'tapin_attendees'     => $sanitized,
+                'tapin_attendees_key' => md5(wp_json_encode($sanitized) . microtime(true)),
+            ]
+        );
+
+        unset($_POST['tapin_attendees'], $_POST['quantity']);
+
+        if (class_exists(TicketTypeTracer::class)) {
+            TicketTypeTracer::resume((int) $productId, (int) count($sanitized), (bool) $cartItemKey);
+        }
+
+        if ($cartItemKey) {
+            $payer = $sanitized[0] ?? [];
+            $this->maybeUpdateUserProfile(get_current_user_id(), $payer, false);
+        }
+    }
+
+    private function storePendingCheckout(array $attendees, int $productId, int $quantity): void
+    {
+        if (!function_exists('WC')) {
+            return;
+        }
+
+        $session = WC()->session;
+        if (!$session) {
+            return;
+        }
+
+        $payload = [
+            'product_id' => (int) $productId,
+            'quantity'   => max(1, (int) $quantity),
+            'attendees'  => $attendees,
+            'created_by_login_redirect' => true,
+            'timestamp'  => time(),
+        ];
+
+        $session->set(self::SESSION_KEY_PENDING, $payload);
+    }
+
+    private function redirectToLogin(): void
+    {
+        $url = $this->loginRedirectUrl();
+        if ($url === '') {
+            $url = home_url('/');
+        }
+
+        wp_safe_redirect($url);
+        exit;
+    }
+
+    private function loginRedirectUrl(): string
+    {
+        $checkout = function_exists('wc_get_checkout_url') ? wc_get_checkout_url() : home_url('/');
+
+        if (function_exists('wc_get_page_permalink')) {
+            $accountUrl = wc_get_page_permalink('myaccount');
+            if ($accountUrl) {
+                return add_query_arg('redirect_to', rawurlencode($checkout), $accountUrl);
+            }
+        }
+
+        return wp_login_url($checkout);
+    }
+
+    private function createTransparentUser(array $payer): ?int
+    {
+        $email = isset($payer['email']) ? sanitize_email($payer['email']) : '';
+        if ($email === '') {
+            wc_add_notice('כתובת האימייל אינה תקינה.', 'error');
+            return null;
+        }
+
+        $firstName = sanitize_text_field($payer['first_name'] ?? '');
+        $lastName  = sanitize_text_field($payer['last_name'] ?? '');
+        $username  = $this->generateUsername($firstName, $lastName, $email);
+        $password  = wp_generate_password(32, true);
+
+        $userId = wp_insert_user([
+            'user_login' => $username,
+            'user_pass'  => $password,
+            'user_email' => $email,
+            'role'       => 'customer',
+        ]);
+
+        if (is_wp_error($userId)) {
+            wc_add_notice('לא ניתן היה ליצור משתמש חדש, אנא נסו שוב או פנו לתמיכה.', 'error');
+            return null;
+        }
+
+        wp_set_current_user($userId);
+        wp_set_auth_cookie($userId, true);
+        if (function_exists('wc_set_customer_auth_cookie')) {
+            wc_set_customer_auth_cookie($userId);
+        }
+
+        $user = get_userdata($userId);
+        if ($user && $user->user_login) {
+            do_action('wp_login', $user->user_login, $user);
+        }
+
+        return (int) $userId;
+    }
+
+    private function generateUsername(string $firstName, string $lastName, string $email): string
+    {
+        $candidate = sanitize_user($firstName . $lastName, true);
+        if ($candidate === '') {
+            $parts = explode('@', $email);
+            $candidate = sanitize_user($parts[0] ?? '', true);
+        }
+        if ($candidate === '') {
+            $candidate = 'tapin_user';
+        }
+
+        $username = $candidate;
+        $suffix   = 1;
+        while (username_exists($username)) {
+            $username = $candidate . $suffix;
+            $suffix++;
+        }
+
+        return $username;
+    }
+
+    private function maybeUpdateUserProfile(int $userId, array $payer, bool $force = false): void
+    {
+        if ($userId <= 0) {
+            return;
+        }
+
+        $fields = [
+            'first_name' => sanitize_text_field($payer['first_name'] ?? ''),
+            'last_name'  => sanitize_text_field($payer['last_name'] ?? ''),
+            'phone'      => AttendeeFields::sanitizeValue('phone', (string) ($payer['phone'] ?? '')),
+            'instagram'  => AttendeeFields::sanitizeValue('instagram', (string) ($payer['instagram'] ?? '')),
+            'tiktok'     => AttendeeFields::sanitizeValue('tiktok', (string) ($payer['tiktok'] ?? '')),
+            'facebook'   => AttendeeFields::sanitizeValue('facebook', (string) ($payer['facebook'] ?? '')),
+            'birth_date' => AttendeeFields::sanitizeValue('birth_date', (string) ($payer['birth_date'] ?? '')),
+            'gender'     => AttendeeFields::sanitizeValue('gender', (string) ($payer['gender'] ?? '')),
+            'id_number'  => AttendeeFields::sanitizeValue('id_number', (string) ($payer['id_number'] ?? '')),
+        ];
+
+        $this->maybeUpdateMeta($userId, 'first_name', $fields['first_name'], $force);
+        $this->maybeUpdateMeta($userId, 'last_name', $fields['last_name'], $force);
+        $this->maybeUpdateMeta($userId, 'billing_first_name', $fields['first_name'], $force);
+        $this->maybeUpdateMeta($userId, 'billing_last_name', $fields['last_name'], $force);
+
+        $phone = $fields['phone'];
+        if ($phone !== '') {
+            $this->maybeUpdateMeta($userId, 'billing_phone', $phone, $force);
+            $this->maybeUpdateMeta($userId, 'phone_whatsapp', preg_replace('/\D+/', '', $phone), $force);
+        }
+
+        $instagramHandle = $fields['instagram'];
+        if ($instagramHandle !== '') {
+            $rawInstagram = (string) get_user_meta($userId, 'instagram', true);
+            $currentHandle = AttendeeFields::sanitizeValue('instagram', $rawInstagram);
+            if ($force || $currentHandle === '' || $currentHandle !== $instagramHandle || trim($rawInstagram) !== $instagramHandle) {
+                update_user_meta($userId, 'instagram', $instagramHandle);
+                update_user_meta($userId, 'instagram_url', 'https://instagram.com/' . $instagramHandle);
+            }
+        }
+
+        $tiktokHandle = $fields['tiktok'];
+        if ($tiktokHandle !== '') {
+            $rawTiktok   = (string) get_user_meta($userId, 'tiktok', true);
+            $currentTikTok = AttendeeFields::sanitizeValue('tiktok', $rawTiktok);
+            if ($force || $currentTikTok === '' || $currentTikTok !== $tiktokHandle || trim($rawTiktok) !== $tiktokHandle) {
+                update_user_meta($userId, 'tiktok', $tiktokHandle);
+                update_user_meta($userId, 'tiktok_url', 'https://www.tiktok.com/@' . $tiktokHandle);
+            }
+        }
+
+        if ($fields['facebook'] !== '') {
+            $rawFacebook    = (string) get_user_meta($userId, 'facebook', true);
+            $currentFacebook = AttendeeFields::sanitizeValue('facebook', $rawFacebook);
+            if ($force || $currentFacebook === '' || $currentFacebook !== $fields['facebook'] || trim($rawFacebook) !== $fields['facebook']) {
+                update_user_meta($userId, 'facebook', $fields['facebook']);
+                update_user_meta($userId, 'facebook_url', $fields['facebook']);
+            }
+        }
+
+        if ($fields['birth_date'] !== '') {
+            $this->maybeUpdateMeta($userId, 'birth_date', $fields['birth_date'], $force);
+            $this->maybeUpdateMeta($userId, 'um_birth_date', $fields['birth_date'], $force);
+        }
+
+        if ($fields['gender'] !== '') {
+            $this->maybeUpdateMeta($userId, 'gender', $fields['gender'], $force);
+            $this->maybeUpdateMeta($userId, 'um_gender', $fields['gender'], $force);
+        }
+
+        if ($fields['id_number'] !== '') {
+            $this->maybeUpdateMeta($userId, 'id_number', $fields['id_number'], $force);
+        }
+
+        $user = get_userdata($userId);
+        if ($user) {
+            $displayCandidates = trim(($fields['first_name'] ? $fields['first_name'] . ' ' : '') . $fields['last_name']);
+            if ($displayCandidates !== '') {
+                $currentDisplay = trim((string) $user->display_name);
+                $shouldUpdateDisplay = $force
+                    || $currentDisplay === ''
+                    || $currentDisplay === $user->user_login
+                    || $currentDisplay === $user->user_email;
+
+                if ($shouldUpdateDisplay) {
+                    wp_update_user([
+                        'ID'           => $userId,
+                        'display_name' => $displayCandidates,
+                        'nickname'     => $displayCandidates,
+                    ]);
+                }
+            }
+        }
+    }
+
+    /**
+     * @return array{list: array<int,array<string,mixed>>, index: array<string,array<string,mixed>>}
+     */
+    private function ensureTicketTypeCache(int $productId): array
+    {
+        if (!isset($this->ticketTypeCache[$productId])) {
+            $rawTypes = TicketTypesRepository::get($productId);
+            $activeWindow = SaleWindowsRepository::findActive($productId, $rawTypes);
+            $list = [];
+            $index = [];
+
+            foreach ($rawTypes as $type) {
+                if (!is_array($type)) {
+                    continue;
+                }
+
+                $id = isset($type['id']) ? (string) $type['id'] : '';
+                if ($id === '') {
+                    continue;
+                }
+
+                $basePrice = isset($type['base_price']) ? (float) $type['base_price'] : 0.0;
+                $price = $basePrice;
+                if (is_array($activeWindow) && isset($activeWindow['prices'][$id]) && (float) $activeWindow['prices'][$id] > 0) {
+                    $price = (float) $activeWindow['prices'][$id];
+                }
+
+                $available = isset($type['available']) ? (int) $type['available'] : 0;
+                $capacity  = isset($type['capacity']) ? (int) $type['capacity'] : 0;
+
+                if ($capacity > 0 && $available > $capacity) {
+                    $available = $capacity;
+                }
+
+                $available = max(0, $available);
+                $capacity  = max(0, $capacity);
+                $isSoldOut = $capacity > 0 && $available <= 0;
+
+                $entry = [
+                    'id'                 => $id,
+                    'name'               => (string) ($type['name'] ?? $id),
+                    'description'        => (string) ($type['description'] ?? ''),
+                    'price'              => $price,
+                    'base_price'         => $basePrice,
+                    'available'          => $available,
+                    'capacity'           => $capacity,
+                    'price_html'         => $this->formatTicketPrice($price),
+                    'availability_label' => $this->formatAvailability($capacity, $available),
+                    'sold_out'           => $isSoldOut,
+                ];
+
+                $list[]  = $entry;
+                $index[$id] = $entry;
+            }
+
+            $this->ticketTypeCache[$productId] = [
+                'list'  => $list,
+                'index' => $index,
+            ];
+
+            if (class_exists(TicketTypeTracer::class)) {
+                TicketTypeTracer::ensure($list);
+            }
+        }
+
+        return $this->ticketTypeCache[$productId];
+    }
+
+    private function formatTicketPrice(float $price): string
+    {
+        if ($price <= 0.0) {
+            $messages = $this->getModalMessages();
+            return esc_html($messages['ticketStepIncluded'] ?? __('כלול', 'tapin'));
+        }
+        if (function_exists('wc_price')) {
+            return wc_price($price);
+        }
+
+        return number_format_i18n($price, 2);
+    }
+
+    private function formatAvailability(int $capacity, int $available): string
+    {
+        $messages = $this->getModalMessages();
+        if ($capacity <= 0) {
+            return esc_html($messages['ticketStepNoLimit'] ?? __('ללא הגבלה', 'tapin'));
+        }
+
+        $template = (string) ($messages['ticketStepAvailability'] ?? __('זמין: %s', 'tapin'));
+        return sprintf($template, max(0, $available));
+    }
+
+    private function maybeUpdateMeta(int $userId, string $metaKey, string $value, bool $force): void
+    {
+        if ($value === '') {
+            return;
+        }
+
+        $current = get_user_meta($userId, $metaKey, true);
+        if (!$force && trim((string) $current) !== '') {
+            return;
+        }
+
+        update_user_meta($userId, $metaKey, $value);
+    }
+
+    private function isEligibleProduct(): bool
+    {
+        if (!function_exists('is_product') || !function_exists('wc_get_product') || !is_product()) {
+            return false;
+        }
+
+        $product = wc_get_product(get_the_ID());
+        if (!$product instanceof WC_Product) {
+            return false;
+        }
+
+        if (!$product->is_type('simple')) {
+            return false;
+        }
+
+        if (!$product->is_purchasable()) {
+            return false;
+        }
+
+        return ProductAvailability::isCurrentlyPurchasable((int) $product->get_id());
+    }
+
+    private function shouldHandleProduct(int $productId): bool
+    {
+        if (!function_exists('wc_get_product')) {
+            return false;
+        }
+
+        $product = wc_get_product($productId);
+        if (!$product instanceof WC_Product) {
+            return false;
+        }
+
+        if (!$product->is_type('simple')) {
+            return false;
+        }
+
+        if (!$product->is_purchasable()) {
+            return false;
+        }
+
+        return ProductAvailability::isCurrentlyPurchasable($productId);
+    }
+
+    private function assetVersion(string $path): string
+    {
+        $mtime = file_exists($path) ? filemtime($path) : false;
+        return $mtime ? (string) $mtime : '1.0.0';
+    }
+
+    /**** SAFE STRINGIFY FOR NOTICES/LOGS ****/
+    private function str_notice($v): string
+    {
+        if (is_string($v)) {
+            return $v;
+        }
+        if (is_scalar($v)) {
+            return (string) $v;
+        }
+        $json = wp_json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return is_string($json) ? $json : '';
+    }
+}

@@ -388,7 +388,7 @@ final class AttendeeFields
         }
 
         $handle = '';
-        if (preg_match('#instagram\.com/(@?[^/?#]+)#i', $value, $matches)) {
+        if (preg_match('~instagram\.com/(@?[^/?#]+)~i', $value, $matches)) {
             $handle = $matches[1];
         } else {
             $handle = ltrim($value, '@/');
@@ -411,7 +411,7 @@ final class AttendeeFields
         }
 
         $handle = '';
-        if (preg_match('#tiktok\.com/@([^/?#]+)#i', $value, $matches)) {
+        if (preg_match('~tiktok\.com/@([^/?#]+)~i', $value, $matches)) {
             $handle = $matches[1];
         } else {
             $handle = ltrim($value, '@/');
@@ -456,5 +456,27 @@ final class AttendeeFields
     private static function decodeEntities(string $value): string
     {
         return html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    public static function normalizeLabel(string $label): string
+    {
+        $s = trim((string) $label);
+        if ($s === '') {
+            return '';
+        }
+        // unify spaces/hyphens/underscores into a single space
+        $s = preg_replace('/[\p{Z}\s\-_]+/u', ' ', $s);
+        if (!is_string($s)) {
+            $s = '';
+        }
+        if ($s !== '') {
+            $s = function_exists('mb_strtolower') ? mb_strtolower($s, 'UTF-8') : strtolower($s);
+        }
+        return trim($s);
+    }
+
+    public static function labelsEqual(string $a, string $b): bool
+    {
+        return self::normalizeLabel($a) === self::normalizeLabel($b);
     }
 }

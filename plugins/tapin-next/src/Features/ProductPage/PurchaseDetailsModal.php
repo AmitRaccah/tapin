@@ -426,6 +426,10 @@ final class PurchaseDetailsModal implements Service
         }
 
         $decoded = json_decode(wp_unslash((string) $_POST['tapin_attendees']), true);
+        // TEMP debug
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[tapin] tapin_attendees payload: ' . wp_json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        }
         if (!is_array($decoded)) {
             wc_add_notice('נראה שיש בעיה בנתוני המשתתפים, אנא נסו שוב.', 'error');
             return false;
@@ -453,7 +457,7 @@ final class PurchaseDetailsModal implements Service
 
         if ($errors !== []) {
             foreach ($errors as $message) {
-                wc_add_notice($message, 'error');
+                wc_add_notice($this->str_notice($message), 'error');
             }
 
             return false;
@@ -558,7 +562,7 @@ final class PurchaseDetailsModal implements Service
 
                     if ($errors !== []) {
                         foreach ($errors as $message) {
-                            wc_add_notice($message, 'error');
+                            wc_add_notice($this->str_notice($message), 'error');
                         }
 
                         return $cartItemData;
@@ -591,6 +595,17 @@ final class PurchaseDetailsModal implements Service
         $cartItemData['unique_hash'] = md5((string) $cartItemData['tapin_attendees_key']);
         if ($price !== null) {
             $cartItemData['tapin_ticket_price'] = $price;
+        }
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[tapin] attach_cart_item: ' . wp_json_encode([
+                'generated'        => (bool) $isGenerated,
+                'ticket_type'      => $attendee['ticket_type'] ?? '',
+                'ticket_label'     => $attendee['ticket_type_label'] ?? '',
+                'ticket_price'     => $price,
+                'attendees_key'    => $cartItemData['tapin_attendees_key'],
+                'queue_remaining'  => count($this->attendeeQueue),
+                'pending_remaining'=> count($this->pendingAttendees),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         }
 
         // Debug trace for cart attachment
@@ -812,7 +827,11 @@ final class PurchaseDetailsModal implements Service
             }
 
             foreach ($metaKeys as $metaKey) {
-                $raw = (string) get_user_meta($userId, $metaKey, true);
+                $rawValue = get_user_meta($userId, $metaKey, true);
+                if (is_array($rawValue) || is_object($rawValue)) {
+                    continue;
+                }
+                $raw = (string) $rawValue;
                 if ($raw === '') {
                     continue;
                 }
@@ -951,11 +970,33 @@ final class PurchaseDetailsModal implements Service
                 $source = 'attendee';
             }
 
-            if ($price === null && $typeId !== '' && $productId > 0) {
+            if ($price === null && $productId > 0) {
                 $cache = $this->ensureTicketTypeCache($productId);
-                if (!empty($cache['index'][$typeId]) && isset($cache['index'][$typeId]['price'])) {
+
+                // Resolve by id first
+                if ($typeId !== '' && !empty($cache['index'][$typeId]) && isset($cache['index'][$typeId]['price'])) {
                     $price = (float) $cache['index'][$typeId]['price'];
                     $source = 'cache';
+                } elseif ($typeId === '') {
+                    // Optional fallback by label – normalized strict equality only
+                    $label = !empty($item['tapin_attendees'][0]['ticket_type_label'])
+                        ? (string) $item['tapin_attendees'][0]['ticket_type_label']
+                        : '';
+                    $needle = \Tapin\Events\Support\AttendeeFields::normalizeLabel($label);
+                    if ($typeId === '' && $needle !== '') {
+                        foreach ($cache['index'] as $idCandidate => $meta) {
+                            $name = isset($meta['name']) ? (string) $meta['name'] : '';
+                            if ($name !== '' &&
+                                \Tapin\Events\Support\AttendeeFields::labelsEqual($name, $label)) {
+                                $typeId = (string) $idCandidate;
+                                if (isset($meta['price'])) {
+                                    $price  = (float) $meta['price'];
+                                    $source = 'cache_label';
+                                }
+                                break;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -974,7 +1015,36 @@ final class PurchaseDetailsModal implements Service
             }
 
             if (isset($item['data']) && $item['data'] instanceof WC_Product) {
-                $item['data']->set_price($price);
+                $productObj = $item['data'];
+                $formattedPrice = wc_format_decimal($price, wc_get_price_decimals());
+                $productObj->set_regular_price($formattedPrice);
+                $productObj->set_sale_price($formattedPrice);
+                if (method_exists($productObj, 'set_date_on_sale_from')) {
+                    $productObj->set_date_on_sale_from(null);
+                }
+                if (method_exists($productObj, 'set_date_on_sale_to')) {
+                    $productObj->set_date_on_sale_to(null);
+                }
+                if (method_exists($productObj, 'set_on_sale')) {
+                    $productObj->set_on_sale(false);
+                }
+                $productObj->set_price($formattedPrice);
+            }
+
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('[tapin] apply_pricing: ' . wp_json_encode([
+                    'cart_key'            => (string) $key,
+                    'product_id'          => $productId,
+                    'resolved_ticket_id'  => $typeId,
+                    'source'              => $source,
+                    'final_price'         => $price,
+                    'incoming_item_price' => $incomingItemPrice,
+                    'incoming_att_price'  => $incomingAttendeePrice,
+                    'product_price'       => isset($item['data']) && $item['data'] instanceof WC_Product ? $item['data']->get_price() : null,
+                    'product_regular'     => isset($item['data']) && $item['data'] instanceof WC_Product ? $item['data']->get_regular_price() : null,
+                    'product_sale'        => isset($item['data']) && $item['data'] instanceof WC_Product ? $item['data']->get_sale_price() : null,
+                    'product_on_sale'     => isset($item['data']) && $item['data'] instanceof WC_Product ? $item['data']->is_on_sale() : null,
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             }
         }
     }
@@ -1028,6 +1098,14 @@ final class PurchaseDetailsModal implements Service
         $ticketTypeLabel = '';
         $ticketPrice     = 0.0;
 
+        // Accept aliases coming from the modal payload
+        if ($ticketTypeId === '' && !empty($attendee['ticket_type_select'])) {
+            $ticketTypeId = sanitize_key((string) $attendee['ticket_type_select']);
+        }
+        if (empty($attendee['ticket_type_label']) && !empty($attendee['ticket_type_select_label'])) {
+            $attendee['ticket_type_label'] = (string) $attendee['ticket_type_select_label'];
+        }
+
         // Primary: resolve by id
         if ($ticketTypeId !== '' && isset($this->currentTicketTypeIndex[$ticketTypeId])) {
             $context = $this->currentTicketTypeIndex[$ticketTypeId];
@@ -1040,12 +1118,12 @@ final class PurchaseDetailsModal implements Service
         // Fallback: resolve id by label if id missing
         if ($ticketTypeId === '') {
             $rawLabel = isset($attendee['ticket_type_label']) ? (string) $attendee['ticket_type_label'] : '';
-            $normalizedLabel = trim((function_exists('mb_strtolower') ? mb_strtolower($rawLabel) : strtolower($rawLabel)));
-            if ($normalizedLabel !== '') {
+            $needle   = \Tapin\Events\Support\AttendeeFields::normalizeLabel($rawLabel);
+            if ($needle !== '') {
                 foreach ($this->currentTicketTypeIndex as $idCandidate => $ctx) {
                     $nameCandidate = isset($ctx['name']) ? (string) $ctx['name'] : '';
-                    $nameCandidateNorm = trim((function_exists('mb_strtolower') ? mb_strtolower($nameCandidate) : strtolower($nameCandidate)));
-                    if ($nameCandidate !== '' && $nameCandidateNorm === $normalizedLabel) {
+                    if ($nameCandidate !== '' &&
+                        \Tapin\Events\Support\AttendeeFields::labelsEqual($nameCandidate, $rawLabel)) {
                         $ticketTypeId    = (string) $idCandidate;
                         $ticketTypeLabel = $nameCandidate;
                         if (isset($ctx['price'])) {
@@ -1069,6 +1147,16 @@ final class PurchaseDetailsModal implements Service
 
         if (class_exists(TicketTypeTracer::class)) {
             TicketTypeTracer::sanitize($attendee, (string) $clean['ticket_type'], (float) $clean['ticket_price']);
+        }
+
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[tapin] sanitized_attendee: ' . wp_json_encode([
+                'index'        => $index,
+                'payer'        => $isPayer,
+                'ticket_type'  => $clean['ticket_type'],
+                'ticket_label' => $clean['ticket_type_label'],
+                'ticket_price' => $clean['ticket_price'],
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         }
 
         $firstName = isset($clean['first_name']) ? (string) $clean['first_name'] : '';
@@ -1535,7 +1623,8 @@ final class PurchaseDetailsModal implements Service
         }
 
         $current = get_user_meta($userId, $metaKey, true);
-        if (!$force && trim((string) $current) !== '') {
+        $currentString = is_scalar($current) ? (string) $current : '';
+        if (!$force && trim($currentString) !== '') {
             return;
         }
 
@@ -1590,5 +1679,18 @@ final class PurchaseDetailsModal implements Service
     {
         $mtime = file_exists($path) ? filemtime($path) : false;
         return $mtime ? (string) $mtime : '1.0.0';
+    }
+
+    /**** SAFE STRINGIFY FOR NOTICES/LOGS ****/
+    private function str_notice($v): string
+    {
+        if (is_string($v)) {
+            return $v;
+        }
+        if (is_scalar($v)) {
+            return (string) $v;
+        }
+        $json = wp_json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return is_string($json) ? $json : '';
     }
 }

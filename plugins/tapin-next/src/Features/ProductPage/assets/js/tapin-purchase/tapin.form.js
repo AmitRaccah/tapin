@@ -313,11 +313,12 @@
     var plan = attendeePlan || [];
     attendees.forEach(function (attendee, index) {
       var slot = plan[index] || null;
+      var selectedTypeName = slot && slot.label ? slot.label : '';
       if (!attendee.ticket_type && slot && slot.typeId) {
         attendee.ticket_type = slot.typeId;
       }
-      if (!attendee.ticket_type_label && slot && slot.label) {
-        attendee.ticket_type_label = slot.label;
+      if (!attendee.ticket_type_label && selectedTypeName) {
+        attendee.ticket_type_label = selectedTypeName;
       }
     });
 

@@ -1,0 +1,44 @@
+        return $url;
+    }
+
+    public function applyAttendeePricing($cart): void
+    {
+        if (!is_object($cart) || !method_exists($cart, 'get_cart')) {
+            return;
+        }
+
+        if (is_admin() && !wp_doing_ajax()) {
+            return;
+        }
+
+        foreach ($cart->get_cart() as $key => $item) {
+            $incomingItemPrice     = isset($item['tapin_ticket_price']) ? (float) $item['tapin_ticket_price'] : null;
+            $incomingAttendeePrice = !empty($item['tapin_attendees'][0]['ticket_price']) ? (float) $item['tapin_attendees'][0]['ticket_price'] : null;
+            $price = $incomingItemPrice ?? $incomingAttendeePrice;
+            $source = null;
+            $typeId = !empty($item['tapin_attendees'][0]['ticket_type'])
+                ? sanitize_key((string) $item['tapin_attendees'][0]['ticket_type'])
+                : '';
+            $productId = 0;
+            if (!empty($item['product_id'])) {
+                $productId = (int) $item['product_id'];
+            } elseif (!empty($item['data']) && method_exists($item['data'], 'get_id')) {
+                $productId = (int) $item['data']->get_id();
+            }
+
+            if ($incomingItemPrice !== null) {
+                $source = 'item';
+            } elseif ($incomingAttendeePrice !== null) {
+                $source = 'attendee';
+            }
+
+            if ($price === null && $productId > 0) {
+                $cache = $this->ensureTicketTypeCache($productId);
+
+                // Resolve by id first
+                if ($typeId !== '' && !empty($cache['index'][$typeId]) && isset($cache['index'][$typeId]['price'])) {
+                    $price = (float) $cache['index'][$typeId]['price'];
+                    $source = 'cache';
+                } elseif ($typeId === '') {
+                    // Optional fallback by label – normalized strict equality only
+                    $label = !empty($item['tapin_attendees'][0]['ticket_type_label'])
