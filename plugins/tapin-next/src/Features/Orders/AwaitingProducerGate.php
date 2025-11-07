@@ -85,7 +85,7 @@ final class AwaitingProducerGate implements Service
         if (in_array($to, ['cancelled', 'refunded', 'failed'], true)) {
             return;
         }
-        if ($to === $awaiting) {
+        if ($to === $awaiting || $to === PartialApprovalStatus::STATUS_SLUG) {
             return;
         }
 
@@ -101,7 +101,7 @@ final class AwaitingProducerGate implements Service
         }
 
         $order = wc_get_order($orderId);
-        if ($order instanceof WC_Order && $order->get_status() === self::awaitingStatusSlug()) {
+        if ($order instanceof WC_Order && $order->has_status([self::awaitingStatusSlug(), PartialApprovalStatus::STATUS_SLUG])) {
             return false;
         }
 
@@ -110,7 +110,7 @@ final class AwaitingProducerGate implements Service
 
     public function suppressProcessingEmail(bool $enabled, ?WC_Order $order): bool
     {
-        if ($order instanceof WC_Order && $order->has_status(self::awaitingStatusSlug())) {
+        if ($order instanceof WC_Order && $order->has_status([self::awaitingStatusSlug(), PartialApprovalStatus::STATUS_SLUG])) {
             return false;
         }
 

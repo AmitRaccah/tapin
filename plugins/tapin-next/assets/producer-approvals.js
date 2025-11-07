@@ -17,12 +17,35 @@
   var selectAllButton = document.getElementById('tapinPaSelectAll');
   if (selectAllButton && form) {
     selectAllButton.addEventListener('click', function () {
-      var checkboxes = Array.prototype.slice.call(form.querySelectorAll('.tapin-pa-order__checkbox[data-pending="1"]:not(:disabled)'));
-      if (!checkboxes.length) {
-        return;
+      var orderCheckboxes = Array.prototype.slice.call(form.querySelectorAll('.tapin-pa-order__checkbox[data-pending="1"]:not(:disabled)'));
+      if (orderCheckboxes.length) {
+        var hasUncheckedOrders = orderCheckboxes.some(function (cb) { return !cb.checked; });
+        orderCheckboxes.forEach(function (cb) { cb.checked = hasUncheckedOrders; });
       }
-      var hasUnchecked = checkboxes.some(function (cb) { return !cb.checked; });
-      checkboxes.forEach(function (cb) { cb.checked = hasUnchecked; });
+
+      var attendeeBoxes = Array.prototype.slice.call(document.querySelectorAll('.tapin-pa-attendee__approve:not(:disabled)')).filter(function (cb) {
+        return cb.offsetParent !== null;
+      });
+      if (attendeeBoxes.length) {
+        var hasUncheckedAttendees = attendeeBoxes.some(function (cb) { return !cb.checked; });
+        attendeeBoxes.forEach(function (cb) { cb.checked = hasUncheckedAttendees; });
+      }
+    });
+  }
+
+  var partialSaveButton = document.getElementById('tapinPaPartialSave');
+  if (partialSaveButton && form) {
+    partialSaveButton.addEventListener('click', function () {
+      var existing = form.querySelector('input[name="bulk_partial"]');
+      if (existing && existing.parentNode) {
+        existing.parentNode.removeChild(existing);
+      }
+      var hidden = document.createElement('input');
+      hidden.type = 'hidden';
+      hidden.name = 'bulk_partial';
+      hidden.value = '1';
+      form.appendChild(hidden);
+      form.submit();
     });
   }
 

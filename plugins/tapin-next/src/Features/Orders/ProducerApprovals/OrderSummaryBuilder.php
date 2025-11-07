@@ -5,6 +5,7 @@ namespace Tapin\Events\Features\Orders\ProducerApprovals;
 
 use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\AttendeeSecureStorage;
+use Tapin\Events\Support\Orders as OrderHelpers;
 use Tapin\Events\Support\Time;
 use WC_Order;
 use WC_Order_Item_Product;
@@ -75,16 +76,21 @@ final class OrderSummaryBuilder
         $primaryAttendee   = null;
 
         foreach ($order->get_items('line_item') as $item) {
-            if (!$this->isProducerLineItem($item, $producerId)) {
+            if (!OrderHelpers::isProducerLineItem($item, $producerId)) {
                 continue;
             }
 
             $quantity = (int) $item->get_quantity();
+            $itemId   = (int) $item->get_id();
+            $productId = (int) $item->get_product_id();
+            $eventTimestamp = OrderHelpers::itemEventTimestamp($item);
+            $approvedIndices = $this->getApprovedIndices($item);
+
             $items[] = sprintf('%s &#215; %d', esc_html($item->get_name()), $quantity);
             $totalQuantity += $quantity;
 
             $eventMeta = $this->resolveEventMeta($item);
-            $eventKey  = (string) ($eventMeta['event_id'] ?: $eventMeta['product_id'] ?: $item->get_id());
+            $eventKey  = (string) ($eventMeta['event_id'] ?: $eventMeta['product_id'] ?: $itemId);
 
             if (!isset($eventMap[$eventKey])) {
                 $eventMap[$eventKey] = array_merge($eventMeta, [
@@ -103,19 +109,27 @@ final class OrderSummaryBuilder
                 'name'     => $item->get_name(),
                 'quantity' => $quantity,
                 'total'    => $formattedTotal,
+                'item_id'  => $itemId,
+                'product_id' => $productId,
             ];
 
             $lineAttendees        = $this->extractAttendees($item);
             $lineDisplayAttendees = [];
-            foreach ($lineAttendees as $attendee) {
+            foreach ($lineAttendees as $idx => $attendee) {
                 $allAttendeesList[] = $attendee;
                 if ($primaryAttendee === null) {
                     $primaryAttendee = $attendee;
-                    continue;
+                } else {
+                    $attendeesList[] = $attendee;
                 }
 
-                $attendeesList[] = $attendee;
-                $lineDisplayAttendees[] = $attendee;
+                $lineDisplayAttendees[] = array_merge($attendee, [
+                    'item_id'       => $itemId,
+                    'product_id'    => $productId,
+                    'idx'           => (int) $idx,
+                    'approved'      => in_array((int) $idx, $approvedIndices, true),
+                    'event_date_ts' => $eventTimestamp,
+                ]);
             }
 
             if ($lineDisplayAttendees !== []) {
@@ -241,7 +255,7 @@ final class OrderSummaryBuilder
             $image = (string) wc_placeholder_img_src();
         }
 
-        $eventTimestamp = $targetId ? Time::productEventTs((int) $targetId) : 0;
+        $eventTimestamp = OrderHelpers::itemEventTimestamp($item);
         $eventDateLabel = '';
         if ($eventTimestamp > 0) {
             $eventDateLabel = wp_date(
@@ -326,6 +340,33 @@ final class OrderSummaryBuilder
     }
 
     /**
+     * @return array<int,int>
+     */
+    private function getApprovedIndices(WC_Order_Item_Product $item): array
+    {
+        $indices = [];
+        $raw = (array) $item->get_meta('_tapin_attendees_approved', true);
+
+        foreach ($raw as $value) {
+            if ($value === '' || $value === null) {
+                continue;
+            }
+
+            $index = (int) $value;
+            if ($index < 0) {
+                continue;
+            }
+
+            $indices[] = $index;
+        }
+
+        $indices = array_values(array_unique($indices));
+        sort($indices);
+
+        return $indices;
+    }
+
+    /**
      * @param array<string,string> $data
      */
     private function normalizeAttendee(array $data): array
@@ -379,32 +420,6 @@ final class OrderSummaryBuilder
         $logger->info($message, ['source' => 'tapin-attendees-audit']);
 
         do_action('tapin_events_attendee_audit_log', $orderId, $viewerId, $count, time());
-    }
-
-    private function isProducerLineItem($item, int $producerId): bool
-    {
-        if (!$item instanceof WC_Order_Item_Product) {
-            return false;
-        }
-
-        $productId = $item->get_product_id();
-        if (!$productId) {
-            return false;
-        }
-
-        if ((int) get_post_field('post_author', $productId) === $producerId) {
-            return true;
-        }
-
-        $product = $item->get_product();
-        if ($product instanceof WC_Product) {
-            $parentId = $product->get_parent_id();
-            if ($parentId && (int) get_post_field('post_author', $parentId) === $producerId) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function getUserProfile(int $userId): array

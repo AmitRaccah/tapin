@@ -34,7 +34,7 @@ final class EventGrouper
                         'event_date_ts'    => isset($eventData['event_date_ts']) ? (int) $eventData['event_date_ts'] : 0,
                         'event_date_label' => (string) ($eventData['event_date_label'] ?? ''),
                         'latest_order_ts'  => 0,
-                        'counts'    => ['pending' => 0, 'approved' => 0, 'cancelled' => 0],
+                        'counts'    => ['pending' => 0, 'partial' => 0, 'approved' => 0, 'cancelled' => 0],
                         'orders'    => [],
                         'search'    => '',
                     ];
@@ -107,6 +107,11 @@ final class EventGrouper
                 return $pendingDiff;
             }
 
+            $partialDiff = ($b['counts']['partial'] ?? 0) <=> ($a['counts']['partial'] ?? 0);
+            if ($partialDiff !== 0) {
+                return $partialDiff;
+            }
+
             $approvedDiff = ($b['counts']['approved'] ?? 0) <=> ($a['counts']['approved'] ?? 0);
             if ($approvedDiff !== 0) {
                 return $approvedDiff;
@@ -122,7 +127,11 @@ final class EventGrouper
     {
         $normalized = strtolower($status);
 
-        if (in_array($normalized, [\Tapin\Events\Features\Orders\AwaitingProducerStatus::STATUS_SLUG, 'pending', 'on-hold'], true)) {
+        if (in_array($normalized, [\Tapin\Events\Features\Orders\PartialApprovalStatus::STATUS_SLUG, 'wc-partial-appr'], true)) {
+            return 'partial';
+        }
+
+        if (in_array($normalized, [\Tapin\Events\Features\Orders\AwaitingProducerStatus::STATUS_SLUG, 'pending', 'on-hold', 'wc-awaiting-producer'], true)) {
             return 'pending';
         }
 

@@ -4,10 +4,10 @@ declare(strict_types=1);
 namespace Tapin\Events\Features\Orders\ProducerApprovals;
 
 use Tapin\Events\Features\Orders\AwaitingProducerStatus;
+use Tapin\Events\Features\Orders\PartialApprovalStatus;
 use Tapin\Events\Support\Orders;
 use WC_Order;
 use WC_Order_Item_Product;
-use WC_Product;
 
 final class OrderQuery
 {
@@ -16,8 +16,10 @@ final class OrderQuery
      */
     public function resolveProducerOrderIds(int $producerId): array
     {
+        $gatedStatuses = [AwaitingProducerStatus::STATUS_KEY, PartialApprovalStatus::STATUS_KEY];
+
         $awaitingIds = wc_get_orders([
-            'status' => [AwaitingProducerStatus::STATUS_KEY],
+            'status' => $gatedStatuses,
             'limit'  => 200,
             'return' => 'ids',
         ]);
@@ -31,7 +33,7 @@ final class OrderQuery
         }
 
         $pendingIds = wc_get_orders([
-            'status' => [AwaitingProducerStatus::STATUS_KEY],
+            'status' => $gatedStatuses,
             'limit'  => 200,
             'return' => 'ids',
         ]);
@@ -81,32 +83,6 @@ final class OrderQuery
         ];
     }
 
-    private function isProducerLineItem($item, int $producerId): bool
-    {
-        if (!$item instanceof WC_Order_Item_Product) {
-            return false;
-        }
-
-        $productId = $item->get_product_id();
-        if (!$productId) {
-            return false;
-        }
-
-        if ((int) get_post_field('post_author', $productId) === $producerId) {
-            return true;
-        }
-
-        $product = $item->get_product();
-        if ($product instanceof WC_Product) {
-            $parentId = $product->get_parent_id();
-            if ($parentId && (int) get_post_field('post_author', $parentId) === $producerId) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private function orderBelongsToProducer(WC_Order $order, int $producerId): bool
     {
         $metaIds = array_filter(array_map('intval', (array) $order->get_meta('_tapin_producer_ids')));
@@ -115,7 +91,7 @@ final class OrderQuery
         }
 
         foreach ($order->get_items('line_item') as $item) {
-            if ($this->isProducerLineItem($item, $producerId)) {
+            if ($item instanceof WC_Order_Item_Product && Orders::isProducerLineItem($item, $producerId)) {
                 return true;
             }
         }

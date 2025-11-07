@@ -31,16 +31,31 @@ final class ShortcodeController
         $relevantIds = $orderSets['relevant'];
         $displayIds  = $orderSets['display'];
 
-        $notice = '';
+        $noticeParts = [];
         if ('POST' === ($_SERVER['REQUEST_METHOD'] ?? '')) {
+            if (!empty($_POST['bulk_partial']) || !empty($_POST['approve_attendee'])) {
+                $partial = new PartialApprovalsController();
+                $partialRes = $partial->handle($relevantIds, $producerId);
+                if (!empty($partialRes['notice'])) {
+                    $noticeParts[] = (string) $partialRes['notice'];
+                }
+
+                $orderSets   = $ordersQuery->resolveProducerOrderIds($producerId);
+                $relevantIds = $orderSets['relevant'];
+                $displayIds  = $orderSets['display'];
+            }
+
             $bulk = new BulkActionsController();
-            $res  = $bulk->handle($relevantIds);
-            $notice = (string) ($res['notice'] ?? '');
+            $bulkRes  = $bulk->handle($relevantIds);
+            if (!empty($bulkRes['notice'])) {
+                $noticeParts[] = (string) $bulkRes['notice'];
+            }
 
             $orderSets   = $ordersQuery->resolveProducerOrderIds($producerId);
             $relevantIds = $orderSets['relevant'];
             $displayIds  = $orderSets['display'];
         }
+        $notice = implode('', $noticeParts);
 
         $summary = new OrderSummaryBuilder();
         $collections   = $summary->summarizeOrders($displayIds, $producerId);
