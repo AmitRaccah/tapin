@@ -31,6 +31,15 @@ final class ProducerEventSales implements Service {
         'range_from'          => "\u{05DE}\u{002D}",
         'range_to'            => "\u{05E2}\u{05D3}",
         'window_single'       => "\u{05D7}\u{05DC}\u{05D5}\u{05DF}",
+        'amounts_heading'     => "\u{05E1}\u{05DB}\u{05D5}\u{05DD} \u{05DB}\u{05DC}\u{05DC}\u{05D9}\u{05DD}",
+        'sum_total'           => "\u{05E1}\u{05DB}\u{05D5}\u{05DD} \u{05DB}\u{05D5}\u{05DC}\u{05DC}",
+        'sum_link'            => "\u{05E1}\u{05DB}\u{05D5}\u{05DD} \u{05DE}\u{05D4}\u{05DC}\u{05D9}\u{05E0}\u{05E7}",
+        'sum_direct'          => "\u{05E1}\u{05DB}\u{05D5}\u{05DD} \u{05DC}\u{05D0} \u{05DE}\u{05D4}\u{05DC}\u{05D9}\u{05E0}\u{05E7}",
+        'sum_commission_link' => "\u{05E2}\u{05DE}\u{05DC}\u{05D4} \u{05DE}\u{05D4}\u{05DC}\u{05D9}\u{05E0}\u{05E7}",
+        'producer_commission' => "\u{05E2}\u{05DE}\u{05DC}\u{05EA} \u{05DE}\u{05E4}\u{05D9}\u{05E7}",
+        'producer_commission_percent' => "\u{05D0}\u{05D7}\u{05D5}\u{05D6}\u{05D9}\u{05DD}",
+        'producer_commission_flat'    => "\u{05E9}\u{05E7}\u{05DC}\u{05D9}\u{05DD}",
+        'producer_commission_none'    => "\u{05DC}\u{05D0} \u{05D4}\u{05D5}\u{05D2}\u{05D3}\u{05D4} \u{05E2}\u{05DE}\u{05DC}\u{05D4}",
     ];
     public function register(): void { add_shortcode('producer_event_sales', [$this,'render']); }
 
@@ -178,7 +187,9 @@ final class ProducerEventSales implements Service {
                     continue;
                 }
                 if (!isset($rows[$pid])) {
-                    $rows[$pid] = $this->createEventRow($pid, $get_thumb, $get_event_ts, $author);
+                    $rows[$pid] = $this->createEventRow($pid, $get_thumb, $get_event_ts, $author, $get_commission_meta($pid));
+                } elseif (empty($rows[$pid]['commission_meta'])) {
+                    $rows[$pid]['commission_meta'] = $get_commission_meta($pid);
                 }
                 $qty = (int) $item->get_quantity();
                 $line_total = (float) $item->get_total();
@@ -204,7 +215,9 @@ final class ProducerEventSales implements Service {
             foreach ($pids as $pid){
                 if (!isset($rows[$pid])) {
                     $author = $get_author((int) $pid) ?: $vendor_id;
-                    $rows[$pid] = $this->createEventRow((int) $pid, $get_thumb, $get_event_ts, (int) $author);
+                    $rows[$pid] = $this->createEventRow((int) $pid, $get_thumb, $get_event_ts, (int) $author, $get_commission_meta((int) $pid));
+                } elseif (empty($rows[$pid]['commission_meta'])) {
+                    $rows[$pid]['commission_meta'] = $get_commission_meta((int) $pid);
                 }
             }
         }
@@ -241,6 +254,10 @@ final class ProducerEventSales implements Service {
                   $search_blob = $this->buildSearchBlob($r);
                   $affCommission = (float) ($r['ref_commission'] ?? 0);
                   $eventDateLabel = isset($r['event_date_label']) ? (string) $r['event_date_label'] : '';
+                  $sumTotal = (float) ($r['sum'] ?? 0.0);
+                  $sumAffiliate = (float) ($r['ref_sum'] ?? 0.0);
+                  $sumDirect = max(0.0, $sumTotal - $sumAffiliate);
+                  $producerCommissionLabel = $this->describeProducerCommission($r['commission_meta'] ?? []);
               ?>
                 <div class="tapin-pa-event<?php echo $isOpen ? ' is-open' : ''; ?>" data-search="<?php echo esc_attr($search_blob); ?>">
                   <button class="tapin-pa-event__header" type="button" data-event-toggle aria-expanded="<?php echo $isOpen ? 'true' : 'false'; ?>">
@@ -303,6 +320,31 @@ final class ProducerEventSales implements Service {
                           </div>
                         </div>
                         <div class="tapin-pa-order__section">
+                          <h5 class="tapin-pa-order__section-title"><?php echo esc_html(self::TEXT['amounts_heading']); ?></h5>
+                          <div class="tapin-pa-order__grid">
+                            <div class="tapin-pa-order__card">
+                              <div class="tapin-pa-order__label"><?php echo esc_html(self::TEXT['sum_total']); ?></div>
+                              <div class="tapin-pa-order__value"><?php echo $this->formatMoney($sumTotal); ?></div>
+                            </div>
+                            <div class="tapin-pa-order__card">
+                              <div class="tapin-pa-order__label"><?php echo esc_html(self::TEXT['sum_link']); ?></div>
+                              <div class="tapin-pa-order__value"><?php echo $this->formatMoney($sumAffiliate); ?></div>
+                            </div>
+                            <div class="tapin-pa-order__card">
+                              <div class="tapin-pa-order__label"><?php echo esc_html(self::TEXT['sum_direct']); ?></div>
+                              <div class="tapin-pa-order__value"><?php echo $this->formatMoney($sumDirect); ?></div>
+                            </div>
+                            <div class="tapin-pa-order__card">
+                              <div class="tapin-pa-order__label"><?php echo esc_html(self::TEXT['sum_commission_link']); ?></div>
+                              <div class="tapin-pa-order__value"><?php echo $this->formatMoney($affCommission); ?></div>
+                            </div>
+                            <div class="tapin-pa-order__card">
+                              <div class="tapin-pa-order__label"><?php echo esc_html(self::TEXT['producer_commission']); ?></div>
+                              <div class="tapin-pa-order__value"><?php echo esc_html($producerCommissionLabel); ?></div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="tapin-pa-order__section">
                           <h5 class="tapin-pa-order__section-title"><?php echo esc_html(self::TEXT['special_heading']); ?></h5>
                           <?php if ($specialTypes): ?>
                             <ul class="tapin-pa-order__lines">
@@ -360,7 +402,7 @@ final class ProducerEventSales implements Service {
     /**
      * @param array<int,array<string,mixed>> $ticketTypes
      */
-    private function createEventRow(int $productId, callable $getThumb, callable $getEventTs, int $authorId): array {
+    private function createEventRow(int $productId, callable $getThumb, callable $getEventTs, int $authorId, array $commissionMeta = []): array {
         $ticketTypes = TicketTypesRepository::get($productId);
         $ticketIndex = $this->indexTicketTypes($ticketTypes);
         $regular = $this->resolveRegularTicket($ticketTypes);
@@ -381,6 +423,7 @@ final class ProducerEventSales implements Service {
             'ticket_index'      => $ticketIndex,
             'regular_type_id'   => $regular['id'],
             'regular_type_label'=> $regular['label'],
+            'commission_meta'   => $commissionMeta,
             'stats'             => [
                 'regular_total'     => 0,
                 'regular_affiliate' => 0,
@@ -666,5 +709,36 @@ final class ProducerEventSales implements Service {
             'ticket_type'       => $type,
             'ticket_type_label' => $label,
         ];
+    }
+
+    private function formatMoney(float $value): string {
+        if (function_exists('wc_price')) {
+            return wc_price($value);
+        }
+        return esc_html(number_format_i18n($value, 2));
+    }
+
+    private function describeProducerCommission(array $meta): string {
+        $type = isset($meta['type']) ? (string) $meta['type'] : '';
+        $amount = isset($meta['amount']) ? (float) $meta['amount'] : 0.0;
+
+        if ($type === 'percent' && $amount > 0) {
+            return sprintf(
+                '%s%% (%s)',
+                number_format_i18n($amount, 2),
+                self::TEXT['producer_commission_percent']
+            );
+        }
+
+        if ($type === 'flat' && $amount > 0) {
+            $money = function_exists('wc_price') ? wc_price($amount) : esc_html(number_format_i18n($amount, 2));
+            return sprintf(
+                '%s (%s)',
+                wp_strip_all_tags($money),
+                self::TEXT['producer_commission_flat']
+            );
+        }
+
+        return self::TEXT['producer_commission_none'];
     }
 }
