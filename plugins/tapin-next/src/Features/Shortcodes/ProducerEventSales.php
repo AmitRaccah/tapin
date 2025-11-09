@@ -35,6 +35,27 @@ final class ProducerEventSales implements Service {
             if (!$url) $url = includes_url('images/media/default.png');
             return $url;
         };
+        $event_ts_cache = [];
+        $get_event_ts = static function(int $pid) use (&$event_ts_cache): int {
+            if (!array_key_exists($pid, $event_ts_cache)) {
+                $ts = 0;
+                $raw = get_post_meta($pid, MetaKeys::EVENT_DATE, true);
+                if ($raw) {
+                    $maybe = strtotime($raw);
+                    if ($maybe) {
+                        $ts = $maybe;
+                    }
+                }
+                if (!$ts) {
+                    $post = get_post($pid);
+                    if ($post instanceof \WP_Post) {
+                        $ts = get_post_time('U', true, $pid) ?: strtotime($post->post_date_gmt ?: $post->post_date) ?: 0;
+                    }
+                }
+                $event_ts_cache[$pid] = $ts ?: 0;
+            }
+            return $event_ts_cache[$pid];
+        };
 
         $date_after  = $a['from'] ? date_i18n('Y-m-d 00:00:00', strtotime(sanitize_text_field($a['from']))) : '';
         $date_before = $a['to']   ? date_i18n('Y-m-d 23:59:59', strtotime(sanitize_text_field($a['to'])))   : '';
@@ -134,6 +155,7 @@ final class ProducerEventSales implements Service {
                         'ref_qty'=>0,
                         'ref_sum'=>0.0,
                         'ref_commission'=>0.0,
+                        'event_ts'=>$get_event_ts($pid),
                     ];
                 }
                 $qty = (int) $item->get_quantity();
@@ -167,12 +189,19 @@ final class ProducerEventSales implements Service {
                         'ref_qty'=>0,
                         'ref_sum'=>0.0,
                         'ref_commission'=>0.0,
+                        'event_ts'=>$get_event_ts($pid),
                     ];
                 }
             }
         }
 
-        uasort($rows, fn($a,$b)=> strcasecmp($a['name'],$b['name']));
+        uasort($rows, static function(array $a, array $b): int {
+            $dateDiff = ($b['event_ts'] ?? 0) <=> ($a['event_ts'] ?? 0);
+            if ($dateDiff !== 0) {
+                return $dateDiff;
+            }
+            return strcasecmp($a['name'] ?? '', $b['name'] ?? '');
+        });
 
         ob_start(); ?>
         <div class="tapin-sales-simple" dir="rtl" style="text-align:right">
