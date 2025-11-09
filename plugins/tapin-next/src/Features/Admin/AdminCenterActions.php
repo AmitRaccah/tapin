@@ -36,6 +36,7 @@ final class AdminCenterActions {
                     'ticket_types'=> $ticketTypesPost,
                     'sale_windows'=> $saleWindowsPost
                 ]);
+                self::persistProducerAffiliateMeta($pid);
                 wp_set_object_terms($pid, $termIds, 'product_cat', false);
                 if ($pending = get_term_by('slug','pending-events','product_cat')) wp_remove_object_terms($pid, [(int)$pending->term_id], 'product_cat');
                 wp_set_object_terms($pid,'simple','product_type',false);
@@ -60,6 +61,7 @@ final class AdminCenterActions {
                     'ticket_types'=> $ticketTypesPost,
                     'sale_windows'=> $saleWindowsPost
                 ]);
+                self::persistProducerAffiliateMeta($pid);
                 if (isset($_POST['cats'])) {
                     $termIds = Util::catSlugsToIds((array)$_POST['cats']);
                     if ($termIds) wp_set_object_terms($pid, $termIds, 'product_cat', false);
@@ -75,6 +77,7 @@ final class AdminCenterActions {
                     $svc->applyFields($pid, $data);
                     if (!empty($data['new_image_id'])) set_post_thumbnail($pid,(int)$data['new_image_id']);
                     if (!empty($data['new_background_id'])) update_post_meta($pid, MetaKeys::EVENT_BG_IMAGE, (int) $data['new_background_id']);
+                    self::persistProducerAffiliateMeta($pid);
                     delete_post_meta($pid, MetaKeys::EDIT_REQ);
                     if (function_exists('wc_delete_product_transients')) wc_delete_product_transients($pid);
                     clean_post_cache($pid);
@@ -105,5 +108,26 @@ final class AdminCenterActions {
                 return '<div class="tapin-notice tapin-notice--success">המכירה חודשה.</div>';
         }
         return '';
+    }
+
+    private static function persistProducerAffiliateMeta(int $pid): void
+    {
+        if ($pid <= 0) {
+            return;
+        }
+
+        $hasType   = isset($_POST['producer_aff_type']);
+        $hasAmount = array_key_exists('producer_aff_amount', $_POST);
+        if (!$hasType && !$hasAmount) {
+            return;
+        }
+
+        $rawType = $hasType ? sanitize_key(wp_unslash((string) $_POST['producer_aff_type'])) : '';
+        $type = in_array($rawType, ['percent', 'flat'], true) ? $rawType : 'percent';
+        $rawAmount = $hasAmount ? (string) wp_unslash((string) $_POST['producer_aff_amount']) : '0';
+        $amount = max(0, (float) $rawAmount);
+
+        update_post_meta($pid, MetaKeys::PRODUCER_AFF_TYPE, $type);
+        update_post_meta($pid, MetaKeys::PRODUCER_AFF_AMOUNT, $amount);
     }
 }

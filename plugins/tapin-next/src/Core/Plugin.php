@@ -39,6 +39,7 @@ class Plugin {
         \Tapin\Events\Features\Orders\AwaitingProducerGate::class,
         \Tapin\Events\Features\PricingOverrides::class,
         \Tapin\Events\Features\PurchasableGate::class,
+        \Tapin\Events\Integrations\Affiliate\AffiliateService::class,
     ];
 
     private function safeRegister(string $class): void {

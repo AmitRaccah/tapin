@@ -9,6 +9,8 @@ final class MetaKeys {
     public const EVENT_BG_IMAGE = '_tapin_event_bg_image';
     public const TICKET_TYPES   = '_tapin_ticket_types';
     public const TICKET_TYPE_SALES = '_tapin_ticket_type_sales';
+    public const PRODUCER_AFF_TYPE = '_tapin_producer_aff_type';
+    public const PRODUCER_AFF_AMOUNT = '_tapin_producer_aff_amount';
 
     public static function define(): void {
         if (!defined('TAPIN_META_SALE_WINDOWS'))   define('TAPIN_META_SALE_WINDOWS',   self::SALE_WINDOWS);
@@ -18,5 +20,7 @@ final class MetaKeys {
         if (!defined('TAPIN_META_EVENT_BG_IMAGE')) define('TAPIN_META_EVENT_BG_IMAGE', self::EVENT_BG_IMAGE);
         if (!defined('TAPIN_META_TICKET_TYPES'))   define('TAPIN_META_TICKET_TYPES',   self::TICKET_TYPES);
         if (!defined('TAPIN_META_TICKET_TYPE_SALES')) define('TAPIN_META_TICKET_TYPE_SALES', self::TICKET_TYPE_SALES);
+        if (!defined('TAPIN_META_PRODUCER_AFF_TYPE')) define('TAPIN_META_PRODUCER_AFF_TYPE', self::PRODUCER_AFF_TYPE);
+        if (!defined('TAPIN_META_PRODUCER_AFF_AMOUNT')) define('TAPIN_META_PRODUCER_AFF_AMOUNT', self::PRODUCER_AFF_AMOUNT);
     }
 }

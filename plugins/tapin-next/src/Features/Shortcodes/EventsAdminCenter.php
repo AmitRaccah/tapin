@@ -7,6 +7,7 @@ use Tapin\Events\Support\Assets;
 use Tapin\Events\Support\Cap;
 use Tapin\Events\Support\Util;
 use Tapin\Events\UI\Forms\EventFormRenderer;
+use Tapin\Events\Support\MetaKeys;
 
 final class EventsAdminCenter implements Service {
     public function register(): void { add_shortcode('events_admin_center', [$this,'render']); }
@@ -42,6 +43,7 @@ final class EventsAdminCenter implements Service {
                   <?php endforeach; ?>
                 </div>
               </div>
+              <?php $this->renderCommissionFields($pid); ?>
               <div class="tapin-actions">
                 <button type="submit" name="approve_new" class="tapin-btn tapin-btn--primary">אישור ופרסום</button>
                 <button type="submit" name="quick_save" class="tapin-btn tapin-btn--ghost">שמירה</button>
@@ -69,6 +71,7 @@ final class EventsAdminCenter implements Service {
                   <div>כמות: <?php echo esc_html($data['stock']??''); ?></div>
                 </div>
               </div>
+              <?php $this->renderCommissionFields($pid); ?>
               <div class="tapin-actions">
                 <button type="submit" name="approve_edit" class="tapin-btn tapin-btn--primary">אישור בקשה</button>
                 <button type="submit" name="reject_edit" class="tapin-btn tapin-btn--danger" onclick="return confirm('לדחות את הבקשה?');">דחייה</button>
@@ -96,6 +99,7 @@ final class EventsAdminCenter implements Service {
                   <?php endforeach; ?>
                 </div>
               </div>
+              <?php $this->renderCommissionFields($pid); ?>
               <div class="tapin-actions">
                 <button type="submit" name="quick_save" class="tapin-btn tapin-btn--ghost">שמירה</button>
                 <?php if ($is_paused): ?>
@@ -113,5 +117,43 @@ final class EventsAdminCenter implements Service {
         </div>
         <?php
         return ob_get_clean();
+    }
+
+    private function renderCommissionFields(int $pid): void {
+        $type = get_post_meta($pid, MetaKeys::PRODUCER_AFF_TYPE, true);
+        $amountMeta = get_post_meta($pid, MetaKeys::PRODUCER_AFF_AMOUNT, true);
+        $type = in_array($type, ['percent','flat'], true) ? $type : 'percent';
+        $amount = $amountMeta === '' ? '' : (string) (float) $amountMeta;
+        $currentPid = isset($_POST['pid']) ? (int) $_POST['pid'] : 0;
+        if ($currentPid === $pid) {
+            if (isset($_POST['producer_aff_type'])) {
+                $postedType = sanitize_key((string) $_POST['producer_aff_type']);
+                if (in_array($postedType, ['percent','flat'], true)) {
+                    $type = $postedType;
+                }
+            }
+            if (array_key_exists('producer_aff_amount', $_POST)) {
+                $postedAmount = $_POST['producer_aff_amount'];
+                $amount = $postedAmount === '' ? '' : (string) floatval($postedAmount);
+            }
+        }
+        ?>
+        <div class="tapin-form-row tapin-aff-row" dir="rtl">
+          <label>עמלת לינק</label>
+          <div class="tapin-columns-2 tapin-aff-row__fields">
+            <div>
+              <span class="tapin-field-label">סוג עמלה</span>
+              <select name="producer_aff_type">
+                <option value="percent" <?php selected($type,'percent'); ?>>%</option>
+                <option value="flat" <?php selected($type,'flat'); ?>>₪</option>
+              </select>
+            </div>
+            <div>
+              <span class="tapin-field-label">ערך עמלה</span>
+              <input type="number" name="producer_aff_amount" min="0" step="0.01" value="<?php echo esc_attr($amount); ?>" placeholder="0.00">
+            </div>
+          </div>
+        </div>
+        <?php
     }
 }
