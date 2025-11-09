@@ -29,6 +29,7 @@ final class AffiliateLinkUI
         $successText = 'הלינק הועתק.';
         $loadingText = 'טוען לינק...';
         $buttonLabel = 'העתקת לינק';
+        $successButtonLabel = 'הלינק הועתק!';
         $statusText = '';
 
         if (current_user_can('manage_woocommerce') && get_option('afwc_show_product_referral_url', 'no') !== 'yes') {
@@ -45,12 +46,15 @@ final class AffiliateLinkUI
         <div class="tapin-aff-link" dir="rtl" data-aff-link-wrapper>
           <button
             type="button"
-            class="tapin-aff-link__btn afwc-click-to-copy disabled"
+            class="tapin-aff-link__btn"
             data-product-id="<?php echo (int) $productId; ?>"
             data-empty-help="<?php echo esc_attr($helpText); ?>"
             data-generic-error="<?php echo esc_attr($genericError); ?>"
             data-success-text="<?php echo esc_attr($successText); ?>"
             data-loading-text="<?php echo esc_attr($loadingText); ?>"
+            data-label-default="<?php echo esc_attr($buttonLabel); ?>"
+            data-label-loading="<?php echo esc_attr($loadingText); ?>"
+            data-label-success="<?php echo esc_attr($successButtonLabel); ?>"
           ><?php echo esc_html($buttonLabel); ?></button>
           <small class="<?php echo esc_attr($noteClasses); ?>" data-aff-link-note><?php echo esc_html($statusText); ?></small>
         </div>
@@ -145,13 +149,43 @@ final class AffiliateLinkUI
         return legacyCopy(text) ? Promise.resolve() : Promise.reject();
     }
 
+    function setButtonLabel(btn, attr) {
+        var label = btn.getAttribute(attr) || btn.getAttribute('data-label-default') || '';
+        if (label) {
+            btn.textContent = label;
+        }
+    }
+
+    function resetButtonLabel(btn) {
+        setButtonLabel(btn, 'data-label-default');
+        btn.classList.remove('tapin-aff-link__btn--success');
+    }
+
+    function indicateSuccess(btn) {
+        setButtonLabel(btn, 'data-label-success');
+        btn.classList.add('tapin-aff-link__btn--success');
+        setTimeout(function(){
+            resetButtonLabel(btn);
+        }, 1800);
+    }
+
     $(document).on('click', '.tapin-aff-link__btn', function(evt){
         var btn = this;
-        if (btn.getAttribute('data-ctp')) {
-            return;
-        }
         evt.preventDefault();
         if (btn.getAttribute('data-loading') === '1') {
+            return;
+        }
+        var existing = btn.getAttribute('data-ctp');
+        if (existing) {
+            copyText(btn, existing)
+                .then(function(){
+                    indicateSuccess(btn);
+                    setMessage(btn, btn.getAttribute('data-success-text') || '', false);
+                })
+                .catch(function(){
+                    resetButtonLabel(btn);
+                    setMessage(btn, btn.getAttribute('data-generic-error') || '', true);
+                });
             return;
         }
         var params = window.afwcAffiliateLinkParams && window.afwcAffiliateLinkParams.product ? window.afwcAffiliateLinkParams.product : null;
@@ -164,11 +198,8 @@ final class AffiliateLinkUI
             return;
         }
         var loadingText = btn.getAttribute('data-loading-text') || '';
-        if (loadingText) {
-            setMessage(btn, loadingText, false);
-        } else {
-            setMessage(btn, '', false);
-        }
+        setButtonLabel(btn, 'data-label-loading');
+        setMessage(btn, loadingText || '', false);
         btn.setAttribute('data-loading', '1');
         btn.classList.add('tapin-aff-link__btn--loading');
 
@@ -188,21 +219,23 @@ final class AffiliateLinkUI
             }
             if (data && data.success && data.data && data.data.url) {
                 btn.setAttribute('data-ctp', data.data.url);
-                btn.classList.remove('disabled');
                 copyText(btn, data.data.url)
                     .then(function(){
+                        indicateSuccess(btn);
                         setMessage(btn, btn.getAttribute('data-success-text') || '', false);
                     })
                     .catch(function(){
+                        resetButtonLabel(btn);
                         setMessage(btn, btn.getAttribute('data-generic-error') || '', true);
                     });
             } else {
-                btn.classList.add('disabled');
+                resetButtonLabel(btn);
                 setMessage(btn, btn.getAttribute('data-empty-help') || '', true);
             }
         }).fail(function(){
             btn.setAttribute('data-loading', '0');
             btn.classList.remove('tapin-aff-link__btn--loading');
+            resetButtonLabel(btn);
             setMessage(btn, btn.getAttribute('data-generic-error') || '', true);
         });
     });
