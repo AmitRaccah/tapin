@@ -5,6 +5,13 @@ namespace Tapin\Events\Features\Sales;
 
 final class ProductFetcher
 {
+    private AuthorResolver $authorResolver;
+
+    public function __construct(?AuthorResolver $authorResolver = null)
+    {
+        $this->authorResolver = $authorResolver ?? new AuthorResolver();
+    }
+
     /**
      * @param array<int,array<string,mixed>> $rows
      * @param array<int,int> $authorCache
@@ -39,23 +46,11 @@ final class ProductFetcher
                 continue;
             }
             if (!isset($rows[$productId])) {
-                $authorId = $this->resolveAuthorId($productId, $authorCache) ?: $producerId;
+                $authorId = $this->authorResolver->resolve($productId, $authorCache) ?: $producerId;
                 $rows[$productId] = $factory->create($productId, $authorId);
             } else {
                 $factory->ensureCommissionMeta($rows[$productId], $productId);
             }
         }
-    }
-
-    /**
-     * @param array<int,int> $authorCache
-     */
-    private function resolveAuthorId(int $productId, array &$authorCache): int
-    {
-        if (!array_key_exists($productId, $authorCache)) {
-            $authorCache[$productId] = (int) get_post_field('post_author', $productId);
-        }
-
-        return $authorCache[$productId];
     }
 }

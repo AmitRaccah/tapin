@@ -33,11 +33,11 @@ final class SalesAggregator
         $windows = new WindowsBuckets();
         $factory = new EventRowFactory($thumbCache, $eventTsCache, $commissionCache, $windows);
         $accum = new TicketStatsAccumulator($windows);
-        $fetcher = new ProductFetcher();
+        $authorResolver = new AuthorResolver();
+        $fetcher = new ProductFetcher($authorResolver);
 
         $includeZero = !empty($options['include_zero']);
         $productStatus = isset($options['product_status']) ? (string) $options['product_status'] : 'publish';
-        $canCheckReferrals = $affiliateId > 0 && function_exists('afwc_get_product_affiliate_url');
 
         foreach ($orderIds as $orderId) {
             $orderId = (int) $orderId;
@@ -49,9 +49,7 @@ final class SalesAggregator
                 continue;
             }
             $orderTs = $this->resolveOrderTimestamp($order);
-            $wasReferred = $canCheckReferrals
-                ? $referrals->hasReferral($orderId, $affiliateId, $referralCache)
-                : false;
+            $wasReferred = $referrals->hasReferral($orderId, $affiliateId, $referralCache);
 
             foreach ($order->get_items('line_item') as $item) {
                 if (!$item instanceof WC_Order_Item_Product) {
@@ -62,7 +60,7 @@ final class SalesAggregator
                     continue;
                 }
 
-                $authorId = $this->resolveAuthorId($productId, $authorCache);
+                $authorId = $authorResolver->resolve($productId, $authorCache);
                 if ($authorId !== $producerId) {
                     continue;
                 }
@@ -123,16 +121,4 @@ final class SalesAggregator
         return 0;
     }
 
-    /**
-     * @param array<int,int> $authorCache
-     */
-    private function resolveAuthorId(int $productId, array &$authorCache): int
-    {
-        if (!array_key_exists($productId, $authorCache)) {
-            $authorCache[$productId] = (int) get_post_field('post_author', $productId);
-        }
-        return $authorCache[$productId];
-    }
-
-  
 }

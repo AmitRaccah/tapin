@@ -318,7 +318,16 @@ final class Renderer
                                 <div class="tapin-pa-order__section tapin-pa-attendees">
                                   <h5 class="tapin-pa-order__section-title"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1493;&#1494;&#1502;&#1504;&#1497;&#1501;')); ?></h5>
                                   <div class="tapin-pa-attendees__grid">
-                                    <?php foreach ((array) $orderData['attendees'] as $attendee): ?>
+                                    <?php
+                                    $uiAttendees = [];
+                                    $primary = (array) ($orderData['primary_attendee'] ?? []);
+                                    $others = (array) ($orderData['attendees'] ?? []);
+                                    if ($primary !== []) {
+                                        array_unshift($others, $primary);
+                                    }
+                                    $uiAttendees = $others;
+                                    ?>
+                                    <?php foreach ($uiAttendees as $attendee): ?>
                                       <?php
                                       $attendeeRows = [];
 
