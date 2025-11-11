@@ -88,6 +88,9 @@ final class AwaitingProducerGate implements Service
         if ($to === $awaiting) {
             return;
         }
+        if ($to === PartiallyApprovedStatus::STATUS_SLUG) {
+            return;
+        }
 
         $this->statusGuard = true;
         $order->update_status($awaiting, 'Gate: reverted to awaiting-producer until producer approves.');

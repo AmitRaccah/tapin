@@ -26,6 +26,7 @@
 .tapin-pa-event__panel-heading{margin:18px 0 12px;font-size:1rem;font-weight:700;color:#1f2937}
 .tapin-pa-event__badge{padding:4px 10px;border-radius:999px;font-weight:600;font-size:.85rem;display:inline-flex;align-items:center}
 .tapin-pa-event__badge--pending{background:rgba(234,179,8,.18);color:#92400e}
+.tapin-pa-event__badge--partial{background:rgba(59,130,246,.18);color:#1d4ed8}
 .tapin-pa-event__badge--approved{background:rgba(22,163,74,.18);color:#065f46}
 .tapin-pa-event__badge--cancelled{background:rgba(248,113,113,.18);color:#991b1b}
 .tapin-pa-event__chevron{transition:transform .25s ease;color:#334155;font-size:1.2rem}
@@ -43,12 +44,12 @@
 .tapin-pa-order + .tapin-pa-order{margin-top:24px}
 .tapin-pa-order__header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center}
 .tapin-pa-order__left{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.tapin-pa-order__checkbox{width:18px;height:18px}
 .tapin-pa-order__meta{display:flex;gap:10px;flex-wrap:wrap;font-size:.9rem;color:#475569}
 .tapin-pa-order__status{padding:4px 10px;border-radius:999px;font-weight:600;font-size:.85rem}
 .tapin-pa-order--pending .tapin-pa-order__status{background:rgba(234,179,8,.18);color:#92400e}
 .tapin-pa-order--approved .tapin-pa-order__status{background:rgba(22,163,74,.18);color:#065f46}
 .tapin-pa-order--cancelled .tapin-pa-order__status{background:rgba(248,113,113,.18);color:#991b1b}
+.tapin-pa-order--partial .tapin-pa-order__status{background:rgba(59,130,246,.15);color:#1d4ed8}
 .tapin-pa-order__body{margin-top:18px;display:grid;gap:20px;font-size:.94rem;color:#0f172a}
 .tapin-pa-order__section{display:grid;gap:12px}
 .tapin-pa-order__section + .tapin-pa-order__section{margin-top:6px}
@@ -66,9 +67,14 @@
 .tapin-pa-order--alt .tapin-pa-attendees{background:#eef2ff;border:1px solid #c7d2fe;padding:18px}
 .tapin-pa-order:not(.tapin-pa-order--alt) .tapin-pa-attendees{background:#f8fafc;border:1px solid #e2e8f0;padding:18px}
 .tapin-pa-attendee{background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:14px;box-shadow:0 6px 14px rgba(15,23,42,.06);display:grid;gap:12px}
+.tapin-pa-attendee--approved{border-color:#bbf7d0;background:#ecfdf5}
 .tapin-pa-order--alt .tapin-pa-attendee{background:#f5f3ff;border-color:#c7d2fe}
 .tapin-pa-attendee__header{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tapin-pa-attendee__selector{display:flex;align-items:center;gap:8px;flex:1}
+.tapin-pa-attendee__checkbox{width:18px;height:18px;flex-shrink:0}
 .tapin-pa-attendee__title{margin:0;font-size:1rem;font-weight:700;color:#111827}
+.tapin-pa-attendee__status{padding:4px 8px;border-radius:999px;font-size:.75rem;font-weight:600}
+.tapin-pa-attendee__status--approved{background:rgba(34,197,94,.18);color:#15803d}
 .tapin-pa-attendee__badge{background:#fde68a;color:#92400e;padding:4px 8px;border-radius:999px;font-size:.75rem;font-weight:600}
 .tapin-pa-attendee__list{list-style:none;margin:0;padding:0;display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
 .tapin-pa-attendee__label{font-size:.8rem;color:#64748b;font-weight:600;margin-bottom:2px}

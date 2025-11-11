@@ -17,7 +17,7 @@
   var selectAllButton = document.getElementById('tapinPaSelectAll');
   if (selectAllButton && form) {
     selectAllButton.addEventListener('click', function () {
-      var checkboxes = Array.prototype.slice.call(form.querySelectorAll('.tapin-pa-order__checkbox[data-pending="1"]:not(:disabled)'));
+      var checkboxes = Array.prototype.slice.call(form.querySelectorAll('.tapin-pa-attendee__checkbox[data-pending="1"]:not(:disabled)'));
       if (!checkboxes.length) {
         return;
       }

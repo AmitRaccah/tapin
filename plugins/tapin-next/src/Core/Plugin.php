@@ -36,6 +36,7 @@ class Plugin {
         \Tapin\Events\Features\ProductPage\StickyPurchaseBar::class,
         \Tapin\Events\Features\ProductPage\PurchaseDetailsModal::class,
         \Tapin\Events\Features\Orders\AwaitingProducerStatus::class,
+        \Tapin\Events\Features\Orders\PartiallyApprovedStatus::class,
         \Tapin\Events\Features\Orders\AwaitingProducerGate::class,
         \Tapin\Events\Features\PricingOverrides::class,
         \Tapin\Events\Features\PurchasableGate::class,

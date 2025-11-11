@@ -34,7 +34,7 @@ final class EventGrouper
                         'event_date_ts'    => isset($eventData['event_date_ts']) ? (int) $eventData['event_date_ts'] : 0,
                         'event_date_label' => (string) ($eventData['event_date_label'] ?? ''),
                         'latest_order_ts'  => 0,
-                        'counts'    => ['pending' => 0, 'approved' => 0, 'cancelled' => 0],
+                        'counts'    => ['pending' => 0, 'partial' => 0, 'approved' => 0, 'cancelled' => 0],
                         'orders'    => [],
                         'search'    => '',
                     ];
@@ -44,9 +44,14 @@ final class EventGrouper
                     }
                 }
 
-                $statusType = $this->classifyStatus((string) ($order['status'] ?? ''));
+                $statusSlug = (string) ($order['status'] ?? '');
+                $statusType = $this->classifyStatus($statusSlug);
+                $isPartial  = $statusSlug === \Tapin\Events\Features\Orders\PartiallyApprovedStatus::STATUS_SLUG;
                 if (isset($events[$key]['counts'][$statusType])) {
                     $events[$key]['counts'][$statusType]++;
+                }
+                if ($isPartial) {
+                    $events[$key]['counts']['partial'] = ($events[$key]['counts']['partial'] ?? 0) + 1;
                 }
 
                 $orderSearch = SearchIndexBuilder::buildOrderSearchBlob($order, (array) $eventData);
@@ -59,9 +64,10 @@ final class EventGrouper
                     'number'            => (string) ($order['number'] ?? ''),
                     'timestamp'         => (int) ($order['timestamp'] ?? 0),
                     'date'              => (string) ($order['date'] ?? ''),
-                    'status'            => (string) ($order['status'] ?? ''),
+                    'status'            => $statusSlug,
                     'status_label'      => (string) ($order['status_label'] ?? ''),
                     'status_type'       => $statusType,
+                    'is_partial'        => $isPartial,
                     'total'             => (string) ($order['total'] ?? ''),
                     'quantity'          => (int) ($eventData['quantity'] ?? 0),
                     'lines'             => (array) ($eventData['lines'] ?? []),
@@ -72,7 +78,8 @@ final class EventGrouper
                     'primary_attendee'  => (array) ($order['primary_attendee'] ?? []),
                     'primary_id_number' => (string) ($order['primary_id_number'] ?? ''),
                     'sale_type'         => (string) ($order['sale_type'] ?? ''),
-                    'is_pending'        => (string) ($order['status'] ?? '') === \Tapin\Events\Features\Orders\AwaitingProducerStatus::STATUS_SLUG,
+                    'is_pending'        => $statusType === 'pending',
+                    'approved_attendee_map' => (array) ($order['approved_attendee_map'] ?? []),
                     'warnings'          => $orderWarnings,
                     'search_blob'       => $orderSearch,
                 ];
@@ -123,7 +130,7 @@ final class EventGrouper
     {
         $normalized = strtolower($status);
 
-        if (in_array($normalized, [\Tapin\Events\Features\Orders\AwaitingProducerStatus::STATUS_SLUG, 'pending', 'on-hold'], true)) {
+        if (in_array($normalized, [\Tapin\Events\Features\Orders\AwaitingProducerStatus::STATUS_SLUG, \Tapin\Events\Features\Orders\PartiallyApprovedStatus::STATUS_SLUG, 'pending', 'on-hold'], true)) {
             return 'pending';
         }
 

@@ -74,12 +74,17 @@ final class OrderSummaryBuilder
         $eventMap          = [];
         $allAttendeesList  = [];
         $primaryAttendee   = null;
+        $approvedPointers  = $this->normalizeApprovedPointers(
+            (array) $order->get_meta('_tapin_producer_approved_attendees', true)
+        );
+        $producerApprovedMap = [];
 
         foreach ($order->get_items('line_item') as $item) {
             if (!$this->isProducerLineItem($item, $producerId)) {
                 continue;
             }
 
+            $itemId   = (int) $item->get_id();
             $quantity = (int) $item->get_quantity();
             $items[] = sprintf('%s &#215; %d', esc_html($item->get_name()), $quantity);
             $totalQuantity += $quantity;
@@ -121,7 +126,17 @@ final class OrderSummaryBuilder
                 'total'        => $formattedTotal,
                 'ticket_types' => $lineTicketTypes,
             ];
-            foreach ($lineAttendees as $attendee) {
+            foreach ($lineAttendees as $attendeeIndex => $attendee) {
+                $attendee = $this->attachAttendeePointers(
+                    $attendee,
+                    $itemId,
+                    (int) $attendeeIndex
+                );
+                $attendee['is_producer_approved'] = $this->isAttendeeApproved(
+                    $approvedPointers,
+                    $itemId,
+                    (int) $attendeeIndex
+                );
                 $allAttendeesList[] = $attendee;
                 if ($primaryAttendee === null) {
                     $primaryAttendee = $attendee;
@@ -134,6 +149,10 @@ final class OrderSummaryBuilder
 
             if ($lineDisplayAttendees !== []) {
                 $eventMap[$eventKey]['attendees'] = array_merge($eventMap[$eventKey]['attendees'], $lineDisplayAttendees);
+            }
+
+            if (isset($approvedPointers[$itemId])) {
+                $producerApprovedMap[$itemId] = $approvedPointers[$itemId];
             }
         }
 
@@ -207,6 +226,7 @@ final class OrderSummaryBuilder
             'sale_type'           => $saleType,
             'is_approved'         => (bool) $order->get_meta('_tapin_producer_approved'),
             'events'              => array_values($eventMap),
+            'approved_attendee_map' => $producerApprovedMap,
         ];
     }
 
@@ -327,6 +347,72 @@ final class OrderSummaryBuilder
         }
 
         return $fallback;
+    }
+
+    /**
+     * @param array<string,mixed> $attendee
+     * @return array<string,mixed>
+     */
+    private function attachAttendeePointers(array $attendee, int $itemId, int $index): array
+    {
+        $attendee['item_id']        = $itemId;
+        $attendee['attendee_index'] = max(0, $index);
+
+        return $attendee;
+    }
+
+    /**
+     * @param array<int,array<int,int>> $map
+     */
+    private function isAttendeeApproved(array $map, int $itemId, int $attendeeIndex): bool
+    {
+        return isset($map[$itemId]) && in_array($attendeeIndex, (array) $map[$itemId], true);
+    }
+
+    /**
+     * @param array<string|int,mixed> $raw
+     * @return array<int,array<int,int>>
+     */
+    private function normalizeApprovedPointers(array $raw): array
+    {
+        $result = [];
+        foreach ($raw as $itemId => $indices) {
+            $itemKey = (int) $itemId;
+            if ($itemKey <= 0) {
+                continue;
+            }
+
+            $values = is_array($indices) ? $indices : [$indices];
+            $clean  = $this->filterPointerIndices($values);
+            if ($clean === []) {
+                continue;
+            }
+
+            $result[$itemKey] = $clean;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<int|string,mixed> $indices
+     * @return array<int,int>
+     */
+    private function filterPointerIndices(array $indices): array
+    {
+        $clean = [];
+        foreach ($indices as $value) {
+            $int = (int) $value;
+            if ($int < 0) {
+                continue;
+            }
+            $clean[] = $int;
+        }
+
+        $clean = array_values(array_unique($clean));
+        sort($clean);
+
+        return $clean;
     }
 
     /**

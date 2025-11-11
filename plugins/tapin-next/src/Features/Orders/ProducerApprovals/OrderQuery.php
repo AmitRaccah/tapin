@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Tapin\Events\Features\Orders\ProducerApprovals;
 
 use Tapin\Events\Features\Orders\AwaitingProducerStatus;
+use Tapin\Events\Features\Orders\PartiallyApprovedStatus;
 use Tapin\Events\Support\Orders;
 use WC_Order;
 use WC_Order_Item_Product;
@@ -16,8 +17,13 @@ final class OrderQuery
      */
     public function resolveProducerOrderIds(int $producerId): array
     {
+        $pendingStatusKeys = array_values(array_unique([
+            AwaitingProducerStatus::STATUS_KEY,
+            PartiallyApprovedStatus::STATUS_KEY,
+        ]));
+
         $awaitingIds = wc_get_orders([
-            'status' => [AwaitingProducerStatus::STATUS_KEY],
+            'status' => $pendingStatusKeys,
             'limit'  => 200,
             'return' => 'ids',
         ]);
@@ -31,7 +37,7 @@ final class OrderQuery
         }
 
         $pendingIds = wc_get_orders([
-            'status' => [AwaitingProducerStatus::STATUS_KEY],
+            'status' => $pendingStatusKeys,
             'limit'  => 200,
             'return' => 'ids',
         ]);
