@@ -163,6 +163,18 @@ final class Renderer
                                   ];
                               }
 
+                              $saleTypeLabel = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1505;&#1493;&#1490;&#32;&#1502;&#1495;&#1497;&#1512;&#1492;');
+                              $saleTypeRaw = (string) ($orderData['sale_type'] ?? 'organic');
+                              $saleTypeValue = $saleTypeRaw === 'producer_link'
+                                  ? \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1500;&#1497;&#1504;&#1511;&#32;&#1502;&#1508;&#1497;&#1511;')
+                                  : \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1493;&#1512;&#1490;&#1504;&#1497;');
+                              $contactRows[] = [
+                                  'label' => $saleTypeLabel,
+                                  'value' => $saleTypeValue,
+                                  'type'  => 'text',
+                                  'href'  => '',
+                              ];
+
                               if (!empty($orderData['primary_id_number'])) {
                                   $contactRows[] = [
                                       'label' => \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1514;&#1506;&#1493;&#1491;&#1514;&#32;&#1494;&#1492;&#1493;&#1514;'),
@@ -308,6 +320,10 @@ final class Renderer
                                         $lineParts[] = '(' . $lineTotal . ')';
                                     }
                                     $lineText = trim(implode(' ', $lineParts));
+                                    $lineTypes = array_filter(array_map('trim', (array) ($line['ticket_types'] ?? [])));
+                                    if ($lineTypes !== []) {
+                                        $lineText .= ' (' . implode(' / ', $lineTypes) . ')';
+                                    }
                                     ?>
                                     <li><?php echo esc_html($lineText); ?></li>
                                   <?php endforeach; ?>
@@ -384,9 +400,13 @@ final class Renderer
                                       if (!empty($attendee['gender'])) {
                                           $genderRaw = trim((string) $attendee['gender']);
                                           if ($genderRaw !== '') {
+                                              $genderDisplay = \Tapin\Events\Support\AttendeeFields::displayValue('gender', $genderRaw);
+                                              if ($genderDisplay === '') {
+                                                  $genderDisplay = $genderRaw;
+                                              }
                                               $attendeeRows[] = [
                                                   'label' => \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1490;&#1491;&#1512;'),
-                                                  'value' => $genderRaw,
+                                                  'value' => $genderDisplay,
                                                   'type'  => 'text',
                                                   'href'  => '',
                                               ];

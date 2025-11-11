@@ -71,6 +71,7 @@ final class EventGrouper
                     'profile'           => (array) ($order['profile'] ?? []),
                     'primary_attendee'  => (array) ($order['primary_attendee'] ?? []),
                     'primary_id_number' => (string) ($order['primary_id_number'] ?? ''),
+                    'sale_type'         => (string) ($order['sale_type'] ?? ''),
                     'is_pending'        => (string) ($order['status'] ?? '') === \Tapin\Events\Features\Orders\AwaitingProducerStatus::STATUS_SLUG,
                     'warnings'          => $orderWarnings,
                     'search_blob'       => $orderSearch,

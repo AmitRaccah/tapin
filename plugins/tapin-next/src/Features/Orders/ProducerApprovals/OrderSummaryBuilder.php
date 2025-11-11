@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tapin\Events\Features\Orders\ProducerApprovals;
 
+use Tapin\Events\Integrations\Affiliate\ReferralsRepository;
 use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\AttendeeSecureStorage;
 use Tapin\Events\Support\Time;
@@ -98,15 +99,28 @@ final class OrderSummaryBuilder
                 ? wc_price($item->get_total(), ['currency' => $order->get_currency()])
                 : number_format((float) $item->get_total(), 2);
 
+            $lineAttendees        = $this->extractAttendees($item);
+            $ticketTypeMap        = [];
+            foreach ($lineAttendees as $ticketTypeAttendee) {
+                if (!is_array($ticketTypeAttendee) || empty($ticketTypeAttendee['ticket_type_label'])) {
+                    continue;
+                }
+                $typeLabel = sanitize_text_field((string) $ticketTypeAttendee['ticket_type_label']);
+                if ($typeLabel === '') {
+                    continue;
+                }
+                $ticketTypeMap[$typeLabel] = $typeLabel;
+            }
+            $lineTicketTypes      = array_values($ticketTypeMap);
+            $lineDisplayAttendees = [];
+
             $eventMap[$eventKey]['quantity'] += $quantity;
             $eventMap[$eventKey]['lines'][] = [
-                'name'     => $item->get_name(),
-                'quantity' => $quantity,
-                'total'    => $formattedTotal,
+                'name'         => $item->get_name(),
+                'quantity'     => $quantity,
+                'total'        => $formattedTotal,
+                'ticket_types' => $lineTicketTypes,
             ];
-
-            $lineAttendees        = $this->extractAttendees($item);
-            $lineDisplayAttendees = [];
             foreach ($lineAttendees as $attendee) {
                 $allAttendeesList[] = $attendee;
                 if ($primaryAttendee === null) {
@@ -161,6 +175,11 @@ final class OrderSummaryBuilder
             $this->logAttendeeAccess($order, $producerId, count($allAttendeesList));
         }
 
+        $referralCache = [];
+        $referrals = new ReferralsRepository();
+        $wasReferred = $referrals->hasReferral((int) $order->get_id(), $producerId, $referralCache);
+        $saleType = $wasReferred ? 'producer_link' : 'organic';
+
         return [
             'id'               => $order->get_id(),
             'number'           => $order->get_order_number(),
@@ -185,6 +204,7 @@ final class OrderSummaryBuilder
             'primary_id_number'   => $this->findPrimaryIdNumber($allAttendeesList),
             'status'              => $status,
             'status_label'        => $statusLabel,
+            'sale_type'           => $saleType,
             'is_approved'         => (bool) $order->get_meta('_tapin_producer_approved'),
             'events'              => array_values($eventMap),
         ];
