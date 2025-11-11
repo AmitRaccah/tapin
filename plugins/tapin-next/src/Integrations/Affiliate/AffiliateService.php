@@ -3,6 +3,7 @@
 namespace Tapin\Events\Integrations\Affiliate;
 
 use Tapin\Events\Core\Service;
+use Tapin\Events\Support\Commission;
 use Tapin\Events\Support\MetaKeys;
 
 final class AffiliateService implements Service
@@ -75,20 +76,17 @@ final class AffiliateService implements Service
             $amountValue = get_post_meta($productId, MetaKeys::PRODUCER_AFF_AMOUNT, true);
             $amount = is_numeric($amountValue) ? (float) $amountValue : 0.0;
 
-            if ($amount <= 0) {
-                continue;
-            }
+            $meta = [
+                'type'   => in_array($type, ['percent', 'flat'], true) ? (string) $type : '',
+                'amount' => $amount,
+            ];
 
             $lineTotal = (float) $item->get_total();
             $quantity = max(1, (int) $item->get_quantity());
+            $commission = Commission::calculate($meta, $lineTotal, $quantity);
 
-            if ($type === 'percent') {
-                if ($lineTotal <= 0) {
-                    continue;
-                }
-                $sum += ($lineTotal * $amount) / 100;
-            } elseif ($type === 'flat') {
-                $sum += $amount * $quantity;
+            if ($commission > 0) {
+                $sum += $commission;
             }
         }
 
