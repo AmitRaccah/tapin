@@ -198,6 +198,29 @@
     syncHeader();
   }
 
+  function focusAttendee(index) {
+    if (totalAttendees <= 0) {
+      return false;
+    }
+    var targetIndex = typeof index === 'number' ? index : 0;
+    if (targetIndex < 0) {
+      targetIndex = 0;
+    }
+    if (targetIndex >= totalAttendees) {
+      targetIndex = totalAttendees - 1;
+    }
+    currentIndex = targetIndex;
+    namespace.Modal.showAttendeePhase();
+    namespace.Plan.setCurrentIndex(currentIndex);
+    namespace.Form.resetErrors();
+    namespace.Form.prefill(currentIndex, data.prefill || null, attendees[currentIndex] || null);
+    namespace.Form.updateRequiredIndicators(currentIndex === 0);
+    namespace.Plan.populateSelect(currentIndex);
+    namespace.Plan.updateHint(currentIndex);
+    syncHeader();
+    return true;
+  }
+
   function handleNext() {
     var phase = namespace.Modal.getPhase ? namespace.Modal.getPhase() : 'ticket';
     if (phase === 'ticket') {
@@ -353,6 +376,7 @@
     updateTicketTotals: updateTicketTotals,
     syncHeader: syncHeader,
     handleNext: handleNext,
+    focusAttendee: focusAttendee,
   };
 
   if (document.readyState === 'loading') {

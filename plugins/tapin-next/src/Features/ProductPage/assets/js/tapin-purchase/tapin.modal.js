@@ -62,9 +62,11 @@
     phase = 'ticket';
     if (refs.ticketStep) {
       refs.ticketStep.removeAttribute('hidden');
+      refs.ticketStep.style.display = '';
     }
     if (refs.formContainer) {
       refs.formContainer.setAttribute('hidden', 'hidden');
+      refs.formContainer.style.display = 'none';
     }
     if (refs.ticketHint) {
       refs.ticketHint.hidden = true;
@@ -76,9 +78,11 @@
     phase = 'form';
     if (refs.ticketStep) {
       refs.ticketStep.setAttribute('hidden', 'hidden');
+      refs.ticketStep.style.display = 'none';
     }
     if (refs.formContainer) {
       refs.formContainer.removeAttribute('hidden');
+      refs.formContainer.style.display = '';
     }
     if (refs.ticketTypeSelect) {
       refs.ticketTypeSelect.focus();

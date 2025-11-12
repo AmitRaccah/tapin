@@ -8,6 +8,7 @@
   var namespace = root.TapinPurchase = root.TapinPurchase || {};
   var messages = (namespace.Messages && namespace.Messages.all) || {};
   var utils = namespace.Utils || {};
+  var data = root.TapinPurchaseModalData || {};
 
   var refs = {};
   var fieldConfig = {};
@@ -125,6 +126,139 @@
     var errorEl = wrapper.querySelector('.tapin-field__error');
     if (errorEl) {
       errorEl.textContent = message;
+    }
+  }
+
+  function requiredMessage() {
+    return messages.required || '?c?"?" ?-??`?".';
+  }
+
+  function isRequiredField(field, isPayer) {
+    var requirements = field && typeof field.required_for === 'object'
+      ? field.required_for
+      : null;
+    if (!requirements) {
+      return true;
+    }
+    return isPayer ? !!requirements.payer : !!requirements.attendee;
+  }
+
+  function normalizeValue(value) {
+    if (value === null || typeof value === 'undefined') {
+      return '';
+    }
+    return String(value).trim();
+  }
+
+  function validateAttendeeObject(attendee, isPayer, requireTicketType) {
+    var record = attendee && typeof attendee === 'object' ? attendee : {};
+    for (var i = 0; i < fieldKeys.length; i += 1) {
+      var key = fieldKeys[i];
+      var config = fieldConfig[key] || {};
+      var fieldType = config.type || 'text';
+      var value = normalizeValue(record[key]);
+      var required = isRequiredField(config, isPayer);
+
+      if (value === '') {
+        if (required) {
+          return {
+            fieldKey: key,
+            fieldType: fieldType,
+            message: requiredMessage(),
+          };
+        }
+        continue;
+      }
+
+      if (key === 'email') {
+        var email = value.toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return {
+            fieldKey: key,
+            fieldType: fieldType,
+            message: messages.invalidEmail || requiredMessage(),
+          };
+        }
+      }
+
+      if (key === 'phone') {
+        var digits = value.replace(/\D+/g, '');
+        if (digits.length < 10) {
+          return {
+            fieldKey: key,
+            fieldType: fieldType,
+            message: messages.invalidPhone || requiredMessage(),
+          };
+        }
+      }
+
+      if (key === 'id_number') {
+        var idDigits = value.replace(/\D+/g, '');
+        if (idDigits.length !== 9) {
+          return {
+            fieldKey: key,
+            fieldType: fieldType,
+            message: messages.invalidId || requiredMessage(),
+          };
+        }
+      }
+    }
+
+    if (requireTicketType) {
+      var ticketType = normalizeValue(record.ticket_type || record.ticket_type_select);
+      if (!ticketType) {
+        return {
+          fieldKey: 'ticket_type_select',
+          fieldType: 'select',
+          message: messages.ticketSelectError || requiredMessage(),
+        };
+      }
+    }
+
+    return null;
+  }
+
+  function hasMultipleTicketTypes(selection) {
+    return Object.keys(selection || {}).filter(function (typeId) {
+      return Number(selection[typeId] || 0) > 0;
+    }).length > 1;
+  }
+
+  function findFirstInvalid(attendeeList, cfg, ticketSelection) {
+    if (!Array.isArray(attendeeList)) {
+      return null;
+    }
+    var requireTicketType = hasMultipleTicketTypes(ticketSelection);
+    for (var i = 0; i < attendeeList.length; i += 1) {
+      var invalid = validateAttendeeObject(attendeeList[i], i === 0, requireTicketType);
+      if (invalid) {
+        invalid.index = i;
+        return invalid;
+      }
+    }
+    return null;
+  }
+
+  function bringAttendeeIntoView(index, attendeeList) {
+    if (namespace.Controller && typeof namespace.Controller.focusAttendee === 'function') {
+      if (namespace.Controller.focusAttendee(index)) {
+        return;
+      }
+    }
+    if (namespace.Modal && typeof namespace.Modal.showAttendeePhase === 'function') {
+      namespace.Modal.showAttendeePhase();
+    }
+    if (namespace.Plan && typeof namespace.Plan.setCurrentIndex === 'function') {
+      namespace.Plan.setCurrentIndex(index);
+    }
+    resetErrors();
+    prefill(index, data.prefill || null, attendeeList[index] || null);
+    updateRequiredIndicators(index === 0);
+    if (namespace.Plan && typeof namespace.Plan.populateSelect === 'function') {
+      namespace.Plan.populateSelect(index);
+    }
+    if (namespace.Plan && typeof namespace.Plan.updateHint === 'function') {
+      namespace.Plan.updateHint(index);
     }
   }
 
@@ -283,26 +417,63 @@
     refs.form.submit();
   }
 
-  function validateBeforeFinalize(attendeeList, ticketSelection) {
-    var totalTickets = Object.keys(ticketSelection || {}).reduce(function (sum, typeId) {
+  function getTotalTickets(ticketSelection) {
+    return Object.keys(ticketSelection || {}).reduce(function (sum, typeId) {
       var count = Number(ticketSelection[typeId] || 0);
       return sum + (Number.isFinite(count) ? count : 0);
     }, 0);
+  }
+
+  function focusInvalidField(fieldKey, message, fieldType) {
+    if (!fieldKey) {
+      return;
+    }
+    var root = refs.formContainer || (refs.modal || null);
+    var input = root ? root.querySelector('[data-field="' + fieldKey + '"]') : null;
+    if (!input && fieldKey === 'ticket_type_select' && refs.ticketTypeSelect) {
+      input = refs.ticketTypeSelect;
+    }
+    if (!input) {
+      return;
+    }
+    markInvalid(input, message, fieldType || 'text');
+    if (fieldKey === 'ticket_type_select' && refs.ticketTypeError) {
+      refs.ticketTypeError.textContent = messages.ticketSelectError || message || requiredMessage();
+      refs.ticketTypeError.hidden = false;
+    }
+    if (typeof input.focus === 'function') {
+      input.focus();
+    }
+  }
+
+  function validateBeforeFinalize(attendeeList, ticketSelection) {
+    var selection = ticketSelection || {};
+    var totalTickets = getTotalTickets(selection);
     if (attendeeList.length !== totalTickets) {
       return false;
     }
-    var multipleTypes = Object.keys(ticketSelection || {}).filter(function (typeId) {
-      return Number(ticketSelection[typeId] || 0) > 0;
-    }).length > 1;
-    if (!multipleTypes) {
-      return true;
-    }
-    for (var i = 0; i < attendeeList.length; i += 1) {
-      if (!attendeeList[i] || !attendeeList[i].ticket_type) {
-        return false;
+
+    var multipleTypes = hasMultipleTicketTypes(selection);
+    if (multipleTypes) {
+      for (var i = 0; i < attendeeList.length; i += 1) {
+        var attendee = attendeeList[i] || {};
+        if (!attendee.ticket_type && !attendee.ticket_type_select) {
+          bringAttendeeIntoView(i, attendeeList);
+          focusInvalidField('ticket_type_select', messages.ticketSelectError || requiredMessage(), 'select');
+          return false;
+        }
       }
     }
-    return true;
+
+    var invalid = findFirstInvalid(attendeeList, fieldConfig, selection);
+    if (!invalid) {
+      return true;
+    }
+
+    var index = typeof invalid.index === 'number' ? invalid.index : 0;
+    bringAttendeeIntoView(index, attendeeList);
+    focusInvalidField(invalid.fieldKey, invalid.message, invalid.fieldType);
+    return false;
   }
 
   function finalize(attendeeList, attendeePlan, ticketSelection) {
