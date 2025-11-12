@@ -2,9 +2,11 @@
 namespace Tapin\Events\Features\Producers;
 
 use Tapin\Events\Core\Service;
+use Tapin\Events\Features\Orders\ProducerApprovals\Assets as ProducerApprovalsAssets;
 use Tapin\Events\Support\ProducerProfiles;
 use Tapin\Events\Support\Security;
 use Tapin\Events\Support\TableSearch;
+use Tapin\Events\UI\Components\DropWindow;
 
 final class RequestsManager implements Service {
     public function register(): void {
@@ -18,6 +20,8 @@ final class RequestsManager implements Service {
         }
 
         $current = $guard->user;
+
+        ProducerApprovalsAssets::enqueue();
 
         $flash_key = 'tapin_pm_flash_' . $current->ID;
         $msg_html  = '';
@@ -109,13 +113,23 @@ final class RequestsManager implements Service {
 
             <h3 class="tapin-title">בקשות ממתינות</h3>
             <?php if (!empty($pending_users)): ?>
-                <div class="tapin-manager-grid">
+                <div class="tapin-pa">
+                    <div class="tapin-pa__events tapin-manager-grid">
                     <?php foreach ($pending_users as $pending):
                         $uid   = $pending->ID;
                         $fields = ProducerProfiles::fieldDefaults($uid);
                         $cover = ProducerProfiles::umCoverUrl($uid, 'large');
                         $avatar = ProducerProfiles::umProfilePhotoUrl($uid, 'medium');
+                        $title = $pending->display_name ?: $pending->user_login;
+                        $image = $avatar ?: $cover;
+                        if (!$image) {
+                            $image = includes_url('images/media/default.png');
+                        }
+                        $isPanelOpen = true;
                     ?>
+                    <?php echo DropWindow::openWrapper($isPanelOpen); ?>
+                    <?php echo DropWindow::header($title, (string) $image, '', $isPanelOpen); ?>
+                    <?php echo DropWindow::openPanel($isPanelOpen); ?>
                     <form method="post" class="tapin-card" style="padding:18px">
                         <div class="tapin-request-card__cover">
                             <?php if ($cover): ?>
@@ -155,7 +169,10 @@ final class RequestsManager implements Service {
                         <?php wp_nonce_field('tapin_pm_action', 'tapin_pm_nonce'); ?>
                         <input type="hidden" name="uid" value="<?php echo (int) $uid; ?>">
                     </form>
+                    <?php echo DropWindow::closePanel(); ?>
+                    <?php echo DropWindow::closeWrapper(); ?>
                     <?php endforeach; ?>
+                    </div>
                 </div>
             <?php else: ?>
                 <p>אין בקשות ממתינות.</p>
