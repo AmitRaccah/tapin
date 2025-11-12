@@ -354,7 +354,9 @@ final class Renderer
                                       $itemId = isset($attendee['item_id']) ? (int) $attendee['item_id'] : 0;
                                       $attendeeIndex = isset($attendee['attendee_index']) ? (int) $attendee['attendee_index'] : -1;
                                       $hasPointer = $orderId > 0 && $itemId > 0 && $attendeeIndex >= 0;
-                                      $checkboxEnabled = !empty($orderData['is_pending']) && $hasPointer;
+                                      $checkboxEnabled = !empty($orderData['is_pending'])
+                                          && empty($orderData['is_partial'])
+                                          && $hasPointer;
                                       $checkboxName = sprintf('attendee_approve[%d][%d][]', $orderId, max(0, $itemId));
                                       $checkboxValue = $attendeeIndex;
                                       $itemApprovedList = isset($approvedMap[$itemId]) ? (array) $approvedMap[$itemId] : [];

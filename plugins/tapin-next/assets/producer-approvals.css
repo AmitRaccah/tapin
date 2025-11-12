@@ -39,6 +39,7 @@
 .tapin-pa-order--alt{background:#eef2ff;border-color:#c7d2fe;box-shadow:0 10px 26px rgba(59,130,246,.12)}
 .tapin-pa-order::after{content:'';position:absolute;inset:-1px auto -1px -1px;width:5px;border-radius:14px 0 0 14px;background:#e2e8f0;transition:background-color .25s ease}
 .tapin-pa-order.tapin-pa-order--pending::after{background:#fbbf24}
+.tapin-pa-order.tapin-pa-order--partial::after{background:#3b82f6}
 .tapin-pa-order.tapin-pa-order--approved::after{background:#22c55e}
 .tapin-pa-order.tapin-pa-order--cancelled::after{background:#ef4444}
 .tapin-pa-order + .tapin-pa-order{margin-top:24px}
