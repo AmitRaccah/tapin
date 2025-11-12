@@ -43,12 +43,11 @@ final class ShortcodeController
         }
 
         $summary = new OrderSummaryBuilder();
-        $collections   = $summary->summarizeOrders($displayIds, $producerId);
-        $orders        = $collections['orders'];
-        $customerStats = $collections['customer_stats'];
+        $collections = $summary->summarizeOrders($displayIds, $producerId);
+        $orders      = $collections['orders'];
 
-        $warnings = (new CustomerWarningsService())->buildWarnings($customerStats);
-        $events   = (new EventGrouper())->group($orders, $warnings);
+        $eventWarnings = (new CustomerWarningsService())->buildEventOrderWarnings($orders);
+        $events        = (new EventGrouper())->group($orders, $eventWarnings);
 
         Assets::enqueue();
 

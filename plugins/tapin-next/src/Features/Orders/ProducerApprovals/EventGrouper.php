@@ -7,7 +7,7 @@ final class EventGrouper
 {
     /**
      * @param array<int,array<string,mixed>> $orders
-     * @param array<string,array<int,string>> $customerWarnings
+     * @param array<string,array<int,array<int,string>>> $customerWarnings
      * @return array<int,array<string,mixed>>
      */
     public function group(array $orders, array $customerWarnings = []): array
@@ -56,8 +56,17 @@ final class EventGrouper
 
                 $orderSearch = SearchIndexBuilder::buildOrderSearchBlob($order, (array) $eventData);
 
-                $emailKey = strtolower(trim((string) ($order['customer']['email'] ?? '')));
-                $orderWarnings = $emailKey !== '' ? (array) ($customerWarnings[$emailKey] ?? []) : [];
+                $emailKey      = strtolower(trim((string) ($order['customer']['email'] ?? '')));
+                $orderWarnings = [];
+                if ($emailKey !== '' && isset($customerWarnings[$emailKey]) && is_array($customerWarnings[$emailKey])) {
+                    $eventSpecific = $customerWarnings[$emailKey];
+                    $eventKeyInt   = (int) $eventKey;
+                    if (isset($eventSpecific[$eventKeyInt]) && is_array($eventSpecific[$eventKeyInt])) {
+                        $orderWarnings = (array) $eventSpecific[$eventKeyInt];
+                    } elseif ($this->isFlatWarningList($eventSpecific)) {
+                        $orderWarnings = $eventSpecific;
+                    }
+                }
 
                 $events[$key]['orders'][] = [
                     'id'                => (int) ($order['id'] ?? 0),
@@ -139,6 +148,20 @@ final class EventGrouper
         }
 
         return 'approved';
+    }
+
+    /**
+     * @param array<int,mixed> $warnings
+     */
+    private function isFlatWarningList(array $warnings): bool
+    {
+        foreach ($warnings as $warning) {
+            if (!is_string($warning)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
 

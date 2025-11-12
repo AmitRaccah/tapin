@@ -10,7 +10,7 @@
 .tapin-pa__search-input{width:100%;padding:10px 14px;border-radius:12px;border:1px solid #cbd5f5;background:#fff;font-size:.95rem}
 .tapin-pa__buttons{display:flex;gap:8px;flex-wrap:wrap}
 .tapin-pa__events{display:grid;gap:16px}
-.tapin-pa__warning{border-radius:12px;padding:12px;margin:10px 0;border:1px solid #facc15;background:#fefce8;color:#92400e}
+.tapin-pa__warning{border-radius:12px;padding:12px;margin:10px 0;border:1px solid #dc2626;background:#fee2e2;color:#991b1b}
 .tapin-pa-order__warnings{display:grid;gap:10px}
 .tapin-pa-event{border:1px solid #e2e8f0;border-radius:18px;box-shadow:0 6px 18px rgba(15,23,42,.08);overflow:hidden;background:#fff}
 .tapin-pa-event__header{display:flex;justify-content:space-between;align-items:center;width:100%;background:transparent;border:0;padding:18px;cursor:pointer;text-align:right;color:#0f172a}
