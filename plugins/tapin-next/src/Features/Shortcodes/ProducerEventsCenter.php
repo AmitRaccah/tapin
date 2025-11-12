@@ -3,8 +3,10 @@ namespace Tapin\Events\Features\Shortcodes;
 
 use Tapin\Events\Core\Service;
 use Tapin\Events\Features\Admin\ProducerCenterActions;
+use Tapin\Events\Features\Orders\ProducerApprovals\Assets as ProducerApprovalsAssets;
 use Tapin\Events\Support\Assets;
 use Tapin\Events\Support\MetaKeys;
+use Tapin\Events\UI\Components\DropWindow;
 use Tapin\Events\UI\Forms\EventFormRenderer;
 
 final class ProducerEventsCenter implements Service {
@@ -26,6 +28,8 @@ final class ProducerEventsCenter implements Service {
             status_header(403);
             return '<div class="tapin-notice tapin-notice--error">הדף זמין למפיקים בלבד.</div>';
         }
+
+        ProducerApprovalsAssets::enqueue();
 
         $message = ProducerCenterActions::handle();
 
@@ -70,15 +74,23 @@ final class ProducerEventsCenter implements Service {
             <h3 class="tapin-title">אירועים ממתינים שלי</h3>
             <?php if ($pending_ids): ?>
                 <div class="tapin-form-grid">
-                    <?php foreach ($pending_ids as $pid):
-                        $thumb = get_the_post_thumbnail_url($pid, 'woocommerce_thumbnail');
-                        if (!$thumb && function_exists('wc_placeholder_img_src')) {
-                            $thumb = wc_placeholder_img_src();
-                        }
-                        if (!$thumb) {
-                            $thumb = includes_url('images/media/default.png');
-                        }
-                    ?>
+                    <div class="tapin-pa">
+                        <div class="tapin-pa__events">
+                            <?php foreach ($pending_ids as $pid):
+                                $thumb = get_the_post_thumbnail_url($pid, 'woocommerce_thumbnail');
+                                if (!$thumb && function_exists('wc_placeholder_img_src')) {
+                                    $thumb = wc_placeholder_img_src();
+                                }
+                                if (!$thumb) {
+                                    $thumb = includes_url('images/media/default.png');
+                                }
+                                $title = get_the_title($pid) ?: '';
+                                $permalink = get_permalink($pid) ?: '';
+                                $isPanelOpen = true;
+                            ?>
+                            <?php echo DropWindow::openWrapper($isPanelOpen); ?>
+                            <?php echo DropWindow::header($title, $thumb, $permalink, $isPanelOpen); ?>
+                            <?php echo DropWindow::openPanel($isPanelOpen); ?>
                     <form method="post" enctype="multipart/form-data" class="tapin-card">
                         <div class="tapin-card__header">
                             <img class="tapin-card__thumb" src="<?php echo esc_url($thumb); ?>" alt="">
@@ -90,31 +102,43 @@ final class ProducerEventsCenter implements Service {
                         <?php EventFormRenderer::renderFields($pid, ['name_prefix' => 'sale_w']); ?>
 
                         <div class="tapin-actions">
-                            <button type="submit" name="save_pending" class="tapin-btn tapin-btn--primary">שמירה</button>
+                            <button type="submit" name="save_pending" class="tapin-btn tapin-btn--primary">?c???T?"?"</button>
                         </div>
                         <?php wp_nonce_field('tapin_pe_action', 'tapin_pe_nonce'); ?>
                         <input type="hidden" name="pid" value="<?php echo (int) $pid; ?>">
                     </form>
-                    <?php endforeach; ?>
+                            <?php echo DropWindow::closePanel(); ?>
+                            <?php echo DropWindow::closeWrapper(); ?>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
                 </div>
             <?php else: ?>
-                <p>אין כרגע אירועים ממתינים.</p>
+                <p>???T?? ?>?"?'?� ???T?"??�?T?? ?????x?T?�?T??.</p>
             <?php endif; ?>
 
             <h3 class="tapin-title" style="margin-top:40px;">אירועים פעילים שלי</h3>
             <?php if ($active_ids): ?>
                 <div class="tapin-form-grid">
-                    <?php foreach ($active_ids as $pid):
-                        $thumb = get_the_post_thumbnail_url($pid, 'woocommerce_thumbnail');
-                        if (!$thumb && function_exists('wc_placeholder_img_src')) {
-                            $thumb = wc_placeholder_img_src();
-                        }
-                        if (!$thumb) {
-                            $thumb = includes_url('images/media/default.png');
-                        }
-                        $request   = get_post_meta($pid, MetaKeys::EDIT_REQ, true);
-                        $is_paused = get_post_meta($pid, MetaKeys::PAUSED, true) === 'yes';
-                    ?>
+                    <div class="tapin-pa">
+                        <div class="tapin-pa__events">
+                            <?php foreach ($active_ids as $pid):
+                                $thumb = get_the_post_thumbnail_url($pid, 'woocommerce_thumbnail');
+                                if (!$thumb && function_exists('wc_placeholder_img_src')) {
+                                    $thumb = wc_placeholder_img_src();
+                                }
+                                if (!$thumb) {
+                                    $thumb = includes_url('images/media/default.png');
+                                }
+                                $request   = get_post_meta($pid, MetaKeys::EDIT_REQ, true);
+                                $is_paused = get_post_meta($pid, MetaKeys::PAUSED, true) === 'yes';
+                                $title = get_the_title($pid) ?: '';
+                                $permalink = get_permalink($pid) ?: '';
+                                $isPanelOpen = true;
+                            ?>
+                            <?php echo DropWindow::openWrapper($isPanelOpen); ?>
+                            <?php echo DropWindow::header($title, $thumb, $permalink, $isPanelOpen); ?>
+                            <?php echo DropWindow::openPanel($isPanelOpen); ?>
                     <form method="post" enctype="multipart/form-data" class="tapin-card <?php echo $is_paused ? 'tapin-card--paused' : ''; ?>">
                         <div class="tapin-card__header">
                             <img class="tapin-card__thumb" src="<?php echo esc_url($thumb); ?>" alt="">
@@ -122,10 +146,10 @@ final class ProducerEventsCenter implements Service {
                                 <h4 class="tapin-card__title">
                                     <?php echo esc_html(get_the_title($pid)); ?>
                                     <?php if ($is_paused): ?>
-                                        <span class="tapin-status-badge tapin-status-badge--paused">— מכירה מושהית</span>
+                                        <span class="tapin-status-badge tapin-status-badge--paused">�?" ???>?T?"?" ????c?"?T?x</span>
                                     <?php endif; ?>
                                     <?php if (!empty($request)): ?>
-                                        <span class="tapin-status-badge tapin-status-badge--pending">בקשת עדכון ממתינה</span>
+                                        <span class="tapin-status-badge tapin-status-badge--pending">?`??c?x ?�?"?>??? ?????x?T?�?"</span>
                                     <?php endif; ?>
                                 </h4>
                             </div>
@@ -135,18 +159,22 @@ final class ProducerEventsCenter implements Service {
 
                         <div class="tapin-actions">
                             <?php if (empty($request)): ?>
-                                <button type="submit" name="request_edit" class="tapin-btn tapin-btn--primary">בקשת עדכון</button>
+                                <button type="submit" name="request_edit" class="tapin-btn tapin-btn--primary">?`??c?x ?�?"?>???</button>
                             <?php else: ?>
-                                <button type="submit" name="cancel_request" class="tapin-btn tapin-btn--ghost">ביטול בקשה</button>
+                                <button type="submit" name="cancel_request" class="tapin-btn tapin-btn--ghost">?`?T?~??? ?`??c?"</button>
                             <?php endif; ?>
                         </div>
                         <?php wp_nonce_field('tapin_pe_action', 'tapin_pe_nonce'); ?>
                         <input type="hidden" name="pid" value="<?php echo (int) $pid; ?>">
                     </form>
-                    <?php endforeach; ?>
+                            <?php echo DropWindow::closePanel(); ?>
+                            <?php echo DropWindow::closeWrapper(); ?>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
                 </div>
             <?php else: ?>
-                <p>אין אירועים פעילים כרגע.</p>
+                <p>???T?? ???T?"??�?T?? ???�?T???T?? ?>?"?'?�.</p>
             <?php endif; ?>
         </div>
         <?php wp_reset_postdata(); ?>
