@@ -3,11 +3,13 @@ namespace Tapin\Events\Features\Shortcodes;
 
 use Tapin\Events\Core\Service;
 use Tapin\Events\Features\Admin\AdminCenterActions;
+use Tapin\Events\Features\Orders\ProducerApprovals\Assets as ProducerApprovalsAssets;
 use Tapin\Events\Support\Assets;
 use Tapin\Events\Support\Cap;
 use Tapin\Events\Support\Util;
 use Tapin\Events\UI\Forms\EventFormRenderer;
 use Tapin\Events\Support\MetaKeys;
+use Tapin\Events\UI\Components\DropWindow;
 
 final class EventsAdminCenter implements Service {
     public function register(): void { add_shortcode('events_admin_center', [$this,'render']); }
@@ -15,6 +17,8 @@ final class EventsAdminCenter implements Service {
     public function render($atts=[]): string {
         if (!Cap::isManager()) { status_header(403); return '<div class="tapin-notice tapin-notice--error">הדף למנהלים בלבד.</div>'; }
         $a = shortcode_atts(['feature_on_approve'=>'0'], $atts, 'events_admin_center');
+
+        ProducerApprovalsAssets::enqueue();
 
         $msg = AdminCenterActions::handle($a);
 
@@ -32,7 +36,20 @@ final class EventsAdminCenter implements Service {
 
           <h3 class="tapin-title">אירועים ממתינים לאישור</h3>
           <div class="tapin-form-grid">
-          <?php if($pending_ids): foreach($pending_ids as $pid): ?>
+          <?php if($pending_ids): ?>
+            <div class="tapin-pa">
+              <div class="tapin-pa__events">
+              <?php foreach($pending_ids as $pid): ?>
+                <?php
+                $title = get_the_title($pid) ?: '';
+                $image = get_the_post_thumbnail_url($pid, 'woocommerce_thumbnail');
+                $image = $image ?: includes_url('images/media/default.png');
+                $link = get_permalink($pid) ?: '';
+                $isPanelOpen = true;
+                ?>
+                <?php echo DropWindow::openWrapper($isPanelOpen); ?>
+                <?php echo DropWindow::header($title, $image, $link, $isPanelOpen); ?>
+                <?php echo DropWindow::openPanel($isPanelOpen); ?>
             <form method="post" enctype="multipart/form-data" class="tapin-card">
               <?php EventFormRenderer::renderFields($pid, ['name_prefix'=>'sale_w']); ?>
               <div class="tapin-form-row">
@@ -52,12 +69,32 @@ final class EventsAdminCenter implements Service {
               <?php wp_nonce_field('tapin_admin_action','tapin_admin_nonce'); ?>
               <input type="hidden" name="pid" value="<?php echo (int)$pid; ?>">
             </form>
-          <?php endforeach; else: ?><p>אין אירועים ממתינים.</p><?php endif; ?>
+                <?php echo DropWindow::closePanel(); ?>
+                <?php echo DropWindow::closeWrapper(); ?>
+              <?php endforeach; ?>
+              </div>
+            </div>
+          <?php else: ?><p>אין אירועים ממתינים.</p><?php endif; ?>
           </div>
 
           <h3 class="tapin-title" style="margin-top:40px;">בקשות עריכה</h3>
           <div class="tapin-form-grid">
-            <?php if($edit_ids): foreach($edit_ids as $pid): $req = get_post_meta($pid, 'tapin_edit_request', true); $data=$req['data']??[]; ?>
+            <?php if($edit_ids): ?>
+              <div class="tapin-pa">
+                <div class="tapin-pa__events">
+                <?php foreach($edit_ids as $pid): ?>
+                  <?php
+                  $req = get_post_meta($pid, 'tapin_edit_request', true);
+                  $data = $req['data']??[];
+                  $title = get_the_title($pid) ?: '';
+                  $image = get_the_post_thumbnail_url($pid, 'woocommerce_thumbnail');
+                  $image = $image ?: includes_url('images/media/default.png');
+                  $link = get_permalink($pid) ?: '';
+                  $isPanelOpen = true;
+                  ?>
+                <?php echo DropWindow::openWrapper($isPanelOpen); ?>
+                <?php echo DropWindow::header($title, $image, $link, $isPanelOpen); ?>
+                <?php echo DropWindow::openPanel($isPanelOpen); ?>
             <form method="post" class="tapin-card">
               <div class="tapin-columns-2">
                 <div><strong>נוכחי</strong>
@@ -79,16 +116,33 @@ final class EventsAdminCenter implements Service {
               <?php wp_nonce_field('tapin_admin_action','tapin_admin_nonce'); ?>
               <input type="hidden" name="pid" value="<?php echo (int)$pid; ?>">
             </form>
-            <?php endforeach; else: ?><p>אין בקשות עריכה.</p><?php endif; ?>
+                <?php echo DropWindow::closePanel(); ?>
+                <?php echo DropWindow::closeWrapper(); ?>
+              <?php endforeach; ?>
+                </div>
+              </div>
+            <?php else: ?><p>אין בקשות עריכה.</p><?php endif; ?>
           </div>
 
           <h3 class="tapin-title" style="margin-top:40px;">אירועים פעילים</h3>
           <div class="tapin-form-grid">
-            <?php if($active_ids): foreach($active_ids as $pid):
-              $terms = get_the_terms($pid,'product_cat');
-              $selected = $terms && !is_wp_error($terms) ? wp_list_pluck($terms,'slug') : [];
-              $is_paused = get_post_meta($pid, '_sale_paused', true) === 'yes';
-            ?>
+            <?php if($active_ids): ?>
+              <div class="tapin-pa">
+                <div class="tapin-pa__events">
+                <?php foreach($active_ids as $pid): ?>
+                  <?php
+                  $terms = get_the_terms($pid,'product_cat');
+                  $selected = $terms && !is_wp_error($terms) ? wp_list_pluck($terms,'slug') : [];
+                  $is_paused = get_post_meta($pid, '_sale_paused', true) === 'yes';
+                  $title = get_the_title($pid) ?: '';
+                  $image = get_the_post_thumbnail_url($pid, 'woocommerce_thumbnail');
+                  $image = $image ?: includes_url('images/media/default.png');
+                  $link = get_permalink($pid) ?: '';
+                  $isPanelOpen = true;
+                  ?>
+                <?php echo DropWindow::openWrapper($isPanelOpen); ?>
+                <?php echo DropWindow::header($title, $image, $link, $isPanelOpen); ?>
+                <?php echo DropWindow::openPanel($isPanelOpen); ?>
             <form method="post" enctype="multipart/form-data" class="tapin-card <?php echo $is_paused?'tapin-card--paused':''; ?>">
               <?php EventFormRenderer::renderFields($pid, ['name_prefix'=>'sale_w']); ?>
               <div class="tapin-form-row">
@@ -112,7 +166,12 @@ final class EventsAdminCenter implements Service {
               <?php wp_nonce_field('tapin_admin_action','tapin_admin_nonce'); ?>
               <input type="hidden" name="pid" value="<?php echo (int)$pid; ?>">
             </form>
-            <?php endforeach; else: ?><p>אין אירועים פעילים.</p><?php endif; ?>
+                <?php echo DropWindow::closePanel(); ?>
+                <?php echo DropWindow::closeWrapper(); ?>
+              <?php endforeach; ?>
+                </div>
+              </div>
+            <?php else: ?><p>אין אירועים פעילים.</p><?php endif; ?>
           </div>
         </div>
         <?php
