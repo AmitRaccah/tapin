@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Tapin\Events\Features\Orders\ProducerApprovals;
 
+use Tapin\Events\UI\Components\CounterBadge;
+
 final class Renderer
 {
     /**
@@ -38,7 +40,10 @@ final class Renderer
             <?php if ($events): ?>
               <div class="tapin-pa__events" id="tapinPaEvents">
                 <?php foreach ($events as $index => $event): ?>
-                  <?php $isOpen = ((int) ($event['counts']['pending'] ?? 0) > 0) || $index === 0; ?>
+                  <?php
+                  $pendingCount = (int) ($event['counts']['pending'] ?? 0);
+                  $isOpen = false;
+                  ?>
                   <div class="tapin-pa-event<?php echo $isOpen ? ' is-open' : ''; ?>" data-search="<?php echo esc_attr((string) ($event['search'] ?? '')); ?>">
                     <button class="tapin-pa-event__header" type="button" data-event-toggle aria-expanded="<?php echo $isOpen ? 'true' : 'false'; ?>">
                       <div class="tapin-pa-event__summary">
@@ -56,13 +61,14 @@ final class Renderer
                             <?php endif; ?>
                           </h4>
                           <div class="tapin-pa-event__stats">
-                            <span class="tapin-pa-event__badge tapin-pa-event__badge--pending"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1502;&#1514;&#1497;&#1504;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['pending'] ?? 0); ?></span>
+                            <span class="tapin-pa-event__badge tapin-pa-event__badge--pending"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1502;&#1514;&#1497;&#1504;&#1497;&#1501;')); ?>: <?php echo $pendingCount; ?></span>
                             <span class="tapin-pa-event__badge tapin-pa-event__badge--partial"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1493;&#1513;&#1512;&#32;&#1495;&#1500;&#1511;&#1497;&#1514;')); ?>: <?php echo (int) ($event['counts']['partial'] ?? 0); ?></span>
                             <span class="tapin-pa-event__badge tapin-pa-event__badge--approved"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1488;&#1493;&#1513;&#1512;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['approved'] ?? 0); ?></span>
                             <span class="tapin-pa-event__badge tapin-pa-event__badge--cancelled"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1489;&#1493;&#1496;&#1500;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['cancelled'] ?? 0); ?></span>
                           </div>
                         </div>
                       </div>
+                      <?php echo CounterBadge::render($pendingCount, ['class' => 'tapin-pa-event__indicator']); ?>
                       <span class="tapin-pa-event__chevron" aria-hidden="true">&#9662;</span>
                     </button>
                     <div class="tapin-pa-event__panel"<?php echo $isOpen ? '' : ' hidden'; ?>>
