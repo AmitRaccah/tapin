@@ -47,11 +47,10 @@ final class EventGrouper
                 $statusSlug = (string) ($order['status'] ?? '');
                 $statusType = $this->classifyStatus($statusSlug);
                 $isPartial  = $statusSlug === \Tapin\Events\Features\Orders\PartiallyApprovedStatus::STATUS_SLUG;
-                if (isset($events[$key]['counts'][$statusType])) {
-                    $events[$key]['counts'][$statusType]++;
-                }
                 if ($isPartial) {
                     $events[$key]['counts']['partial'] = ($events[$key]['counts']['partial'] ?? 0) + 1;
+                } elseif (isset($events[$key]['counts'][$statusType])) {
+                    $events[$key]['counts'][$statusType]++;
                 }
 
                 $orderSearch = SearchIndexBuilder::buildOrderSearchBlob($order, (array) $eventData);
