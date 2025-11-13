@@ -2,6 +2,8 @@
 /**
  * Plugin Name: Tapin Events (Next)
  * Version: 0.1.1
+ * Text Domain: tapin
+ * Domain Path: /languages
  */
 if (!defined('ABSPATH')) exit;
 
@@ -152,6 +154,7 @@ function tapin_next_sandbox_toggle_url(bool $enableSandbox, ?string $redirect = 
 }
 
 add_action('plugins_loaded', function () {
+    load_plugin_textdomain('tapin', false, dirname(plugin_basename(__FILE__)) . '/languages');
     if (!class_exists(\Tapin\Events\Core\Plugin::class)) return;
     (new \Tapin\Events\Core\Plugin())->boot(['sandbox' => tapin_next_is_sandbox()]);
 });

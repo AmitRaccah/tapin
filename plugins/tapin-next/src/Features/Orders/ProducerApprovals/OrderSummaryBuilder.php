@@ -337,7 +337,8 @@ final class OrderSummaryBuilder
             if (
                 strpos($label, "\u{05D4}\u{05DE}\u{05E9}\u{05EA}\u{05EA}\u{05E3}") === 0
                 || strpos($label, 'Participant') === 0
-                || strpos($label, '???') === 0
+                || strpos($label, 'משתתף') === 0
+                || strpos($label, 'מוזמן') === 0
             ) {
                 $parts = array_map('trim', explode('|', $meta->value));
                 $data  = array_combine($summaryKeys, array_pad($parts, count($summaryKeys), ''));

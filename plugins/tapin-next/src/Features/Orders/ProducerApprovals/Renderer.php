@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 namespace Tapin\Events\Features\Orders\ProducerApprovals;
 
-use Tapin\Events\UI\Components\CounterBadge;
-
 final class Renderer
 {
     /**
@@ -14,6 +12,7 @@ final class Renderer
     {
         $events = (array) ($view['events'] ?? []);
         $canDownloadExport = (bool) ($view['can_download_export'] ?? false);
+        $now = time();
 
         ob_start();
         ?>
@@ -29,6 +28,7 @@ final class Renderer
               </div>
               <div class="tapin-pa__buttons">
                 <button class="btn btn-ghost" type="button" id="tapinPaSelectAll"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1489;&#1495;&#1512;&#32;&#1492;&#1499;&#1500;')); ?></button>
+                <button class="btn btn-secondary" type="button" id="tapinPaPartialSave"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1513;&#1502;&#1493;&#1512;&#32;&#1488;&#1497;&#1513;&#1493;&#1512;&#1497;&#1501;&#32;&#1492;&#1495;&#1500;&#1511;&#1497;&#1501;')); ?></button>
                 <button class="btn btn-primary" type="submit" name="bulk_approve"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1513;&#1512;&#32;&#1504;&#1489;&#1495;&#1512;&#1493;&#1514;')); ?></button>
                 <button class="btn btn-ghost" type="button" id="tapinApproveAll"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1513;&#1512;&#32;&#1492;&#1499;&#1500;')); ?></button>
                 <button class="btn btn-danger" type="submit" name="bulk_cancel" onclick="return confirm('<?php echo esc_js(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1500;&#1489;&#1496;&#1500;&#32;&#1488;&#1514;&#32;&#1492;&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;&#32;&#1513;&#1504;&#1489;&#1495;&#1512;&#1493;&#63;')); ?>')"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1489;&#1496;&#1500;&#32;&#1492;&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;&#32;&#1513;&#1504;&#1489;&#1495;&#1512;&#1493;')); ?></button>
@@ -40,10 +40,7 @@ final class Renderer
             <?php if ($events): ?>
               <div class="tapin-pa__events" id="tapinPaEvents">
                 <?php foreach ($events as $index => $event): ?>
-                  <?php
-                  $pendingCount = (int) ($event['counts']['pending'] ?? 0);
-                  $isOpen = false;
-                  ?>
+                  <?php $isOpen = ((int) ($event['counts']['pending'] ?? 0) > 0) || $index === 0; ?>
                   <div class="tapin-pa-event<?php echo $isOpen ? ' is-open' : ''; ?>" data-search="<?php echo esc_attr((string) ($event['search'] ?? '')); ?>">
                     <button class="tapin-pa-event__header" type="button" data-event-toggle aria-expanded="<?php echo $isOpen ? 'true' : 'false'; ?>">
                       <div class="tapin-pa-event__summary">
@@ -61,14 +58,13 @@ final class Renderer
                             <?php endif; ?>
                           </h4>
                           <div class="tapin-pa-event__stats">
-                            <span class="tapin-pa-event__badge tapin-pa-event__badge--pending"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1502;&#1514;&#1497;&#1504;&#1497;&#1501;')); ?>: <?php echo $pendingCount; ?></span>
-                            <span class="tapin-pa-event__badge tapin-pa-event__badge--partial"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1493;&#1513;&#1512;&#32;&#1495;&#1500;&#1511;&#1497;&#1514;')); ?>: <?php echo (int) ($event['counts']['partial'] ?? 0); ?></span>
+                            <span class="tapin-pa-event__badge tapin-pa-event__badge--pending"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1502;&#1514;&#1497;&#1504;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['pending'] ?? 0); ?></span>
+                            <span class="tapin-pa-event__badge tapin-pa-event__badge--partial"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1497;&#1513;&#1493;&#1512;&#1497;&#1501;&#32;&#1492;&#1495;&#1500;&#1511;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['partial'] ?? 0); ?></span>
                             <span class="tapin-pa-event__badge tapin-pa-event__badge--approved"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1488;&#1493;&#1513;&#1512;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['approved'] ?? 0); ?></span>
                             <span class="tapin-pa-event__badge tapin-pa-event__badge--cancelled"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1489;&#1493;&#1496;&#1500;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['cancelled'] ?? 0); ?></span>
                           </div>
                         </div>
                       </div>
-                      <?php echo CounterBadge::render($pendingCount, ['class' => 'tapin-pa-event__indicator']); ?>
                       <span class="tapin-pa-event__chevron" aria-hidden="true">&#9662;</span>
                     </button>
                     <div class="tapin-pa-event__panel"<?php echo $isOpen ? '' : ' hidden'; ?>>
@@ -102,25 +98,31 @@ final class Renderer
                         <?php foreach ($event['orders'] as $orderIndex => $orderData): ?>
                           <?php
                           $statusType = (string) ($orderData['status_type'] ?? '');
-                          $statusSlug = (string) ($orderData['status'] ?? '');
-                          $statusLabel = trim((string) ($orderData['status_label'] ?? ''));
-                          if ($statusLabel === '') {
-                              $statusLabel = $statusType === 'pending'
-                                  ? \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1502;&#1514;&#1497;&#1504;&#1497;&#1501;')
-                                  : ($statusType === 'approved'
-                                      ? \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1493;&#1513;&#1512;')
-                                      : \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1489;&#1493;&#1496;&#1500;'));
+                          switch ($statusType) {
+                              case 'pending':
+                                  $statusLabel = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1502;&#1514;&#1497;&#1504;&#1497;&#1501;');
+                                  break;
+                              case 'partial':
+                                  $statusLabel = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1513;&#1512;&#32;&#1492;&#1495;&#1500;&#1511;&#1497;&#1514;');
+                                  break;
+                              case 'approved':
+                                  $statusLabel = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1493;&#1513;&#1512;');
+                                  break;
+                              default:
+                                  $statusLabel = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1489;&#1493;&#1496;&#1500;');
+                                  break;
                           }
                           $statusClass = 'tapin-pa-order--' . sanitize_html_class($statusType);
-                          if ($statusSlug === \Tapin\Events\Features\Orders\PartiallyApprovedStatus::STATUS_SLUG) {
-                              $statusClass .= ' tapin-pa-order--partial';
-                          }
                           $altClass = ((int) $orderIndex % 2 === 1) ? ' tapin-pa-order--alt' : '';
-                          $approvedMap = (array) ($orderData['approved_attendee_map'] ?? []);
                           ?>
                           <article class="tapin-pa-order <?php echo esc_attr($statusClass); ?><?php echo $altClass; ?>" data-search="<?php echo esc_attr((string) ($orderData['search_blob'] ?? '')); ?>">
                             <header class="tapin-pa-order__header">
                               <div class="tapin-pa-order__left">
+                                <?php if (!empty($orderData['is_pending'])): ?>
+                                  <input class="tapin-pa-order__checkbox" type="checkbox" name="order_ids[]" value="<?php echo (int) ($orderData['id'] ?? 0); ?>" data-pending="1">
+                                <?php else: ?>
+                                  <input class="tapin-pa-order__checkbox" type="checkbox" disabled title="Already processed">
+                                <?php endif; ?>
                                 <div>
                                   <div><strong><?php echo esc_html('#' . (string) ($orderData['number'] ?? '')); ?></strong></div>
                                   <div class="tapin-pa-order__meta">
@@ -139,6 +141,17 @@ final class Renderer
                                     <div class="tapin-pa__warning"><?php echo wp_kses_post((string) $warning); ?></div>
                                   <?php endforeach; ?>
                                 </div>
+                              <?php endif; ?>
+                              <?php if (!empty($orderData['lines'])): ?>
+                                <?php foreach ((array) $orderData['lines'] as $lineMeta): ?>
+                                  <?php
+                                  $lineItemId = isset($lineMeta['item_id']) ? (int) $lineMeta['item_id'] : 0;
+                                  if ($lineItemId <= 0) {
+                                      continue;
+                                  }
+                                  ?>
+                                  <input type="hidden" name="approve_attendee[<?php echo (int) ($orderData['id'] ?? 0); ?>][<?php echo $lineItemId; ?>][_tapin_presence]" value="1">
+                                <?php endforeach; ?>
                               <?php endif; ?>
                               <?php
                               $contactRows = [];
@@ -173,18 +186,6 @@ final class Renderer
                                       'href'  => $telHref !== '' ? $telHref : $digitsOnly,
                                   ];
                               }
-
-                              $saleTypeLabel = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1505;&#1493;&#1490;&#32;&#1502;&#1495;&#1497;&#1512;&#1492;');
-                              $saleTypeRaw = (string) ($orderData['sale_type'] ?? 'organic');
-                              $saleTypeValue = $saleTypeRaw === 'producer_link'
-                                  ? \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1500;&#1497;&#1504;&#1511;&#32;&#1502;&#1508;&#1497;&#1511;')
-                                  : \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1493;&#1512;&#1490;&#1504;&#1497;');
-                              $contactRows[] = [
-                                  'label' => $saleTypeLabel,
-                                  'value' => $saleTypeValue,
-                                  'type'  => 'text',
-                                  'href'  => '',
-                              ];
 
                               if (!empty($orderData['primary_id_number'])) {
                                   $contactRows[] = [
@@ -331,44 +332,18 @@ final class Renderer
                                         $lineParts[] = '(' . $lineTotal . ')';
                                     }
                                     $lineText = trim(implode(' ', $lineParts));
-                                    $lineTypes = array_filter(array_map('trim', (array) ($line['ticket_types'] ?? [])));
-                                    if ($lineTypes !== []) {
-                                        $lineText .= ' (' . implode(' / ', $lineTypes) . ')';
-                                    }
                                     ?>
                                     <li><?php echo esc_html($lineText); ?></li>
                                   <?php endforeach; ?>
                                 </ul>
                               <?php endif; ?>
 
-                              <?php
-                              $primary = (array) ($orderData['primary_attendee'] ?? []);
-                              $others = (array) ($orderData['attendees'] ?? []);
-                              if ($primary !== []) {
-                                  array_unshift($others, $primary);
-                              }
-                              $uiAttendees = $others;
-                              ?>
-                              <?php if ($uiAttendees !== []): ?>
+                              <?php if (!empty($orderData['attendees'])): ?>
                                 <div class="tapin-pa-order__section tapin-pa-attendees">
                                   <h5 class="tapin-pa-order__section-title"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1493;&#1494;&#1502;&#1504;&#1497;&#1501;')); ?></h5>
                                   <div class="tapin-pa-attendees__grid">
-                                    <?php foreach ($uiAttendees as $attendee): ?>
+                                    <?php foreach ((array) $orderData['attendees'] as $attendee): ?>
                                       <?php
-                                      $orderId = (int) ($orderData['id'] ?? 0);
-                                      $itemId = isset($attendee['item_id']) ? (int) $attendee['item_id'] : 0;
-                                      $attendeeIndex = isset($attendee['attendee_index']) ? (int) $attendee['attendee_index'] : -1;
-                                      $hasPointer = $orderId > 0 && $itemId > 0 && $attendeeIndex >= 0;
-                                      $checkboxEnabled = !empty($orderData['is_pending'])
-                                          && empty($orderData['is_partial'])
-                                          && $hasPointer;
-                                      $checkboxName = sprintf('attendee_approve[%d][%d][]', $orderId, max(0, $itemId));
-                                      $checkboxValue = $attendeeIndex;
-                                      $itemApprovedList = isset($approvedMap[$itemId]) ? (array) $approvedMap[$itemId] : [];
-                                      $hasSavedSelection = array_key_exists($itemId, $approvedMap);
-                                      $isApprovedAttendee = in_array($attendeeIndex, $itemApprovedList, true)
-                                          || !empty($attendee['is_producer_approved']);
-                                      $shouldCheck = $checkboxEnabled && (!$hasSavedSelection || $isApprovedAttendee);
                                       $attendeeRows = [];
 
                                       if (!empty($attendee['email'])) {
@@ -424,13 +399,9 @@ final class Renderer
                                       if (!empty($attendee['gender'])) {
                                           $genderRaw = trim((string) $attendee['gender']);
                                           if ($genderRaw !== '') {
-                                              $genderDisplay = \Tapin\Events\Support\AttendeeFields::displayValue('gender', $genderRaw);
-                                              if ($genderDisplay === '') {
-                                                  $genderDisplay = $genderRaw;
-                                              }
                                               $attendeeRows[] = [
                                                   'label' => \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1490;&#1491;&#1512;'),
-                                                  'value' => $genderDisplay,
+                                                  'value' => $genderRaw,
                                                   'type'  => 'text',
                                                   'href'  => '',
                                               ];
@@ -491,33 +462,45 @@ final class Renderer
                                       }
                                       ?>
 
-                                      <div class="tapin-pa-attendee<?php echo $isApprovedAttendee ? ' tapin-pa-attendee--approved' : ''; ?>">
+                                      <?php
+                                      $orderId = (int) ($orderData['id'] ?? 0);
+                                      $itemId = isset($attendee['item_id']) ? (int) $attendee['item_id'] : 0;
+                                      $attendeeIdx = isset($attendee['idx']) ? (int) $attendee['idx'] : -1;
+                                      $isApprovedAttendee = !empty($attendee['approved']);
+                                      $eventDateTs = isset($attendee['event_date_ts']) ? (int) $attendee['event_date_ts'] : 0;
+                                      $eventPassed = $eventDateTs > 0 && $eventDateTs < $now;
+                                      $approveTooltip = $eventPassed
+                                          ? \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1500;&#1488;&#32;&#1504;&#1497;&#1510;&#1503;&#32;&#1500;&#1488;&#1513;&#1512;&#32;&#1492;&#1494;&#1502;&#1504;&#1492;&#32;&#1500;&#1488;&#1497;&#1512;&#1493;&#1506;&#32;&#1513;&#1499;&#1489;&#1512;&#32;&#1506;&#1489;&#1512;')
+                                          : '';
+                                      $canApproveAttendee = $orderId > 0 && $itemId > 0 && $attendeeIdx >= 0;
+                                      $approveFieldName = $canApproveAttendee
+                                          ? sprintf('approve_attendee[%d][%d][%d]', $orderId, $itemId, $attendeeIdx)
+                                          : '';
+                                      ?>
+                                      <div class="tapin-pa-attendee">
                                         <div class="tapin-pa-attendee__header">
-                                          <div class="tapin-pa-attendee__selector">
-                                            <input
-                                              type="checkbox"
-                                              class="tapin-pa-attendee__checkbox"
-                                              <?php if ($checkboxEnabled): ?>
-                                                name="<?php echo esc_attr($checkboxName); ?>"
-                                                value="<?php echo esc_attr((string) $checkboxValue); ?>"
-                                                <?php echo $shouldCheck ? ' checked' : ''; ?>
-                                                data-pending="1"
-                                              <?php else: ?>
-                                                disabled
-                                                data-pending="0"
-                                              <?php endif; ?>
-                                            >
-                                            <h6 class="tapin-pa-attendee__title">
-                                              <?php
-                                              $displayName = trim((string) ($attendee['full_name'] ?? ''));
-                                              echo esc_html($displayName !== '' ? $displayName : \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1493;&#1512;&#1495;'));
-                                              ?>
-                                            </h6>
-                                          </div>
-                                          <?php if ($isApprovedAttendee): ?>
-                                            <span class="tapin-pa-attendee__status tapin-pa-attendee__status--approved">
-                                              <?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1488;&#1493;&#1513;&#1512;')); ?>
-                                            </span>
+                                          <h6 class="tapin-pa-attendee__title">
+                                            <?php
+                                            $displayName = trim((string) ($attendee['full_name'] ?? ''));
+                                            echo esc_html($displayName !== '' ? $displayName : \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1493;&#1512;&#1495;'));
+                                            ?>
+                                          </h6>
+                                          <?php if ($canApproveAttendee): ?>
+                                            <label class="tapin-pa-attendee__approve-box">
+                                              <input
+                                                type="checkbox"
+                                                class="tapin-pa-attendee__approve"
+                                                name="<?php echo esc_attr($approveFieldName); ?>"
+                                                value="1"
+                                                data-order-id="<?php echo esc_attr((string) $orderId); ?>"
+                                                data-item-id="<?php echo esc_attr((string) $itemId); ?>"
+                                                data-attendee-idx="<?php echo esc_attr((string) $attendeeIdx); ?>"
+                                                <?php echo $isApprovedAttendee ? 'checked' : ''; ?>
+                                                <?php echo $eventPassed ? 'disabled' : ''; ?>
+                                                <?php echo $approveTooltip !== '' ? 'title="' . esc_attr($approveTooltip) . '"' : ''; ?>
+                                              >
+                                              <span><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1513;&#1512;')); ?></span>
+                                            </label>
                                           <?php endif; ?>
                                           <span class="tapin-pa-attendee__badge"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1493;&#1494;&#1502;&#1503;&#47;&#1514;')); ?></span>
                                         </div>

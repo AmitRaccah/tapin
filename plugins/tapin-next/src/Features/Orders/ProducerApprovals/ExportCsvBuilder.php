@@ -76,7 +76,7 @@ final class ExportCsvBuilder
                 $rows[] = array_merge(
                     $orderBase,
                     [
-                        $attendeeEntry['primary'] ? 'ראשי' : 'משני',
+                        $attendeeEntry['primary'] ? __('ראשי', 'tapin') : __('משני', 'tapin'),
                         $this->cleanExportValue($attendee['full_name'] ?? ''),
                         $this->cleanExportValue($attendee['email'] ?? ''),
                         $this->cleanExportValue($attendee['phone'] ?? ''),

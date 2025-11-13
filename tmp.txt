@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 declare(strict_types=1);
 
 namespace Tapin\Events\Features\Orders\ProducerApprovals;
@@ -32,7 +32,7 @@ final class ExportStreamer
         $output = fopen('php://output', 'wb');
         if ($output === false) {
             status_header(500);
-            wp_die(esc_html__('לא ניתן ליצור את קובץ ה-CSV.', 'tapin'));
+            wp_die(html_entity_decode('&#1502;&#1497;&#1508;&#1512;&#32;&#1489;&#1493;&#1514;&#1507;&#32;&#1488;&#1500;&#32;&#1512;&#1513;&#1493;&#1500;.', ENT_QUOTES | ENT_HTML5, 'UTF-8'));
         }
 
         fwrite($output, "\xEF\xBB\xBF");

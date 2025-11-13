@@ -15,7 +15,7 @@ final class AdminCenterActions {
         $security = Security::manager();
         if (!$security->allowed) {
             wp_die(
-                $security->message !== '' ? $security->message : Security::forbiddenMessage('?"?"?� ?????�?T?? ?`???`?T??.'),
+                $security->message !== '' ? $security->message : Security::forbiddenMessage(__('אין לך הרשאה לבצע פעולה זו.', 'tapin')),
                 'tapin_admin_forbidden',
                 ['response' => 403]
             );
