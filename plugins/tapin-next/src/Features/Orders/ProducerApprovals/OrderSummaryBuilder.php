@@ -299,6 +299,7 @@ final class OrderSummaryBuilder
             'image'           => $image,
             'event_date_ts'   => $eventTimestamp,
             'event_date_label'=> $eventDateLabel,
+            'created_ts'      => $targetId ? (int) get_post_time('U', true, $targetId) : 0,
         ];
     }
 

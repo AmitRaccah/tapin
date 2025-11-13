@@ -102,10 +102,16 @@ final class SalesAggregator
         }
 
         uasort($rows, static function (array $a, array $b): int {
-            $dateDiff = ($b['event_ts'] ?? 0) <=> ($a['event_ts'] ?? 0);
-            if ($dateDiff !== 0) {
-                return $dateDiff;
+            $created = ($b['created_ts'] ?? 0) <=> ($a['created_ts'] ?? 0);
+            if ($created !== 0) {
+                return $created;
             }
+
+            $event = ($b['event_ts'] ?? 0) <=> ($a['event_ts'] ?? 0);
+            if ($event !== 0) {
+                return $event;
+            }
+
             return strcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
         });
 

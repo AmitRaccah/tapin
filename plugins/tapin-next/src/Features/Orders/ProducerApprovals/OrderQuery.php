@@ -23,9 +23,11 @@ final class OrderQuery
         ]));
 
         $awaitingIds = wc_get_orders([
-            'status' => $pendingStatusKeys,
-            'limit'  => 200,
-            'return' => 'ids',
+            'status'  => $pendingStatusKeys,
+            'limit'   => 200,
+            'orderby' => 'date',
+            'order'   => 'DESC',
+            'return'  => 'ids',
         ]);
 
         foreach ($awaitingIds as $orderId) {
@@ -37,9 +39,11 @@ final class OrderQuery
         }
 
         $pendingIds = wc_get_orders([
-            'status' => $pendingStatusKeys,
-            'limit'  => 200,
-            'return' => 'ids',
+            'status'  => $pendingStatusKeys,
+            'limit'   => 200,
+            'orderby' => 'date',
+            'order'   => 'DESC',
+            'return'  => 'ids',
         ]);
 
         $relevantIds = [];
@@ -63,9 +67,11 @@ final class OrderQuery
         ];
 
         $historyIds = wc_get_orders([
-            'status' => $historyStatuses,
-            'limit'  => 200,
-            'return' => 'ids',
+            'status'  => $historyStatuses,
+            'limit'   => 200,
+            'orderby' => 'date',
+            'order'   => 'DESC',
+            'return'  => 'ids',
         ]);
 
         foreach ($historyIds as $orderId) {

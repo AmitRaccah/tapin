@@ -28,7 +28,8 @@ final class EventRowFactory
         $ticketTypes = TicketTypesRepository::get($productId);
         $ticketIndex = $this->indexTicketTypes($ticketTypes);
         $regular = $this->resolveRegularTicket($ticketTypes);
-        $eventTs = $this->resolveEventTimestamp($productId);
+        $eventTs   = $this->resolveEventTimestamp($productId);
+        $createdTs = (int) get_post_time('U', true, $productId);
         $commissionMeta = $this->resolveCommissionMeta($productId);
         $format = get_option('date_format') . ' H:i';
         $eventLabel = $eventTs > 0 ? Time::fmtLocal($eventTs, $format) : '';
@@ -44,6 +45,7 @@ final class EventRowFactory
             'ref_sum'            => 0.0,
             'ref_commission'     => 0.0,
             'event_ts'           => $eventTs,
+            'created_ts'         => $createdTs,
             'event_date_label'   => $eventLabel,
             'ticket_index'       => $ticketIndex,
             'regular_type_id'    => $regular['id'],

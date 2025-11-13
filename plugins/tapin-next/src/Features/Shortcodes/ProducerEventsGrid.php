@@ -83,9 +83,8 @@ final class ProducerEventsGrid implements Service {
             'post_status'    => 'publish',
             'author'         => $producer_id,
             'posts_per_page' => -1,
-            'meta_key'       => $meta_key,
-            'orderby'        => 'meta_value',
-            'order'          => 'ASC',
+            'orderby'        => 'date',
+            'order'          => 'DESC',
             'meta_query'     => [[
                 'key'     => $meta_key,
                 'value'   => $now,
@@ -100,8 +99,7 @@ final class ProducerEventsGrid implements Service {
             'post_status'    => 'publish',
             'author'         => $producer_id,
             'posts_per_page' => -1,
-            'meta_key'       => $meta_key,
-            'orderby'        => 'meta_value',
+            'orderby'        => 'date',
             'order'          => 'DESC',
             'meta_query'     => [[
                 'key'     => $meta_key,

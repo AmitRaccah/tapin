@@ -22,11 +22,42 @@ final class EventsAdminCenter implements Service {
 
         $msg = AdminCenterActions::handle($a);
 
-        $pending_q = new \WP_Query(['post_type'=>'product','post_status'=>['pending'],'posts_per_page'=>-1,'no_found_rows'=>true]);
+        $pending_q = new \WP_Query([
+            'post_type'      => 'product',
+            'post_status'    => ['pending'],
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'posts_per_page' => -1,
+            'no_found_rows'  => true,
+        ]);
         $pending_ids = $pending_q->have_posts()?wp_list_pluck($pending_q->posts,'ID'):[];
-        $active_q = new \WP_Query(['post_type'=>'product','post_status'=>['publish'],'meta_key'=>'event_date','orderby'=>'meta_value','order'=>'ASC','meta_query'=>[['key'=>'event_date','compare'=>'>=','value'=>wp_date('Y-m-d H:i:s', time(), wp_timezone()),'type'=>'DATETIME']],'posts_per_page'=>-1,'no_found_rows'=>true]);
+        $active_q = new \WP_Query([
+            'post_type'      => 'product',
+            'post_status'    => ['publish'],
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => [[
+                'key'     => 'event_date',
+                'compare' => '>=',
+                'value'   => wp_date('Y-m-d H:i:s', time(), wp_timezone()),
+                'type'    => 'DATETIME',
+            ]],
+            'posts_per_page' => -1,
+            'no_found_rows'  => true,
+        ]);
         $active_ids = $active_q->have_posts()?wp_list_pluck($active_q->posts,'ID'):[];
-        $edit_req_q = new \WP_Query(['post_type'=>'product','post_status'=>['publish'],'posts_per_page'=>-1,'no_found_rows'=>true,'meta_query'=>[['key'=>'tapin_edit_request','compare'=>'EXISTS']]]);
+        $edit_req_q = new \WP_Query([
+            'post_type'      => 'product',
+            'post_status'    => ['publish'],
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'posts_per_page' => -1,
+            'no_found_rows'  => true,
+            'meta_query'     => [[
+                'key'     => 'tapin_edit_request',
+                'compare' => 'EXISTS',
+            ]],
+        ]);
         $edit_ids = $edit_req_q->have_posts()?wp_list_pluck($edit_req_q->posts,'ID'):[];
 
         ob_start(); ?>

@@ -24,10 +24,12 @@ final class SalesQuery
         $statuses = $this->normalizeStatuses($statusesRaw);
 
         $queryArgs = [
-            'limit'  => -1,
-            'type'   => 'shop_order',
-            'status' => $statuses !== [] ? $statuses : ['wc-processing', 'wc-completed'],
-            'return' => 'ids',
+            'limit'   => -1,
+            'orderby' => 'date',
+            'order'   => 'DESC',
+            'type'    => 'shop_order',
+            'status'  => $statuses !== [] ? $statuses : ['wc-processing', 'wc-completed'],
+            'return'  => 'ids',
         ];
 
         if ($dateAfter || $dateBefore) {

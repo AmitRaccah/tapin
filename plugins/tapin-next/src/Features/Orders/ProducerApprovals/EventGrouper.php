@@ -33,6 +33,7 @@ final class EventGrouper
                         'permalink' => (string) ($eventData['permalink'] ?? ''),
                         'event_date_ts'    => isset($eventData['event_date_ts']) ? (int) $eventData['event_date_ts'] : 0,
                         'event_date_label' => (string) ($eventData['event_date_label'] ?? ''),
+                        'created_ts'       => isset($eventData['created_ts']) ? (int) $eventData['created_ts'] : 0,
                         'latest_order_ts'  => 0,
                         'counts'    => ['pending' => 0, 'partial' => 0, 'approved' => 0, 'cancelled' => 0],
                         'orders'    => [],
@@ -108,6 +109,11 @@ final class EventGrouper
         unset($event);
 
         uasort($events, static function (array $a, array $b): int {
+            $createdDiff = ($b['created_ts'] ?? 0) <=> ($a['created_ts'] ?? 0);
+            if ($createdDiff !== 0) {
+                return $createdDiff;
+            }
+
             $dateDiff = ($b['event_date_ts'] ?? 0) <=> ($a['event_date_ts'] ?? 0);
             if ($dateDiff !== 0) {
                 return $dateDiff;

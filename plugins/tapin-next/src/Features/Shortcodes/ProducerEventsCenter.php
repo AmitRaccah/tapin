@@ -37,6 +37,8 @@ final class ProducerEventsCenter implements Service {
             'post_type'      => 'product',
             'post_status'    => ['pending'],
             'author'         => $user->ID,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
             'posts_per_page' => -1,
             'no_found_rows'  => true,
         ]);
@@ -46,9 +48,8 @@ final class ProducerEventsCenter implements Service {
             'post_type'      => 'product',
             'post_status'    => ['publish'],
             'author'         => $user->ID,
-            'meta_key'       => MetaKeys::EVENT_DATE,
-            'orderby'        => 'meta_value',
-            'order'          => 'ASC',
+            'orderby'        => 'date',
+            'order'          => 'DESC',
             'meta_query'     => [[
                 'key'     => MetaKeys::EVENT_DATE,
                 'compare' => '>=',
