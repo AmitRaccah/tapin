@@ -154,9 +154,19 @@ final class PendingCheckoutManager
             TicketTypeTracer::resume((int) $productId, (int) count($sanitized), (bool) $cartItemKey);
         }
 
-        if ($cartItemKey) {
+        $currentUserId = get_current_user_id();
+        $added = (bool) $cartItemKey;
+        /**
+         * Fires after Tapin tries to resume a checkout after login/redirect.
+         */
+        do_action('tapin/events/checkout/pending_resumed', $productId, $quantity, $added, $currentUserId);
+        if (function_exists('tapin_next_debug_log')) {
+            tapin_next_debug_log(sprintf('[pending-checkout] resume %s for product %d', $added ? 'succeeded' : 'failed', $productId));
+        }
+
+        if ($added) {
             $payer = $sanitized[0] ?? [];
-            $this->userManager->maybeUpdateUserProfile(get_current_user_id(), $payer, false);
+            $this->userManager->maybeUpdateUserProfile($currentUserId, $payer, false);
         }
     }
 

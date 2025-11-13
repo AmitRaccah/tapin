@@ -5,17 +5,33 @@ use Tapin\Events\Domain\EventProductService;
 use Tapin\Events\Domain\SaleWindowsRepository;
 use Tapin\Events\Domain\TicketTypesRepository;
 use Tapin\Events\Support\MetaKeys;
+use Tapin\Events\Support\Security;
 use Tapin\Events\Support\Util;
 
 final class AdminCenterActions {
     public static function handle(array $atts=[]): string {
-        if ($_SERVER['REQUEST_METHOD']!=='POST' || empty($_POST['tapin_admin_nonce']) || !wp_verify_nonce($_POST['tapin_admin_nonce'],'tapin_admin_action')) return '';
+        if ($_SERVER['REQUEST_METHOD']!=='POST') return '';
+
+        $security = Security::manager();
+        if (!$security->allowed) {
+            wp_die(
+                $security->message !== '' ? $security->message : Security::forbiddenMessage('?"?"?� ?????�?T?? ?`???`?T??.'),
+                'tapin_admin_forbidden',
+                ['response' => 403]
+            );
+        }
+
+        if (empty($_POST['tapin_admin_nonce']) || !wp_verify_nonce($_POST['tapin_admin_nonce'],'tapin_admin_action')) {
+            wp_die(Security::forbiddenMessage('Invalid action nonce.'), 'tapin_admin_invalid_nonce', ['response' => 403]);
+        }
         $pid = (int)($_POST['pid'] ?? 0);
         $p = $pid ? get_post($pid) : null;
         if (!$p || get_post_type($pid)!=='product') return '';
 
         $key = 'tapin_admin_action_pid_'.$pid.'_'.md5(serialize($_POST));
-        if (get_transient($key)) return '<div class="tapin-notice tapin-notice--error">הפעולה כבר בוצעה.</div>';
+        if (get_transient($key)) {
+            return self::respond('duplicate_attempt', $pid, '<div class="tapin-notice tapin-notice--error">הפעולה כבר בוצעה.</div>', false);
+        }
         set_transient($key,1,5);
 
         $svc = new EventProductService();
@@ -25,7 +41,7 @@ final class AdminCenterActions {
         switch ($action) {
             case 'approve_new':
                 $termIds = Util::catSlugsToIds(isset($_POST['cats'])?(array)$_POST['cats']:[]);
-                if (!$termIds) { delete_transient($key); return '<div class="tapin-notice tapin-notice--error">יש לבחור לפחות קטגוריה אחת.</div>'; }
+                if (!$termIds) { delete_transient($key); return self::respond($action, $pid, '<div class="tapin-notice tapin-notice--error">יש לבחור לפחות קטגוריה אחת.</div>', false); }
                 $ticketTypesPost = TicketTypesRepository::parseFromPost('ticket_type');
                 $saleWindowsPost = SaleWindowsRepository::parseFromPost('sale_w', $ticketTypesPost);
                 $svc->applyFields($pid,[
@@ -48,7 +64,7 @@ final class AdminCenterActions {
                 }
                 if (function_exists('wc_delete_product_transients')) wc_delete_product_transients($pid);
                 clean_post_cache($pid);
-                return '<div class="tapin-notice tapin-notice--success">האירוע אושר ופורסם.</div>';
+                return self::respond($action, $pid, '<div class="tapin-notice tapin-notice--success">האירוע אושר ופורסם.</div>', true);
 
             case 'quick_save':
                 $ticketTypesPost = TicketTypesRepository::parseFromPost('ticket_type');
@@ -68,7 +84,7 @@ final class AdminCenterActions {
                 }
                 if (function_exists('wc_delete_product_transients')) wc_delete_product_transients($pid);
                 clean_post_cache($pid);
-                return '<div class="tapin-notice tapin-notice--success">הנתונים נשמרו.</div>';
+                return self::respond($action, $pid, '<div class="tapin-notice tapin-notice--success">הנתונים נשמרו.</div>', true);
 
             case 'approve_edit':
                 $req = get_post_meta($pid, MetaKeys::EDIT_REQ, true);
@@ -81,31 +97,32 @@ final class AdminCenterActions {
                     delete_post_meta($pid, MetaKeys::EDIT_REQ);
                     if (function_exists('wc_delete_product_transients')) wc_delete_product_transients($pid);
                     clean_post_cache($pid);
-                    return '<div class="tapin-notice tapin-notice--success">בקשת העריכה אושרה והוחלה.</div>';
+                    return self::respond($action, $pid, '<div class="tapin-notice tapin-notice--success">בקשת העריכה אושרה והוחלה.</div>', true);
                 }
+                self::reportAction($action, $pid, false);
                 return '';
 
             case 'reject_edit':
                 delete_post_meta($pid, MetaKeys::EDIT_REQ);
-                return '<div class="tapin-notice tapin-notice--warning">בקשת העריכה נדחתה.</div>';
+                return self::respond($action, $pid, '<div class="tapin-notice tapin-notice--warning">בקשת העריכה נדחתה.</div>', true);
 
             case 'trash':
                 wp_trash_post($pid);
                 if (function_exists('wc_delete_product_transients')) wc_delete_product_transients($pid);
                 clean_post_cache($pid);
-                return '<div class="tapin-notice tapin-notice--warning">האירוע נמחק והועבר לאשפה.</div>';
+                return self::respond($action, $pid, '<div class="tapin-notice tapin-notice--warning">האירוע נמחק והועבר לאשפה.</div>', true);
 
             case 'pause_sale':
                 update_post_meta($pid, MetaKeys::PAUSED, 'yes');
                 if (function_exists('wc_delete_product_transients')) wc_delete_product_transients($pid);
                 clean_post_cache($pid);
-                return '<div class="tapin-notice tapin-notice--warning">מכירת הכרטיסים הושהתה.</div>';
+                return self::respond($action, $pid, '<div class="tapin-notice tapin-notice--warning">מכירת הכרטיסים הושהתה.</div>', true);
 
             case 'resume_sale':
                 delete_post_meta($pid, MetaKeys::PAUSED);
                 if (function_exists('wc_delete_product_transients')) wc_delete_product_transients($pid);
                 clean_post_cache($pid);
-                return '<div class="tapin-notice tapin-notice--success">המכירה חודשה.</div>';
+                return self::respond($action, $pid, '<div class="tapin-notice tapin-notice--success">המכירה חודשה.</div>', true);
         }
         return '';
     }
@@ -129,5 +146,23 @@ final class AdminCenterActions {
 
         update_post_meta($pid, MetaKeys::PRODUCER_AFF_TYPE, $type);
         update_post_meta($pid, MetaKeys::PRODUCER_AFF_AMOUNT, $amount);
+    }
+
+    private static function respond(string $action, int $pid, string $message, bool $success, array $context = []): string
+    {
+        self::reportAction($action, $pid, $success, $context);
+        return $message;
+    }
+
+    private static function reportAction(string $action, int $pid, bool $success, array $context = []): void
+    {
+        /**
+         * Allows observers to monitor bulk admin center actions for auditing purposes.
+         */
+        do_action('tapin/admin_center/action_processed', $action, $pid, $success, $context, get_current_user_id());
+
+        if (function_exists('tapin_next_debug_log')) {
+            tapin_next_debug_log(sprintf('[admin-center] %s action "%s" on product %d', $success ? 'completed' : 'failed', $action ?: '(none)', $pid));
+        }
     }
 }

@@ -6,10 +6,13 @@ use Tapin\Events\Features\ProductPage\PurchaseModal\Guards\ProductGuards;
 use Tapin\Events\Features\ProductPage\PurchaseModal\Tickets\TicketTypeCache;
 use Tapin\Events\Features\ProductPage\PurchaseModal\Users\TransparentUserManager;
 use Tapin\Events\Features\ProductPage\PurchaseModal\Validation\AttendeeSanitizer;
+use Tapin\Events\Support\Notices\StringifyNoticeTrait;
 use Tapin\Events\Support\TicketTypeTracer;
 
 final class SubmissionValidator
 {
+    use StringifyNoticeTrait;
+
     private AttendeeSanitizer $sanitizer;
     private TicketTypeCache $ticketTypeCache;
     private ProductGuards $guards;
@@ -86,6 +89,16 @@ final class SubmissionValidator
                 wc_add_notice($this->stringifyNotice($message), 'error');
             }
 
+            /**
+             * Fires when attendee validation fails before checkout submission continues.
+             *
+             * @param array<int,string> $errors
+             */
+            do_action('tapin/events/checkout/submission_errors', $errors, $productId, get_current_user_id());
+            if (function_exists('tapin_next_debug_log')) {
+                tapin_next_debug_log('[submission-validator] blocked checkout for product ' . $productId);
+            }
+
             return false;
         }
 
@@ -153,17 +166,5 @@ final class SubmissionValidator
         }
 
         return $passed;
-    }
-
-    private function stringifyNotice($value): string
-    {
-        if (is_string($value)) {
-            return $value;
-        }
-        if (is_scalar($value)) {
-            return (string) $value;
-        }
-        $json = wp_json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        return is_string($json) ? $json : '';
     }
 }

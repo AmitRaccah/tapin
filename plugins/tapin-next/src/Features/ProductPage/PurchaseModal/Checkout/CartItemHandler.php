@@ -4,10 +4,13 @@ namespace Tapin\Events\Features\ProductPage\PurchaseModal\Checkout;
 
 use Tapin\Events\Features\ProductPage\PurchaseModal\Tickets\TicketTypeCache;
 use Tapin\Events\Features\ProductPage\PurchaseModal\Validation\AttendeeSanitizer;
+use Tapin\Events\Support\Notices\StringifyNoticeTrait;
 use Tapin\Events\Support\TicketTypeTracer;
 
 final class CartItemHandler
 {
+    use StringifyNoticeTrait;
+
     private AttendeeSanitizer $sanitizer;
     private TicketTypeCache $ticketTypeCache;
     private FlowState $flowState;
@@ -58,6 +61,16 @@ final class CartItemHandler
                             wc_add_notice($this->stringifyNotice($message), 'error');
                         }
 
+                        /**
+                         * Fires when attendee data cannot be hydrated during add-to-cart.
+                         *
+                         * @param array<int,string> $errors
+                         */
+                        do_action('tapin/events/cart_item/errors', $errors, $productId, get_current_user_id());
+                        if (function_exists('tapin_next_debug_log')) {
+                            tapin_next_debug_log('[cart-item-handler] halted add_to_cart for product ' . $productId);
+                        }
+
                         return $cartItemData;
                     }
 
@@ -98,6 +111,16 @@ final class CartItemHandler
         if (class_exists(TicketTypeTracer::class)) {
             $typeId = isset($attendee['ticket_type']) ? (string) $attendee['ticket_type'] : '';
             TicketTypeTracer::attach(!empty($cartItemData['tapin_split_generated']), $typeId, $price !== null ? (float) $price : null, (string) $cartItemData['tapin_attendees_key']);
+        }
+
+        /**
+         * Fires after Tapin attaches attendee data to a WooCommerce cart item.
+         *
+         * @param array<string,mixed> $attendee
+         */
+        do_action('tapin/events/cart_item/attached', $productId, $attendee, (bool) $isGenerated, get_current_user_id());
+        if (function_exists('tapin_next_debug_log')) {
+            tapin_next_debug_log('[cart-item-handler] attached attendee for product ' . $productId);
         }
 
         if (!$isGenerated) {
@@ -183,17 +206,5 @@ final class CartItemHandler
         }
 
         return $itemData;
-    }
-
-    private function stringifyNotice($value): string
-    {
-        if (is_string($value)) {
-            return $value;
-        }
-        if (is_scalar($value)) {
-            return (string) $value;
-        }
-        $json = wp_json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        return is_string($json) ? $json : '';
     }
 }
