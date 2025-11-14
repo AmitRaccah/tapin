@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tapin\Events\Features\Sales;
 
+use Tapin\Events\Features\Orders\PartiallyApprovedStatus;
 use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\AttendeeSecureStorage;
 use WC_Order;
@@ -21,8 +22,15 @@ final class TicketStatsAccumulator
     {
         $tickets = $this->extractTicketsFromItem($item);
         if ($tickets === []) {
-            $count = max(1, (int) $item->get_quantity());
-            $tickets = array_fill(0, $count, ['ticket_type' => '', 'ticket_type_label' => '']);
+            $order = $item->get_order();
+            if ($order instanceof WC_Order && $order->has_status(PartiallyApprovedStatus::STATUS_SLUG)) {
+                $count = $this->approvedCountForItem($order, (int) $item->get_id());
+            } else {
+                $count = max(1, (int) $item->get_quantity());
+            }
+            if ($count > 0) {
+                $tickets = array_fill(0, $count, ['ticket_type' => '', 'ticket_type_label' => '']);
+            }
         }
 
         foreach ($tickets as $ticket) {
@@ -66,25 +74,30 @@ final class TicketStatsAccumulator
      */
     private function extractTicketsFromItem(WC_Order_Item_Product $item): array
     {
+        $order = $item->get_order();
+        $orderObj = $order instanceof WC_Order ? $order : null;
+        $itemId = (int) $item->get_id();
         $decoded = AttendeeSecureStorage::decrypt((string) $item->get_meta('_tapin_attendees_json', true));
         if ($decoded !== []) {
-            return array_map([$this, 'normalizeTicketMeta'], $decoded);
+            $tickets = array_map([$this, 'normalizeTicketMeta'], $decoded);
+            return $this->filterTicketsByApproval($tickets, $orderObj, $itemId);
         }
 
         $legacy = (string) $item->get_meta('Tapin Attendees', true);
         if ($legacy !== '') {
             $legacyDecoded = AttendeeSecureStorage::decrypt($legacy);
             if ($legacyDecoded !== []) {
-                return array_map([$this, 'normalizeTicketMeta'], $legacyDecoded);
+                $tickets = array_map([$this, 'normalizeTicketMeta'], $legacyDecoded);
+                return $this->filterTicketsByApproval($tickets, $orderObj, $itemId);
             }
         }
 
-        $order = $item->get_order();
-        if ($order instanceof WC_Order) {
-            $aggregate = $order->get_meta('_tapin_attendees', true);
+        if ($orderObj instanceof WC_Order) {
+            $aggregate = $orderObj->get_meta('_tapin_attendees', true);
             $aggregateDecoded = AttendeeSecureStorage::extractFromAggregate($aggregate, $item);
             if ($aggregateDecoded !== []) {
-                return array_map([$this, 'normalizeTicketMeta'], $aggregateDecoded);
+                $tickets = array_map([$this, 'normalizeTicketMeta'], $aggregateDecoded);
+                return $this->filterTicketsByApproval($tickets, $orderObj, $itemId);
             }
         }
 
@@ -104,7 +117,7 @@ final class TicketStatsAccumulator
             }
         }
 
-        return $fallback;
+        return $this->filterTicketsByApproval($fallback, $orderObj, $itemId);
     }
 
     /**
@@ -152,5 +165,82 @@ final class TicketStatsAccumulator
             return true;
         }
         return false;
+    }
+
+    /**
+     * @param array<int,array<string,string>> $tickets
+     * @return array<int,array<string,string>>
+     */
+    private function filterTicketsByApproval(array $tickets, ?WC_Order $order, int $itemId): array
+    {
+        if (!$order instanceof WC_Order || !$order->has_status(PartiallyApprovedStatus::STATUS_SLUG)) {
+            return $tickets;
+        }
+
+        $indices = $this->approvedIndicesForItem($order, $itemId);
+        if ($indices !== []) {
+            $filtered = [];
+            foreach ($indices as $index) {
+                if (isset($tickets[$index])) {
+                    $filtered[] = $tickets[$index];
+                }
+            }
+            return $filtered;
+        }
+
+        $approvedCount = $this->approvedCountForItem($order, $itemId);
+        if ($approvedCount > 0 && $tickets !== []) {
+            return array_slice($tickets, 0, $approvedCount);
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<int,int>
+     */
+    private function approvedIndicesForItem(WC_Order $order, int $itemId): array
+    {
+        $raw = $order->get_meta('_tapin_producer_approved_attendees', true);
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $indices = null;
+        foreach ($raw as $key => $value) {
+            if ((int) $key === $itemId) {
+                $indices = is_array($value) ? $value : null;
+                break;
+            }
+        }
+        if (!is_array($indices)) {
+            return [];
+        }
+
+        $unique = [];
+        foreach ($indices as $index) {
+            $index = (int) $index;
+            if ($index >= 0 && !array_key_exists($index, $unique)) {
+                $unique[$index] = $index;
+            }
+        }
+
+        return array_values($unique);
+    }
+
+    private function approvedCountForItem(WC_Order $order, int $itemId): int
+    {
+        $raw = $order->get_meta('_tapin_partial_approved_map', true);
+        if (!is_array($raw)) {
+            return 0;
+        }
+
+        foreach ($raw as $key => $value) {
+            if ((int) $key === $itemId) {
+                return max(0, (int) $value);
+            }
+        }
+
+        return 0;
     }
 }

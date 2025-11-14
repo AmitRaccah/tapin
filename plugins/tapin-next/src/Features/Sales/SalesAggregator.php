@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tapin\Events\Features\Sales;
 
+use Tapin\Events\Features\Orders\PartiallyApprovedStatus;
 use Tapin\Events\Integrations\Affiliate\ReferralsRepository;
 use Tapin\Events\Support\Commission;
 use WC_DateTime;
@@ -50,6 +51,20 @@ final class SalesAggregator
             }
             $orderTs = $this->resolveOrderTimestamp($order);
             $wasReferred = $referrals->hasReferral($orderId, $affiliateId, $referralCache);
+            $isPartial = $order->has_status(PartiallyApprovedStatus::STATUS_SLUG);
+            $partialMap = [];
+            if ($isPartial) {
+                $rawMap = $order->get_meta('_tapin_partial_approved_map', true);
+                if (is_array($rawMap)) {
+                    foreach ($rawMap as $rawItemId => $approvedQty) {
+                        $itemKey = (int) $rawItemId;
+                        if ($itemKey <= 0) {
+                            continue;
+                        }
+                        $partialMap[$itemKey] = (int) $approvedQty;
+                    }
+                }
+            }
 
             foreach ($order->get_items('line_item') as $item) {
                 if (!$item instanceof WC_Order_Item_Product) {
@@ -64,15 +79,26 @@ final class SalesAggregator
                 if ($authorId !== $producerId) {
                     continue;
                 }
+                $itemId = (int) $item->get_id();
+                $quantity = (int) $item->get_quantity();
+                $lineTotal = (float) $item->get_total();
+                $qty = $quantity;
+
+                if ($isPartial && $itemId > 0 && array_key_exists($itemId, $partialMap)) {
+                    $approved = min($quantity, max(0, (int) $partialMap[$itemId]));
+                    if ($approved <= 0) {
+                        continue;
+                    }
+                    $unit = $quantity > 0 ? ($lineTotal / max(1, $quantity)) : $lineTotal;
+                    $qty = $approved;
+                    $lineTotal = $unit * $approved;
+                }
 
                 if (!isset($rows[$productId])) {
                     $rows[$productId] = $factory->create($productId, $authorId);
                 } else {
                     $factory->ensureCommissionMeta($rows[$productId], $productId);
                 }
-
-                $qty = (int) $item->get_quantity();
-                $lineTotal = (float) $item->get_total();
 
                 $rows[$productId]['qty'] += $qty;
                 $rows[$productId]['sum'] += $lineTotal;

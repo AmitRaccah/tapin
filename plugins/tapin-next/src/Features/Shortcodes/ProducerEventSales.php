@@ -42,7 +42,7 @@ final class ProducerEventSales implements Service {
     public function render($atts): string {
         if (!function_exists('wc_get_orders')) return '<p>WooCommerce נדרש.</p>';
         $a = shortcode_atts([
-            'vendor'=>'current','from'=>'','to'=>'','statuses'=>'processing,completed','include_zero'=>'1','product_status'=>'publish'
+            'vendor'=>'current','from'=>'','to'=>'','statuses'=>'processing,completed,partially-appr','include_zero'=>'1','product_status'=>'publish'
         ], $atts, 'producer_event_sales');
 
         if (!is_user_logged_in()) { status_header(403); return '<div style="direction:rtl;text-align:right;background:#fff4f4;border:1px solid #f3c2c2;padding:12px;border-radius:8px">הדף זמין למשתמשים מורשים בלבד. <a href="'.esc_url(wp_login_url(get_permalink())).'">התחבר/י</a>.</div>'; }
