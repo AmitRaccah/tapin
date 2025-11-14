@@ -18,20 +18,20 @@ final class Renderer
         ?>
         <div class="tapin-pa">
           <?php echo $noticeHtml; ?>
-          <h3><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;&#32;&#1502;&#1502;&#1514;&#1497;&#1504;&#1493;&#1514;&#32;&#1500;&#1488;&#1497;&#1513;&#1493;&#1512;')); ?></h3>
+          <h3><?php echo esc_html__('הזמנות ממתינות לאישור', 'tapin'); ?></h3>
 
           <form method="post" id="tapinBulkForm" class="tapin-pa__form">
             <?php wp_nonce_field('tapin_pa_bulk', 'tapin_pa_bulk_nonce'); ?>
             <div class="tapin-pa__controls">
               <div class="tapin-pa__search">
-                <input type="search" id="tapinPaSearch" class="tapin-pa__search-input" placeholder="<?php echo esc_attr(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1495;&#1497;&#1508;&#1493;&#1513;&#32;&#1500;&#1508;&#1497;&#32;&#1500;&#1511;&#1493;&#1495;&#32;&#1488;&#1493;&#32;&#1488;&#1497;&#1512;&#1493;&#1506;&#46;&#46;&#46;')); ?>">
+                <input type="search" id="tapinPaSearch" class="tapin-pa__search-input" placeholder="<?php echo esc_attr__('חיפוש לפי לקוח או אירוע...', 'tapin'); ?>">
               </div>
               <div class="tapin-pa__buttons">
-                <button class="btn btn-ghost" type="button" id="tapinPaSelectAll"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1489;&#1495;&#1512;&#32;&#1492;&#1499;&#1500;')); ?></button>
-                <button class="btn btn-secondary" type="button" id="tapinPaPartialSave"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1513;&#1502;&#1493;&#1512;&#32;&#1488;&#1497;&#1513;&#1493;&#1512;&#1497;&#1501;&#32;&#1492;&#1495;&#1500;&#1511;&#1497;&#1501;')); ?></button>
-                <button class="btn btn-primary" type="submit" name="bulk_approve"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1513;&#1512;&#32;&#1504;&#1489;&#1495;&#1512;&#1493;&#1514;')); ?></button>
-                <button class="btn btn-ghost" type="button" id="tapinApproveAll"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1513;&#1512;&#32;&#1492;&#1499;&#1500;')); ?></button>
-                <button class="btn btn-danger" type="submit" name="bulk_cancel" onclick="return confirm('<?php echo esc_js(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1500;&#1489;&#1496;&#1500;&#32;&#1488;&#1514;&#32;&#1492;&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;&#32;&#1513;&#1504;&#1489;&#1495;&#1512;&#1493;&#63;')); ?>')"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1489;&#1496;&#1500;&#32;&#1492;&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;&#32;&#1513;&#1504;&#1489;&#1495;&#1512;&#1493;')); ?></button>
+                <button class="btn btn-ghost" type="button" id="tapinPaSelectAll"><?php echo esc_html__('בחר הכל', 'tapin'); ?></button>
+                <button class="btn btn-secondary" type="button" id="tapinPaPartialSave"><?php echo esc_html__('שמור אישורים חלקיים', 'tapin'); ?></button>
+                <button class="btn btn-primary" type="submit" name="bulk_approve"><?php echo esc_html__('אשר נבחרות', 'tapin'); ?></button>
+                <button class="btn btn-ghost" type="button" id="tapinApproveAll"><?php echo esc_html__('אשר הכל', 'tapin'); ?></button>
+                <button class="btn btn-danger" type="submit" name="bulk_cancel" onclick="return confirm('<?php echo esc_js(esc_html__('לבטל את ההזמנות שנבחרו?', 'tapin')); ?>')"><?php echo esc_html__('בטל ההזמנות שנבחרו', 'tapin'); ?></button>
               </div>
             </div>
 
@@ -58,10 +58,10 @@ final class Renderer
                             <?php endif; ?>
                           </h4>
                           <div class="tapin-pa-event__stats">
-                            <span class="tapin-pa-event__badge tapin-pa-event__badge--pending"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1502;&#1514;&#1497;&#1504;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['pending'] ?? 0); ?></span>
-                            <span class="tapin-pa-event__badge tapin-pa-event__badge--partial"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1497;&#1513;&#1493;&#1512;&#1497;&#1501;&#32;&#1492;&#1495;&#1500;&#1511;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['partial'] ?? 0); ?></span>
-                            <span class="tapin-pa-event__badge tapin-pa-event__badge--approved"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1488;&#1493;&#1513;&#1512;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['approved'] ?? 0); ?></span>
-                            <span class="tapin-pa-event__badge tapin-pa-event__badge--cancelled"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1489;&#1493;&#1496;&#1500;&#1497;&#1501;')); ?>: <?php echo (int) ($event['counts']['cancelled'] ?? 0); ?></span>
+                            <span class="tapin-pa-event__badge tapin-pa-event__badge--pending"><?php echo esc_html__('ממתינים', 'tapin'); ?>: <?php echo (int) ($event['counts']['pending'] ?? 0); ?></span>
+                            <span class="tapin-pa-event__badge tapin-pa-event__badge--partial"><?php echo esc_html__('אישורים חלקיים', 'tapin'); ?>: <?php echo (int) ($event['counts']['partial'] ?? 0); ?></span>
+                            <span class="tapin-pa-event__badge tapin-pa-event__badge--approved"><?php echo esc_html__('מאושרים', 'tapin'); ?>: <?php echo (int) ($event['counts']['approved'] ?? 0); ?></span>
+                            <span class="tapin-pa-event__badge tapin-pa-event__badge--cancelled"><?php echo esc_html__('מבוטלים', 'tapin'); ?>: <?php echo (int) ($event['counts']['cancelled'] ?? 0); ?></span>
                           </div>
                         </div>
                       </div>
@@ -69,7 +69,7 @@ final class Renderer
                     </button>
                     <div class="tapin-pa-event__panel"<?php echo $isOpen ? '' : ' hidden'; ?>>
                       <?php if (!empty($event['event_date_label'])): ?>
-                        <?php $eventDateHeading = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1514;&#1488;&#1512;&#1497;&#1498;&#32;&#1492;&#1488;&#1497;&#1512;&#1493;&#1506;'); ?>
+                        <?php $eventDateHeading = __('תאריך האירוע', 'tapin'); ?>
                         <h4 class="tapin-pa-event__panel-heading">
                           <?php echo esc_html($eventDateHeading . ': ' . (string) $event['event_date_label']); ?>
                         </h4>
@@ -90,7 +90,7 @@ final class Renderer
                         ?>
                         <div class="tapin-pa-event__actions">
                           <a class="btn btn-ghost tapin-pa-event__download" href="<?php echo esc_url($downloadUrl); ?>">
-                            <?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1492;&#1493;&#1512;&#1491;&#1514;&#32;&#1489;&#1511;&#1513;&#1493;&#1514;')); ?>
+                            <?php echo esc_html__('הורדת בקשות', 'tapin'); ?>
                           </a>
                         </div>
                       <?php endif; ?>
@@ -100,16 +100,16 @@ final class Renderer
                           $statusType = (string) ($orderData['status_type'] ?? '');
                           switch ($statusType) {
                               case 'pending':
-                                  $statusLabel = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1502;&#1514;&#1497;&#1504;&#1497;&#1501;');
+                                  $statusLabel = __('ממתינים', 'tapin');
                                   break;
                               case 'partial':
-                                  $statusLabel = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1513;&#1512;&#32;&#1492;&#1495;&#1500;&#1511;&#1497;&#1514;');
+                                  $statusLabel = __('אישור חלקי', 'tapin');
                                   break;
                               case 'approved':
-                                  $statusLabel = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1493;&#1513;&#1512;');
+                                  $statusLabel = __('מאושר', 'tapin');
                                   break;
                               default:
-                                  $statusLabel = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1489;&#1493;&#1496;&#1500;');
+                                  $statusLabel = __('מבוטל', 'tapin');
                                   break;
                           }
                           $statusClass = 'tapin-pa-order--' . sanitize_html_class($statusType);
@@ -121,7 +121,7 @@ final class Renderer
                                 <?php if (!empty($orderData['is_pending'])): ?>
                                   <input class="tapin-pa-order__checkbox" type="checkbox" name="order_ids[]" value="<?php echo (int) ($orderData['id'] ?? 0); ?>" data-pending="1">
                                 <?php else: ?>
-                                  <input class="tapin-pa-order__checkbox" type="checkbox" disabled title="Already processed">
+                                  <input class="tapin-pa-order__checkbox" type="checkbox" disabled title="<?php echo esc_attr__('כבר עובדה', 'tapin'); ?>">
                                 <?php endif; ?>
                                 <div>
                                   <div><strong><?php echo esc_html('#' . (string) ($orderData['number'] ?? '')); ?></strong></div>
@@ -158,7 +158,7 @@ final class Renderer
                               $nameValue = trim((string) ($orderData['customer']['name'] ?? ''));
                               if ($nameValue !== '') {
                                   $contactRows[] = [
-                                      'label' => \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1513;&#1502;&#32;&#1492;&#1500;&#1511;&#1493;&#1495;'),
+                                      'label' => __('שם הלקוח', 'tapin'),
                                       'value' => $nameValue,
                                       'type'  => 'text',
                                       'href'  => '',
@@ -168,7 +168,7 @@ final class Renderer
                               $customerEmail = trim((string) ($orderData['customer']['email'] ?? ''));
                               if ($customerEmail !== '') {
                                   $contactRows[] = [
-                                      'label' => 'Email',
+                                      'label' => __('Email', 'tapin'),
                                       'value' => $customerEmail,
                                       'type'  => 'email',
                                       'href'  => $customerEmail,
@@ -180,7 +180,7 @@ final class Renderer
                                   $digitsOnly = preg_replace('/\D+/', '', $customerPhone);
                                   $telHref = preg_replace('/[^0-9+]/', '', $customerPhone);
                                   $contactRows[] = [
-                                      'label' => \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1496;&#1500;&#1508;&#1493;&#1503;'),
+                                      'label' => __('טלפון', 'tapin'),
                                       'value' => $customerPhone,
                                       'type'  => $digitsOnly !== '' ? 'phone' : 'text',
                                       'href'  => $telHref !== '' ? $telHref : $digitsOnly,
@@ -189,7 +189,7 @@ final class Renderer
 
                               if (!empty($orderData['primary_id_number'])) {
                                   $contactRows[] = [
-                                      'label' => \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1514;&#1506;&#1493;&#1491;&#1514;&#32;&#1494;&#1492;&#1493;&#1514;'),
+                                      'label' => __('תעודת זהות', 'tapin'),
                                       'value' => (string) $orderData['primary_id_number'],
                                       'type'  => 'text',
                                       'href'  => '',
@@ -201,7 +201,7 @@ final class Renderer
                               $profileUrlMeta = trim((string) ($customerProfileMeta['url'] ?? ''));
                               if ($profileUsernameMeta !== '') {
                                   $contactRows[] = [
-                                      'label' => \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1508;&#1512;&#1493;&#1508;&#1497;&#1500;&#32;&#1489;&#84;&#97;&#112;&#105;&#110;'),
+                                      'label' => __('פרופיל ב-Tapin', 'tapin'),
                                       'value' => '@' . ltrim($profileUsernameMeta, '@'),
                                       'type'  => $profileUrlMeta !== '' ? 'link' : 'text',
                                       'href'  => $profileUrlMeta,
@@ -209,13 +209,13 @@ final class Renderer
                               }
 
                               $profileFieldMap = [
-                                  \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1513;&#1501;&#32;&#1508;&#1512;&#1496;&#1497;') => $orderData['profile']['first_name'] ?? '',
-                                  \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1513;&#1501;&#32;&#1502;&#1513;&#1508;&#1495;&#1492;') => $orderData['profile']['last_name'] ?? '',
-                                  \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1514;&#1488;&#1512;&#1497;&#1498;&#32;&#1500;&#1497;&#1491;&#1492;') => $orderData['profile']['birthdate'] ?? '',
-                                  \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1490;&#1491;&#1512;') => $orderData['profile']['gender'] ?? '',
-                                  'Facebook' => $orderData['profile']['facebook'] ?? '',
-                                  'Instagram' => $orderData['profile']['instagram'] ?? '',
-                                  'WhatsApp' => $orderData['profile']['whatsapp'] ?? '',
+                                  __('שם פרטי', 'tapin') => $orderData['profile']['first_name'] ?? '',
+                                  __('שם משפחה', 'tapin') => $orderData['profile']['last_name'] ?? '',
+                                  __('תאריך לידה', 'tapin') => $orderData['profile']['birthdate'] ?? '',
+                                  __('מגדר', 'tapin') => $orderData['profile']['gender'] ?? '',
+                                  __('Facebook', 'tapin') => $orderData['profile']['facebook'] ?? '',
+                                  __('Instagram', 'tapin') => $orderData['profile']['instagram'] ?? '',
+                                  __('WhatsApp', 'tapin') => $orderData['profile']['whatsapp'] ?? '',
                               ];
 
                               $profileRows = [];
@@ -272,7 +272,7 @@ final class Renderer
 
                               <?php if ($contactRows): ?>
                                 <div class="tapin-pa-order__section">
-                                  <h5 class="tapin-pa-order__section-title"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1508;&#1512;&#1496;&#1497;&#32;&#1500;&#1511;&#1493;&#1495;')); ?></h5>
+                                  <h5 class="tapin-pa-order__section-title"><?php echo esc_html__('פרטי לקוח', 'tapin'); ?></h5>
                                   <div class="tapin-pa-order__grid">
                                     <?php foreach ($contactRows as $row): ?>
                                       <div class="tapin-pa-order__card">
@@ -296,7 +296,7 @@ final class Renderer
 
                               <?php if ($profileRows): ?>
                                 <div class="tapin-pa-order__section">
-                                  <h5 class="tapin-pa-order__section-title"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1508;&#1512;&#1496;&#1497;&#32;&#1508;&#1512;&#1493;&#1508;&#1497;&#1500;')); ?></h5>
+                                  <h5 class="tapin-pa-order__section-title"><?php echo esc_html__('פרטי פרופיל', 'tapin'); ?></h5>
                                   <div class="tapin-pa-order__grid">
                                     <?php foreach ($profileRows as $row): ?>
                                       <div class="tapin-pa-order__card">
@@ -338,11 +338,19 @@ final class Renderer
                                 </ul>
                               <?php endif; ?>
 
-                              <?php if (!empty($orderData['attendees'])): ?>
+                              <?php
+                              $primary = (array) ($orderData['primary_attendee'] ?? []);
+                              $others = (array) ($orderData['attendees'] ?? []);
+                              if ($primary !== []) {
+                                  array_unshift($others, $primary);
+                              }
+                              $uiAttendees = $others;
+                              ?>
+                              <?php if ($uiAttendees !== []): ?>
                                 <div class="tapin-pa-order__section tapin-pa-attendees">
-                                  <h5 class="tapin-pa-order__section-title"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1493;&#1494;&#1502;&#1504;&#1497;&#1501;')); ?></h5>
+                                  <h5 class="tapin-pa-order__section-title"><?php echo esc_html__('מוזמנים', 'tapin'); ?></h5>
                                   <div class="tapin-pa-attendees__grid">
-                                    <?php foreach ((array) $orderData['attendees'] as $attendee): ?>
+                                    <?php foreach ($uiAttendees as $attendee): ?>
                                       <?php
                                       $attendeeRows = [];
 
@@ -350,7 +358,7 @@ final class Renderer
                                           $email = trim((string) $attendee['email']);
                                           if ($email !== '') {
                                               $attendeeRows[] = [
-                                                  'label' => 'Email',
+                                                  'label' => __('Email', 'tapin'),
                                                   'value' => $email,
                                                   'type'  => 'email',
                                                   'href'  => $email,
@@ -364,7 +372,7 @@ final class Renderer
                                               $digits = preg_replace('/\D+/', '', $phone);
                                               $href = preg_replace('/[^0-9+]/', '', $phone);
                                               $attendeeRows[] = [
-                                                  'label' => \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1496;&#1500;&#1508;&#1493;&#1503;'),
+                                                  'label' => __('טלפון', 'tapin'),
                                                   'value' => $phone,
                                                   'type'  => $digits !== '' ? 'phone' : 'text',
                                                   'href'  => $href !== '' ? $href : $digits,
@@ -376,7 +384,7 @@ final class Renderer
                                           $idNumber = trim((string) $attendee['id_number']);
                                           if ($idNumber !== '') {
                                               $attendeeRows[] = [
-                                                  'label' => \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1514;&#1506;&#1493;&#1491;&#1514;&#32;&#1494;&#1492;&#1493;&#1514;'),
+                                                  'label' => __('תעודת זהות', 'tapin'),
                                                   'value' => $idNumber,
                                                   'type'  => 'text',
                                                   'href'  => '',
@@ -388,7 +396,7 @@ final class Renderer
                                           $birthDate = trim((string) $attendee['birth_date']);
                                           if ($birthDate !== '') {
                                               $attendeeRows[] = [
-                                                  'label' => \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1514;&#1488;&#1512;&#1497;&#1498;&#32;&#1500;&#1497;&#1491;&#1492;'),
+                                                  'label' => __('תאריך לידה', 'tapin'),
                                                   'value' => $birthDate,
                                                   'type'  => 'text',
                                                   'href'  => '',
@@ -400,7 +408,7 @@ final class Renderer
                                           $genderRaw = trim((string) $attendee['gender']);
                                           if ($genderRaw !== '') {
                                               $attendeeRows[] = [
-                                                  'label' => \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1490;&#1491;&#1512;'),
+                                                  'label' => __('מגדר', 'tapin'),
                                                   'value' => $genderRaw,
                                                   'type'  => 'text',
                                                   'href'  => '',
@@ -470,7 +478,7 @@ final class Renderer
                                       $eventDateTs = isset($attendee['event_date_ts']) ? (int) $attendee['event_date_ts'] : 0;
                                       $eventPassed = $eventDateTs > 0 && $eventDateTs < $now;
                                       $approveTooltip = $eventPassed
-                                          ? \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1500;&#1488;&#32;&#1504;&#1497;&#1510;&#1503;&#32;&#1500;&#1488;&#1513;&#1512;&#32;&#1492;&#1494;&#1502;&#1504;&#1492;&#32;&#1500;&#1488;&#1497;&#1512;&#1493;&#1506;&#32;&#1513;&#1499;&#1489;&#1512;&#32;&#1506;&#1489;&#1512;')
+                                          ? __('לא ניתן לאשר הזמנה לאירוע שכבר עבר', 'tapin')
                                           : '';
                                       $canApproveAttendee = $orderId > 0 && $itemId > 0 && $attendeeIdx >= 0;
                                       $approveFieldName = $canApproveAttendee
@@ -482,7 +490,7 @@ final class Renderer
                                           <h6 class="tapin-pa-attendee__title">
                                             <?php
                                             $displayName = trim((string) ($attendee['full_name'] ?? ''));
-                                            echo esc_html($displayName !== '' ? $displayName : \Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1493;&#1512;&#1495;'));
+                                            echo esc_html($displayName !== '' ? $displayName : __('אורח', 'tapin'));
                                             ?>
                                           </h6>
                                           <?php if ($canApproveAttendee): ?>
@@ -499,10 +507,10 @@ final class Renderer
                                                 <?php echo $eventPassed ? 'disabled' : ''; ?>
                                                 <?php echo $approveTooltip !== '' ? 'title="' . esc_attr($approveTooltip) . '"' : ''; ?>
                                               >
-                                              <span><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1513;&#1512;')); ?></span>
+                                              <span><?php echo esc_html__('אשר', 'tapin'); ?></span>
                                             </label>
                                           <?php endif; ?>
-                                          <span class="tapin-pa-attendee__badge"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1502;&#1493;&#1494;&#1502;&#1503;&#47;&#1514;')); ?></span>
+                                          <span class="tapin-pa-attendee__badge"><?php echo esc_html__('מוזמן/ת', 'tapin'); ?></span>
                                         </div>
                                         <?php if ($attendeeRows): ?>
                                           <ul class="tapin-pa-attendee__list">
@@ -539,7 +547,7 @@ final class Renderer
                 <?php endforeach; ?>
               </div>
             <?php else: ?>
-              <div class="tapin-pa-empty"><?php echo esc_html(\Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html::decodeEntities('&#1488;&#1497;&#1503;&#32;&#1488;&#1497;&#1513;&#1493;&#1512;&#1497;&#1501;&#32;&#1500;&#1492;&#1510;&#1490;&#1492;&#32;&#1499;&#1512;&#1490;&#1506;&#46;')); ?></div>
+              <div class="tapin-pa-empty"><?php echo esc_html__('אין אישורים להצגה כרגע.', 'tapin'); ?></div>
             <?php endif; ?>
           </form>
         </div>

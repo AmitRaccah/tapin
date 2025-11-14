@@ -160,9 +160,11 @@ final class ProducerEventsCenter implements Service {
 
                         <div class="tapin-actions">
                             <?php if (empty($request)): ?>
-                                <button type="submit" name="request_edit" class="tapin-btn tapin-btn--primary">?`??c?x ?�?"?>???</button>
+                                <button type="submit" name="request_edit" class="tapin-btn tapin-btn--primary"><?php echo esc_html__('בקש עריכה', 'tapin'); ?></button>
+
                             <?php else: ?>
-                                <button type="submit" name="cancel_request" class="tapin-btn tapin-btn--ghost">?`?T?~??? ?`??c?"</button>
+                                <button type="submit" name="cancel_request" class="tapin-btn tapin-btn--ghost"><?php echo esc_html__('בטל בקשת עריכה', 'tapin'); ?></button>
+
                             <?php endif; ?>
                         </div>
                         <?php wp_nonce_field('tapin_pe_action', 'tapin_pe_nonce'); ?>

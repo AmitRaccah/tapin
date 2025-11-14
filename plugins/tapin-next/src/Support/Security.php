@@ -31,7 +31,7 @@ final class Security {
             return new SecurityResult(true, '', $login->user);
         }
         status_header(403);
-        return new SecurityResult(false, self::forbiddenMessage(__('אין לך הרשאה לצפות בתוכן.', 'tapin')));
+        return new SecurityResult(false, self::forbiddenMessage(__('אין לך הרשאה לביצוע פעולה זו.', 'tapin')));
     }
 
     public static function producer(bool $allowManagers = true): SecurityResult {
@@ -58,7 +58,7 @@ final class Security {
         }
 
         status_header(403);
-        return new SecurityResult(false, self::forbiddenMessage(__('אין לך הרשאה לגשת לאזור זה.', 'tapin')));
+        return new SecurityResult(false, self::forbiddenMessage(__('אין לך הרשאה לצפות בדף זה.', 'tapin')));
     }
 
     public static function forbiddenMessage(string $text): string {
@@ -76,7 +76,7 @@ final class Security {
             $target     = $requestUri !== '' ? $requestUri : home_url('/');
         }
         $loginUrl = function_exists('wp_login_url') ? wp_login_url($target) : wp_login_url();
-        $linkText = esc_html__('התחברות', 'tapin');
+        $linkText = esc_html__('כניסה', 'tapin');
         $link     = '<a href="' . esc_url($loginUrl) . '">' . $linkText . '</a>';
         $message  = esc_html__('יש להתחבר כדי להמשיך.', 'tapin') . ' ' . $link . '.';
         return self::wrapMessage($message, 'error');

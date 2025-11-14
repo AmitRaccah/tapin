@@ -11,8 +11,8 @@ final class ExportCsvBuilder
      */
     public function build(array $event): array
     {
-        $rows = [];
-        $eventId    = (int) ($event['id'] ?? 0);
+        $rows      = [];
+        $eventId   = (int) ($event['id'] ?? 0);
         $eventTitle = (string) ($event['title'] ?? '');
         $eventLink  = (string) ($event['permalink'] ?? '');
 
@@ -28,7 +28,7 @@ final class ExportCsvBuilder
                         $parts[] = $name;
                     }
                     if ($quantity > 0) {
-                        $parts[] = '× ' . $quantity;
+                        $parts[] = 'x ' . $quantity;
                     }
                     if ($total !== '') {
                         $parts[] = '(' . $total . ')';
