@@ -4,17 +4,16 @@ declare(strict_types=1);
 namespace Tapin\Events\Features\Orders;
 
 use Tapin\Events\Core\Service;
-use Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html;
 use WC_Order;
 
 final class PartiallyApprovedStatus implements Service
 {
     public const STATUS_KEY   = 'wc-partially-appr';
     public const STATUS_SLUG  = 'partially-appr';
-    public const STATUS_LABEL = '&#1488;&#1493;&#1513;&#1512;&#32;&#1495;&#1500;&#1511;&#1497;&#1514;';
+    public const STATUS_LABEL = 'אושר חלקית';
 
     private const ACTION_KEY   = 'mark_partially-appr';
-    private const ACTION_LABEL = '&#1505;&#1502;&#1503;&#32;&#1499;&#1488;&#1493;&#1513;&#1512;&#32;&#1495;&#1500;&#1511;&#1497;&#1514;';
+    private const ACTION_LABEL = 'סמן כאושר חלקית';
 
     public function register(): void
     {
@@ -116,11 +115,11 @@ final class PartiallyApprovedStatus implements Service
 
     private function label(): string
     {
-        return Html::decodeEntities(self::STATUS_LABEL);
+        return __(self::STATUS_LABEL, 'tapin');
     }
 
     private function actionLabel(): string
     {
-        return Html::decodeEntities(self::ACTION_LABEL);
+        return __(self::ACTION_LABEL, 'tapin');
     }
 }

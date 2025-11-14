@@ -6,7 +6,6 @@ namespace Tapin\Events\Features\Orders\ProducerApprovals;
 use Tapin\Events\Features\Orders\AwaitingProducerGate;
 use Tapin\Events\Features\Orders\AwaitingProducerStatus;
 use Tapin\Events\Features\Orders\PartiallyApprovedStatus;
-use Tapin\Events\Features\Orders\ProducerApprovals\Utils\Html;
 use WC_Order;
 use WC_Order_Item_Product;
 use WC_Product;
@@ -43,7 +42,7 @@ final class BulkActionsController
                 return [
                     'notice' => sprintf(
                         '<div class="woocommerce-error" style="direction:rtl;text-align:right">%s</div>',
-                        Html::decodeEntities('&#1500;&#1488;&#32;&#1504;&#1489;&#1495;&#1512;&#1493;&#32;&#1502;&#1513;&#1514;&#1514;&#1508;&#1497;&#1501;')
+                        __('לא נבחרו משתתפים', 'tapin')
                     ),
                 ];
             }
@@ -255,7 +254,7 @@ final class BulkActionsController
         if ($producerApproved <= 0) {
             $order->update_status(
                 AwaitingProducerStatus::STATUS_SLUG,
-                Html::decodeEntities('&#1500;&#1488;&#32;&#1488;&#1493;&#1513;&#1512;&#1493;&#32;&#1502;&#1513;&#1514;&#1514;&#1508;&#1497;&#1501;')
+                __('לא אושרו משתתפים', 'tapin')
             );
             $order->save();
             return true;
@@ -264,7 +263,7 @@ final class BulkActionsController
         if ($producerApproved < $producerTotalQty) {
             $order->update_status(
                 PartiallyApprovedStatus::STATUS_SLUG,
-                Html::decodeEntities('&#1488;&#1493;&#1513;&#1512;&#32;&#1495;&#1500;&#1511;&#1497;&#1514;&#32;&#1506;&#39;&#1497;&#32;&#1492;&#1502;&#1508;&#1497;&#1511;')
+                __('אושר חלקית ע\'י המפיק', 'tapin')
             );
             $order->save();
             return true;

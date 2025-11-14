@@ -46,12 +46,12 @@ final class PurchasableGate implements Service {
         }
 
         if ($this->isPaused($productId)) {
-            echo '<div class="woocommerce-info" style="direction:rtl;text-align:right">?"???T?"??� ?"??c?�?" ?-???�?T?x ????>?? ???? ?�?T?x?? ???"?>?T?c".</div>';
+            echo '<div class="woocommerce-info" style="direction:rtl;text-align:right">' . esc_html__('מכירת הכרטיסים לאירוע הושהתה.', 'tapin') . '</div>';
             return;
         }
 
         if ($this->eventHasEnded($productId)) {
-            echo '<div class="woocommerce-info" style="direction:rtl;text-align:right">?"???T?"??� ?>?`?" ?"?�?x?T?T?? ????>?? ???T?�? ?-???T?? ???"?>?T?c".</div>';
+            echo '<div class="woocommerce-info" style="direction:rtl;text-align:right">' . esc_html__('האירוע כבר התקיים. מכירת הכרטיסים הסתיימה.', 'tapin') . '</div>';
             return;
         }
 
@@ -82,7 +82,7 @@ final class PurchasableGate implements Service {
      */
     private function availabilityNoticeMessage(array $availability): string {
         if (!$availability['has_tickets']) {
-            return __('האירוע נמכר במלואו.', 'tapin');
+            return __('אין סוגי כרטיסים זמינים לאירוע.', 'tapin');
         }
 
         if ($availability['sale_state'] === 'upcoming') {
@@ -96,3 +96,5 @@ final class PurchasableGate implements Service {
         return '';
     }
 }
+
+

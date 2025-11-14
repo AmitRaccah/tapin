@@ -334,10 +334,11 @@ final class OrderSummaryBuilder
 
         foreach ($item->get_formatted_meta_data('') as $meta) {
             $label = (string) $meta->key;
+            $legacyUnknownLabel = str_repeat('?', 3);
             if (
                 strpos($label, "\u{05D4}\u{05DE}\u{05E9}\u{05EA}\u{05EA}\u{05E3}") === 0
                 || strpos($label, 'Participant') === 0
-                || strpos($label, '???') === 0
+                || strpos($label, $legacyUnknownLabel) === 0
             ) {
                 $parts = array_map('trim', explode('|', $meta->value));
                 $data  = array_combine($summaryKeys, array_pad($parts, count($summaryKeys), ''));

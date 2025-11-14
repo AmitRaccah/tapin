@@ -103,7 +103,7 @@ final class ProducerEventsCenter implements Service {
                         <?php EventFormRenderer::renderFields($pid, ['name_prefix' => 'sale_w']); ?>
 
                         <div class="tapin-actions">
-                            <button type="submit" name="save_pending" class="tapin-btn tapin-btn--primary">?c???T?"?"</button>
+                            <button type="submit" name="save_pending" class="tapin-btn tapin-btn--primary"><?php echo esc_html__('שמור אירוע', 'tapin'); ?></button>
                         </div>
                         <?php wp_nonce_field('tapin_pe_action', 'tapin_pe_nonce'); ?>
                         <input type="hidden" name="pid" value="<?php echo (int) $pid; ?>">
@@ -115,7 +115,7 @@ final class ProducerEventsCenter implements Service {
                     </div>
                 </div>
             <?php else: ?>
-                <p>???T?? ?>?"?'?� ???T?"??�?T?? ?????x?T?�?T??.</p>
+                <p><?php echo esc_html__('אין אירועים ממתינים להצגה.', 'tapin'); ?></p>
             <?php endif; ?>
 
             <h3 class="tapin-title" style="margin-top:40px;">אירועים פעילים שלי</h3>
@@ -147,10 +147,10 @@ final class ProducerEventsCenter implements Service {
                                 <h4 class="tapin-card__title">
                                     <?php echo esc_html(get_the_title($pid)); ?>
                                     <?php if ($is_paused): ?>
-                                        <span class="tapin-status-badge tapin-status-badge--paused">�?" ???>?T?"?" ????c?"?T?x</span>
+                                        <span class="tapin-status-badge tapin-status-badge--paused"><?php echo esc_html__('מכירה מושהית', 'tapin'); ?></span>
                                     <?php endif; ?>
                                     <?php if (!empty($request)): ?>
-                                        <span class="tapin-status-badge tapin-status-badge--pending">?`??c?x ?�?"?>??? ?????x?T?�?"</span>
+                                        <span class="tapin-status-badge tapin-status-badge--pending"><?php echo esc_html__('בקשת עריכה ממתינה', 'tapin'); ?></span>
                                     <?php endif; ?>
                                 </h4>
                             </div>
@@ -160,9 +160,9 @@ final class ProducerEventsCenter implements Service {
 
                         <div class="tapin-actions">
                             <?php if (empty($request)): ?>
-                                <button type="submit" name="request_edit" class="tapin-btn tapin-btn--primary">?`??c?x ?�?"?>???</button>
+                                <button type="submit" name="request_edit" class="tapin-btn tapin-btn--primary"><?php echo esc_html__('בקש עריכה', 'tapin'); ?></button>
                             <?php else: ?>
-                                <button type="submit" name="cancel_request" class="tapin-btn tapin-btn--ghost">?`?T?~??? ?`??c?"</button>
+                                <button type="submit" name="cancel_request" class="tapin-btn tapin-btn--ghost"><?php echo esc_html__('בטל בקשת עריכה', 'tapin'); ?></button>
                             <?php endif; ?>
                         </div>
                         <?php wp_nonce_field('tapin_pe_action', 'tapin_pe_nonce'); ?>
@@ -175,7 +175,7 @@ final class ProducerEventsCenter implements Service {
                     </div>
                 </div>
             <?php else: ?>
-                <p>???T?? ???T?"??�?T?? ???�?T???T?? ?>?"?'?�.</p>
+                <p><?php echo esc_html__('אין אירועים להצגה.', 'tapin'); ?></p>
             <?php endif; ?>
         </div>
         <?php wp_reset_postdata(); ?>

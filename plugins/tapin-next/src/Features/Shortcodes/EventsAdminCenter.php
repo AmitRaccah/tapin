@@ -37,7 +37,7 @@ final class EventsAdminCenter implements Service {
             'orderby'        => 'date',
             'order'          => 'DESC',
             'meta_query'     => [[
-                'key'     => 'event_date',
+                'key'     => MetaKeys::EVENT_DATE,
                 'compare' => '>=',
                 'value'   => wp_date('Y-m-d H:i:s', time(), wp_timezone()),
                 'type'    => 'DATETIME',
@@ -54,7 +54,7 @@ final class EventsAdminCenter implements Service {
             'posts_per_page' => -1,
             'no_found_rows'  => true,
             'meta_query'     => [[
-                'key'     => 'tapin_edit_request',
+                'key'     => MetaKeys::EDIT_REQ,
                 'compare' => 'EXISTS',
             ]],
         ]);
@@ -115,7 +115,7 @@ final class EventsAdminCenter implements Service {
                 <div class="tapin-pa__events">
                 <?php foreach($edit_ids as $pid): ?>
                   <?php
-                  $req = get_post_meta($pid, 'tapin_edit_request', true);
+                  $req = get_post_meta($pid, MetaKeys::EDIT_REQ, true);
                   $data = $req['data']??[];
                   $title = get_the_title($pid) ?: '';
                   $image = get_the_post_thumbnail_url($pid, 'woocommerce_thumbnail');
@@ -164,7 +164,7 @@ final class EventsAdminCenter implements Service {
                   <?php
                   $terms = get_the_terms($pid,'product_cat');
                   $selected = $terms && !is_wp_error($terms) ? wp_list_pluck($terms,'slug') : [];
-                  $is_paused = get_post_meta($pid, '_sale_paused', true) === 'yes';
+                  $is_paused = get_post_meta($pid, MetaKeys::PAUSED, true) === 'yes';
                   $title = get_the_title($pid) ?: '';
                   $image = get_the_post_thumbnail_url($pid, 'woocommerce_thumbnail');
                   $image = $image ?: includes_url('images/media/default.png');

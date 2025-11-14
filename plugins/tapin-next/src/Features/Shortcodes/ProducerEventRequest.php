@@ -119,7 +119,7 @@ final class ProducerEventRequest implements Service
                 } else {
                     update_post_meta($pid, '_virtual', 'yes');
                     update_post_meta($pid, '_stock_status', 'instock');
-                    update_post_meta($pid, 'event_date', wp_date('Y-m-d H:i:s', $eventTs, wp_timezone()));
+                    update_post_meta($pid, MetaKeys::EVENT_DATE, wp_date('Y-m-d H:i:s', $eventTs, wp_timezone()));
                     wp_set_object_terms($pid, 'simple', 'product_type', false);
 
                     delete_post_meta($pid, '_sale_price');
