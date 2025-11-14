@@ -11,7 +11,7 @@ final class ExportCsvBuilder
      */
     public function build(array $event): array
     {
-        $rows = [];
+        $rows       = [];
         $eventId    = (int) ($event['id'] ?? 0);
         $eventTitle = (string) ($event['title'] ?? '');
         $eventLink  = (string) ($event['permalink'] ?? '');
@@ -73,7 +73,7 @@ final class ExportCsvBuilder
 
             foreach ($attendees as $attendeeEntry) {
                 $attendee = (array) ($attendeeEntry['data'] ?? []);
-                $rows[] = array_merge(
+                $rows[]   = array_merge(
                     $orderBase,
                     [
                         $attendeeEntry['primary'] ? __('ראשי', 'tapin') : __('משני', 'tapin'),
