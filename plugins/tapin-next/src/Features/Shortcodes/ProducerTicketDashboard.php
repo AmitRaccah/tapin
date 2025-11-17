@@ -11,6 +11,8 @@ use Tapin\Events\Features\Orders\TicketEmails\TicketAttendeesResolver;
 use Tapin\Events\Features\Orders\TicketEmails\TicketTokensRepository;
 use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\Capabilities;
+use Tapin\Events\Support\Search;
+use Tapin\Events\Support\TableSearch;
 use Tapin\Events\Support\Time;
 use WC_Order;
 
@@ -70,6 +72,8 @@ final class ProducerTicketDashboard implements Service
             status_header(403);
             return $this->message(esc_html__('אין לך הרשאה לצפות בלוח הכרטיסים.', 'tapin'));
         }
+
+        $this->maybeHandleManualApproval($producerId, $isAdmin);
 
         $orderIds = $this->orderQuery->resolveProducerOrderIds($producerId);
         $displayIds = array_map('intval', (array) ($orderIds['display'] ?? []));
@@ -142,6 +146,7 @@ final class ProducerTicketDashboard implements Service
         foreach ($orders as $order) {
             $tokens    = $this->tokensRepository->getTokensForOrder($order);
             $statusMap = $this->buildTicketStatusMap($tokens);
+            $keyIndex  = $this->buildTicketKeyIndex($tokens);
             $tickets   = $this->attendeesResolver->resolve($order, $producerId);
 
             foreach ($tickets as $ticket) {
@@ -150,21 +155,31 @@ final class ProducerTicketDashboard implements Service
                 $key       = $eventId > 0 ? 'event-' . $eventId : ($productId ? 'product-' . $productId : 'order-' . $order->get_id());
 
                 if (!isset($events[$key])) {
-                    $meta               = $eventId > 0 && isset($eventMetaMap[$eventId]) ? $eventMetaMap[$eventId] : null;
+                    $meta         = $eventId > 0 && isset($eventMetaMap[$eventId]) ? $eventMetaMap[$eventId] : null;
                     $events[$key] = [
                         'id'            => $eventId ?: $productId,
                         'title'         => $this->resolveEventTitle($meta, $ticket),
                         'event_date_ts' => $this->resolveEventTimestamp($meta, $eventId ?: $productId),
+                        'created_ts'    => is_array($meta) && isset($meta['created_ts']) ? (int) $meta['created_ts'] : 0,
                         'latest_ts'     => 0,
                         'attendees'     => [],
                     ];
                 }
 
+                $itemId        = isset($ticket['line_item_id']) ? (int) $ticket['line_item_id'] : (int) ($ticket['item_id'] ?? 0);
+                $attendeeIndex = isset($ticket['attendee_index']) ? (int) $ticket['attendee_index'] : -1;
+                $status        = $this->resolveTicketStatus($ticket, $statusMap);
+                $ticketKey     = $itemId > 0 && $attendeeIndex >= 0
+                    ? ($keyIndex[$itemId . ':' . $attendeeIndex] ?? '')
+                    : '';
+
                 $events[$key]['attendees'][] = [
                     'full_name'    => sanitize_text_field((string) ($ticket['full_name'] ?? '')),
                     'phone'        => sanitize_text_field((string) ($ticket['phone'] ?? '')),
                     'email'        => sanitize_email((string) ($ticket['email'] ?? '')),
-                    'status'       => $this->resolveTicketStatus($ticket, $statusMap),
+                    'status'       => $status,
+                    'ticket_key'   => $ticketKey,
+                    'order_id'     => (int) $order->get_id(),
                     'ticket'       => $ticket,
                     'details'      => isset($ticket['attendee']) && is_array($ticket['attendee']) ? $ticket['attendee'] : [],
                     'order_number' => $order->get_order_number(),
@@ -189,6 +204,11 @@ final class ProducerTicketDashboard implements Service
         unset($event);
 
         uasort($events, static function (array $a, array $b): int {
+            $createdDiff = ($b['created_ts'] ?? 0) <=> ($a['created_ts'] ?? 0);
+            if ($createdDiff !== 0) {
+                return $createdDiff;
+            }
+
             $dateDiff = ($b['event_date_ts'] ?? 0) <=> ($a['event_date_ts'] ?? 0);
             if ($dateDiff !== 0) {
                 return $dateDiff;
@@ -237,6 +257,31 @@ final class ProducerTicketDashboard implements Service
 
     /**
      * @param array<string,array<string,mixed>> $tokens
+     * @return array<string,string> key format: itemId:attendeeIndex
+     */
+    private function buildTicketKeyIndex(array $tokens): array
+    {
+        $index = [];
+
+        foreach ($tokens as $ticketKey => $tokenData) {
+            if (!is_string($ticketKey) || !is_array($tokenData)) {
+                continue;
+            }
+
+            $itemId        = isset($tokenData['item_id']) ? (int) $tokenData['item_id'] : 0;
+            $attendeeIndex = isset($tokenData['attendee_index']) ? (int) $tokenData['attendee_index'] : -1;
+            if ($itemId <= 0 || $attendeeIndex < 0) {
+                continue;
+            }
+
+            $index[$itemId . ':' . $attendeeIndex] = $ticketKey;
+        }
+
+        return $index;
+    }
+
+    /**
+     * @param array<string,array<string,mixed>> $tokens
      * @return array<string,string>
      */
     private function buildTicketStatusMap(array $tokens): array
@@ -269,6 +314,48 @@ final class ProducerTicketDashboard implements Service
         $status        = isset($statusMap[$key]) ? (string) $statusMap[$key] : (string) ($ticket['status'] ?? 'pending');
 
         return $status === 'approved' ? 'approved' : 'pending';
+    }
+
+    /**
+     * @param array<string,mixed> $event
+     */
+    private function buildEventSearchIndex(array $event): string
+    {
+        $parts = [];
+
+        $parts[] = (string) ($event['title'] ?? '');
+
+        if (!empty($event['event_date_ts'])) {
+            $parts[] = Time::fmtLocal((int) $event['event_date_ts']);
+        }
+
+        foreach ((array) ($event['attendees'] ?? []) as $attendee) {
+            if (!is_array($attendee)) {
+                continue;
+            }
+
+            $parts[] = (string) ($attendee['full_name'] ?? '');
+            $parts[] = (string) ($attendee['phone'] ?? '');
+            $parts[] = (string) ($attendee['email'] ?? '');
+
+            $details = isset($attendee['details']) && is_array($attendee['details']) ? $attendee['details'] : [];
+            foreach (['id_number', 'instagram', 'tiktok', 'facebook'] as $key) {
+                if (!empty($details[$key])) {
+                    $parts[] = (string) $details[$key];
+                }
+            }
+        }
+
+        $blob = trim(implode(' ', array_filter($parts)));
+        if ($blob === '') {
+            return '';
+        }
+
+        if (class_exists(Search::class)) {
+            return Search::normalize($blob);
+        }
+
+        return strtolower($blob);
     }
 
     /**
@@ -312,12 +399,18 @@ final class ProducerTicketDashboard implements Service
                 )); ?></div>
             </div>
             <?php
+            echo TableSearch::render([
+                'placeholder'    => esc_html__('חיפוש לפי שם, טלפון, אימייל או מספר הזמנה...', 'tapin'),
+                'row_selector'   => '.tapin-ticket-event',
+                'empty_selector' => '.tapin-ticket-dashboard__empty',
+            ]);
             $first = true;
             foreach ($events as $event):
                 $attendees = (array) ($event['attendees'] ?? []);
                 $count     = count($attendees);
+                $search    = $this->buildEventSearchIndex($event);
                 ?>
-                <details class="tapin-ticket-event" <?php echo $first ? 'open' : ''; ?>>
+                <details class="tapin-ticket-event" <?php echo $first ? 'open' : ''; ?> data-search="<?php echo esc_attr($search); ?>">
                     <summary>
                         <span>
                             <?php echo esc_html((string) ($event['title'] ?? '')); ?>
@@ -356,6 +449,21 @@ final class ProducerTicketDashboard implements Service
                                             </li>
                                         <?php endforeach; ?>
                                     </ul>
+                                    <?php
+                                    $ticketKey = isset($attendee['ticket_key']) ? (string) $attendee['ticket_key'] : '';
+                                    $orderId   = isset($attendee['order_id']) ? (int) $attendee['order_id'] : 0;
+                                    if ($status !== 'approved' && $ticketKey !== '' && $orderId > 0) :
+                                    ?>
+                                        <form method="post" style="margin-top:12px;text-align:left;">
+                                            <?php wp_nonce_field('tapin_ticket_dashboard_approve', 'tapin_ticket_dashboard_nonce'); ?>
+                                            <input type="hidden" name="tapin_ticket_dashboard_action" value="approve_attendee" />
+                                            <input type="hidden" name="tapin_ticket_dashboard_order_id" value="<?php echo esc_attr($orderId); ?>" />
+                                            <input type="hidden" name="tapin_ticket_dashboard_ticket_key" value="<?php echo esc_attr($ticketKey); ?>" />
+                                            <button type="submit" style="background:#111;color:#fff;border:none;border-radius:999px;padding:8px 20px;font-size:14px;cursor:pointer;">
+                                                <?php echo esc_html__('אשר כניסה', 'tapin'); ?>
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
                                 </div>
                             </details>
                         <?php endforeach; ?>
@@ -365,9 +473,74 @@ final class ProducerTicketDashboard implements Service
                 $first = false;
             endforeach;
             ?>
+            <div class="tapin-ticket-dashboard__empty" style="display:none;margin-top:16px;color:#666;">
+                <?php esc_html_e('לא נמצאו כרטיסים התואמים לחיפוש.', 'tapin'); ?>
+            </div>
         </div>
         <?php
         return (string) ob_get_clean();
+    }
+
+    private function maybeHandleManualApproval(int $producerId, bool $isAdmin): void
+    {
+        $method = isset($_SERVER['REQUEST_METHOD']) ? strtoupper((string) $_SERVER['REQUEST_METHOD']) : '';
+        if ($method !== 'POST') {
+            return;
+        }
+
+        $action = isset($_POST['tapin_ticket_dashboard_action'])
+            ? sanitize_text_field(wp_unslash((string) $_POST['tapin_ticket_dashboard_action']))
+            : '';
+        if ($action !== 'approve_attendee') {
+            return;
+        }
+
+        $nonce = isset($_POST['tapin_ticket_dashboard_nonce'])
+            ? sanitize_text_field(wp_unslash((string) $_POST['tapin_ticket_dashboard_nonce']))
+            : '';
+        if (!wp_verify_nonce($nonce, 'tapin_ticket_dashboard_approve')) {
+            return;
+        }
+
+        $orderId = isset($_POST['tapin_ticket_dashboard_order_id'])
+            ? (int) $_POST['tapin_ticket_dashboard_order_id']
+            : 0;
+        $ticketKey = isset($_POST['tapin_ticket_dashboard_ticket_key'])
+            ? sanitize_text_field(wp_unslash((string) $_POST['tapin_ticket_dashboard_ticket_key']))
+            : '';
+
+        if ($orderId <= 0 || $ticketKey === '') {
+            return;
+        }
+
+        $order = wc_get_order($orderId);
+        if (!$order instanceof WC_Order) {
+            return;
+        }
+
+        if (!$isAdmin) {
+            $ids = (array) $order->get_meta('_tapin_producer_ids', true);
+            $ids = array_values(array_filter(array_map('intval', $ids)));
+            if (!in_array($producerId, $ids, true)) {
+                return;
+            }
+        }
+
+        $this->tokensRepository->markTicketApproved($order, $ticketKey);
+
+        $redirect = remove_query_arg(['tapin_ticket_dashboard_action'], $this->currentUrl());
+        wp_safe_redirect($redirect);
+        exit;
+    }
+
+    private function currentUrl(): string
+    {
+        $requestUri = isset($_SERVER['REQUEST_URI']) ? (string) wp_unslash((string) $_SERVER['REQUEST_URI']) : '';
+        if ($requestUri === '') {
+            $requestUri = '/';
+        }
+
+        return home_url($requestUri);
     }
 
     private function attendeeDetailRows(array $attendee): array
