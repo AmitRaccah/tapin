@@ -168,6 +168,16 @@ final class AwaitingProducerGate implements Service
         );
         $order->save();
 
+        $producerIds = self::ensureProducerMeta($order);
+        foreach ($producerIds as $producerId) {
+            $producerId = (int) $producerId;
+            if ($producerId <= 0) {
+                continue;
+            }
+
+            do_action('tapin/events/order/approved_by_producer', $order, $producerId);
+        }
+
         return $didCapture;
     }
 

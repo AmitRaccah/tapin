@@ -1,0 +1,57 @@
+*** Begin Patch
+*** Update File: plugins/tapin-next/src/Features/Orders/TicketEmails/TicketEmailDispatcher.php
+@@
+-            $qrImageUrl = $this->generateQrImage((string) ($ticketData['token'] ?? ''), $ticketUrl);
+-            $label      = $this->resolveTicketLabel($ticketData);
+-            $subject    = sprintf(
+-                /* translators: %s: ticket or event label */
+-                esc_html__('?"?>?"?~?T?? ?c???? ??%s', 'tapin'),
+-                $label
+-            );
+-
+-            $fullName = trim((string) ($ticketData['full_name'] ?? ''));
+-            $greeting = $fullName !== ''
+-                ? sprintf(esc_html__('?c???\u0007?? %s,', 'tapin'), esc_html($fullName))
+-                : esc_html__('?c???\u0007??,', 'tapin');
+-
+-            $body  = '<div style="direction:rtl;text-align:right;font-family:Arial,sans-serif;font-size:16px;line-height:1.6;">';
+-            $body .= '<p>' . $greeting . '</p>';
+-            $body .= '<p>' . sprintf(
+-                esc_html__('?"?>?"?~?T?? ?c???? ?????T?"??\u0007?? %s ???\u0007?>??. ?????\u0007?"?? ?`?"?\u0015?\u0007?" ?????"?T?\u0015?" ?`?>???T?"?".', 'tapin'),
+-                esc_html($label)
+-            ) . '</p>';
+-
+-            if ($qrImageUrl !== '') {
+-                $body .= '<p style="text-align:center;"><img src="' . esc_url($qrImageUrl) . '" alt="' . esc_attr__('?`?"?\u0015?\u0007?" ?"?>?"?~?T?? ?c????', 'tapin') . '" style="max-width:260px;height:auto;" /></p>';
+-            }
+-
+-            $body .= '<p>' . esc_html__('???? ???T???? ?"?\u0007??" ???x ?"?`?"?\u0015?\u0007?", ?????c?" ???"?T?>???? ?T?c?T?"?\u0007?x ???\u0015?T?c?\u0007?" ?"?`??:', 'tapin') . '<br>' . esc_html($ticketUrl) . '</p>';
+-            $body .= '<p>' . esc_html__('???x?"???" ?`?????T?`?"!', 'tapin') . '</p>';
+-            $body .= '</div>';
++            $qrImageUrl = $this->generateQrImage((string) ($ticketData['token'] ?? ''), $ticketUrl);
++            $label      = $this->resolveTicketLabel($ticketData);
++            $subject    = sprintf(
++                /* translators: %s: ticket or event label */
++                esc_html__( 'הכרטיס שלך לאירוע %s', 'tapin' ),
++                $label
++            );
++
++            $fullName = trim((string) ($ticketData['full_name'] ?? ''));
++            $greeting = $fullName !== ''
++                ? sprintf( esc_html__( 'שלום %s,', 'tapin' ), esc_html( $fullName ) )
++                : esc_html__( 'שלום,', 'tapin' );
++
++            $body  = '<div style="direction:rtl;text-align:right;font-family:Arial,sans-serif;font-size:16px;line-height:1.6;">';
++            $body .= '<p>' . $greeting . '</p>';
++            $body .= '<p>' . sprintf(
++                esc_html__( 'הכרטיס שלך לאירוע %s מוכן. מצורף ברקוד לסריקה בכניסה.', 'tapin' ),
++                esc_html( $label )
++            ) . '</p>';
++
++            if ($qrImageUrl !== '') {
++                $body .= '<p style="text-align:center;"><img src="' . esc_url( $qrImageUrl ) . '" alt="' . esc_attr__( 'ברקוד הכרטיס שלך', 'tapin' ) . '" style="max-width:260px;height:auto;" /></p>';
++            }
++
++            $body .= '<p>' . esc_html__( 'נתראה במסיבה!', 'tapin' ) . '</p>';
++            $body .= '</div>';
+*** End Patch
