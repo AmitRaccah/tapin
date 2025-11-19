@@ -25,6 +25,9 @@ final class TicketAttendeesResolver
         $summary   = $this->summaryBuilder->buildOrderSummary($order, $producerId);
         $attendees = [];
 
+        $approvedMap      = (array) ($summary['approved_attendee_map'] ?? []);
+        $hasApprovalMap   = $approvedMap !== [];
+
         $primary = isset($summary['primary_attendee']) && is_array($summary['primary_attendee'])
             ? (array) $summary['primary_attendee']
             : [];
@@ -53,6 +56,13 @@ final class TicketAttendeesResolver
         $records = [];
 
         foreach ($attendees as $attendee) {
+            if ($hasApprovalMap) {
+                $isApproved = !empty($attendee['is_producer_approved']);
+                if (!$isApproved) {
+                    continue;
+                }
+            }
+
             $email = sanitize_email((string) ($attendee['email'] ?? ''));
             if ($email === '' || strpos($email, '@') === false) {
                 continue;

@@ -31,6 +31,13 @@ final class TicketEmailDispatcher implements Service
             20,
             2
         );
+
+        add_action(
+            'tapin/events/order/producer_attendees_approved',
+            [$this, 'handleOrderApproved'],
+            20,
+            2
+        );
     }
 
     public function handleOrderApproved(WC_Order $order, int $producerId): void
@@ -190,4 +197,3 @@ final class TicketEmailDispatcher implements Service
         return $email instanceof Email_TicketToAttendee ? $email : null;
     }
 }
-

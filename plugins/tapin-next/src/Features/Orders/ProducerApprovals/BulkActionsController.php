@@ -23,7 +23,7 @@ final class BulkActionsController
         if (
             'POST' === ($_SERVER['REQUEST_METHOD'] ?? '')
             && !empty($_POST['tapin_pa_bulk_nonce'])
-            && wp_verify_nonce($_POST['tapin_pa_bulk_nonce'], 'tapin_pa_bulk')
+            && wp_verify_nonce((string) $_POST['tapin_pa_bulk_nonce'], 'tapin_pa_bulk')
         ) {
             $approveAll     = !empty($_POST['approve_all']);
             $cancelSelected = isset($_POST['bulk_cancel']);
@@ -64,7 +64,7 @@ final class BulkActionsController
                 $notice = sprintf(
                     '<div class="woocommerce-message" style="direction:rtl;text-align:right">%s</div>',
                     sprintf(
-                        esc_html__( 'אושרו %1$d הזמנות, נכשלו %2$d.', 'tapin' ),
+                        esc_html__('אושרו %1$d הזמנות, נכשלו %2$d.', 'tapin'),
                         $approved,
                         $failed
                     )
@@ -87,6 +87,7 @@ final class BulkActionsController
         $relevantLookup = array_fill_keys(array_map('intval', $relevantIds), true);
 
         foreach ($selected as $orderId) {
+            $orderId = (int) $orderId;
             if (!isset($relevantLookup[$orderId])) {
                 $failed++;
                 continue;
@@ -141,12 +142,13 @@ final class BulkActionsController
         $relevantLookup = array_fill_keys(array_map('intval', $relevantIds), true);
 
         foreach ($selection as $orderId => $items) {
-            if (!isset($relevantLookup[$orderId])) {
+            $orderKey = (int) $orderId;
+            if (!isset($relevantLookup[$orderKey])) {
                 $failed++;
                 continue;
             }
 
-            $order = wc_get_order($orderId);
+            $order = wc_get_order($orderKey);
             if (!$order instanceof WC_Order) {
                 $failed++;
                 continue;
@@ -158,7 +160,7 @@ final class BulkActionsController
                 continue;
             }
 
-            if ($this->applyAttendeeSelection($order, $producerId, $items)) {
+            if ($this->applyAttendeeSelection($order, $producerId, is_array($items) ? $items : [])) {
                 $approved++;
             } else {
                 $failed++;
@@ -221,7 +223,7 @@ final class BulkActionsController
                 continue;
             }
 
-            $itemId  = (int) $item->get_id();
+            $itemId   = (int) $item->get_id();
             $quantity = max(0, (int) $item->get_quantity());
 
             if (isset($approvedMeta[$itemId])) {
@@ -235,7 +237,9 @@ final class BulkActionsController
                 $count = min($quantity, max(0, (int) $partialMap[$itemId]));
                 if ($count > 0) {
                     $cleanPartialMap[$itemId] = $count;
-                    $unit = $quantity > 0 ? ((float) $item->get_total() / max(1, $quantity)) : (float) $item->get_total();
+                    $unit = $quantity > 0
+                        ? ((float) $item->get_total() / max(1, $quantity))
+                        : (float) $item->get_total();
                     $partialTotal += $unit * $count;
                 }
             }
@@ -269,12 +273,17 @@ final class BulkActionsController
                 __('אושרו חלק מהמשתתפים על ידי המפיק', 'tapin')
             );
             $order->save();
+
+            do_action('tapin/events/order/producer_partial_approval', $order, $producerId);
+            do_action('tapin/events/order/producer_attendees_approved', $order, $producerId);
+
             return true;
         }
 
         $order->delete_meta_data('_tapin_partial_approved_map');
         $order->delete_meta_data('_tapin_partial_approved_total');
         $order->save();
+
         AwaitingProducerGate::captureAndApprove($order);
 
         return true;
@@ -321,7 +330,7 @@ final class BulkActionsController
                     continue;
                 }
 
-                $values = is_array($indices) ? $indices : [$indices];
+                $values   = is_array($indices) ? $indices : [$indices];
                 $filtered = $this->filterIndices($values, PHP_INT_MAX);
                 if ($filtered === []) {
                     continue;
@@ -377,6 +386,7 @@ final class BulkActionsController
             if ($itemKey <= 0 || !is_array($indices)) {
                 continue;
             }
+
             $result[$itemKey] = $this->filterIndices($indices, PHP_INT_MAX);
         }
 
@@ -391,11 +401,12 @@ final class BulkActionsController
     {
         $result = [];
         foreach ($map as $itemId => $count) {
-            $itemKey = (int) $itemId;
+            $itemKey  = (int) $itemId;
             $intCount = (int) $count;
             if ($itemKey <= 0 || $intCount <= 0) {
                 continue;
             }
+
             $result[$itemKey] = $intCount;
         }
 

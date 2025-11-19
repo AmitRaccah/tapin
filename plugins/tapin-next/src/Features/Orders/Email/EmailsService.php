@@ -5,6 +5,8 @@ namespace Tapin\Events\Features\Orders\Email;
 
 use Tapin\Events\Core\Service;
 use Tapin\Events\Features\Orders\Email\Email_CustomerAwaitingProducer;
+use Tapin\Events\Features\Orders\Email\Email_CustomerOrderApproved;
+use Tapin\Events\Features\Orders\Email\Email_CustomerOrderPartiallyApproved;
 use Tapin\Events\Features\Orders\Email\Email_ProducerAwaitingApproval;
 use Tapin\Events\Features\Orders\Email\Email_ProducerOrderApproved;
 use Tapin\Events\Features\Orders\Email\Email_ProducerTicketCheckin;
@@ -30,11 +32,13 @@ final class EmailsService implements Service
      */
     public function registerEmails(array $emails): array
     {
-        $emails['tapin_ticket_to_attendee']         = new Email_TicketToAttendee();
-        $emails['tapin_customer_awaiting_producer'] = new Email_CustomerAwaitingProducer();
-        $emails['tapin_producer_order_awaiting']    = new Email_ProducerAwaitingApproval();
-        $emails['tapin_producer_order_approved']    = new Email_ProducerOrderApproved();
-        $emails['tapin_producer_ticket_checkin']    = new Email_ProducerTicketCheckin();
+        $emails['tapin_ticket_to_attendee']                = new Email_TicketToAttendee();
+        $emails['tapin_customer_awaiting_producer']        = new Email_CustomerAwaitingProducer();
+        $emails['tapin_customer_order_partially_approved'] = new Email_CustomerOrderPartiallyApproved();
+        $emails['tapin_customer_order_approved']           = new Email_CustomerOrderApproved();
+        $emails['tapin_producer_order_awaiting']           = new Email_ProducerAwaitingApproval();
+        $emails['tapin_producer_order_approved']           = new Email_ProducerOrderApproved();
+        $emails['tapin_producer_ticket_checkin']           = new Email_ProducerTicketCheckin();
 
         return $emails;
     }
