@@ -1,0 +1,89 @@
+<?php
+/**
+ * Plain template for customer awaiting producer approval email.
+ *
+ * @var WC_Order                                                          $order
+ * @var string                                                            $email_heading
+ * @var Tapin\Events\Features\Orders\Email\Email_CustomerAwaitingProducer $email
+ */
+
+defined('ABSPATH') || exit;
+
+$headerBuffer = '';
+ob_start();
+do_action('woocommerce_email_header', $email_heading, $email);
+$headerBuffer = trim(wp_strip_all_tags((string) ob_get_clean()));
+if ($headerBuffer !== '') {
+    echo $headerBuffer . "\n\n";
+}
+
+$site_name = trim((string) $email->get_blogname());
+if ($site_name === '') {
+    $site_name = get_bloginfo('name', 'display');
+}
+if ($site_name === '') {
+    $site_name = get_bloginfo('name');
+}
+if ($site_name === '') {
+    $site_name = 'Tapin';
+}
+
+$account_url = wc_get_page_permalink('myaccount');
+if (empty($account_url)) {
+    $account_url = home_url('/');
+}
+
+$view_order_url = '';
+if ($order instanceof WC_Order) {
+    if (method_exists($order, 'get_view_order_url')) {
+        $view_order_url = (string) $order->get_view_order_url();
+    }
+
+    if ($view_order_url === '') {
+        $view_order_url = wc_get_endpoint_url('view-order', (string) $order->get_id(), $account_url);
+    }
+}
+if ($view_order_url === '') {
+    $view_order_url = $account_url;
+}
+
+$customer_name = '';
+if ($order instanceof WC_Order) {
+    $customer_name = trim((string) $order->get_formatted_billing_full_name());
+    if ($customer_name === '') {
+        $customer_name = trim((string) $order->get_billing_first_name() . ' ' . $order->get_billing_last_name());
+    }
+}
+if ($customer_name === '') {
+    $customer_name = esc_html__( 'לקוח Tapin', 'tapin' );
+}
+
+$customer_name_plain = trim(wp_strip_all_tags($customer_name));
+$site_name_plain     = trim(wp_strip_all_tags($site_name));
+$order_number        = $order instanceof WC_Order ? (string) $order->get_order_number() : '';
+
+echo sprintf( esc_html__( 'שלום %s,', 'tapin' ), $customer_name_plain ) . "\n\n";
+echo esc_html__( 'ההזמנה שלך התקבלה בהצלחה וממתינה לאישור המפיק.', 'tapin' ) . "\n\n";
+
+if ($order_number !== '') {
+    echo sprintf( esc_html__( 'מספר ההזמנה: #%s', 'tapin' ), $order_number ) . "\n\n";
+}
+
+echo sprintf( esc_html__( 'לצפייה בהזמנה שלך: %s', 'tapin' ), esc_url_raw( $view_order_url ) ) . "\n\n";
+echo sprintf( esc_html__( 'תודה שבחרת ב-%s', 'tapin' ), $site_name_plain ) . "\n";
+echo esc_html__( 'ליצירת קשר: support@tapin.co.il', 'tapin' ) . "\n\n";
+
+$additional = $email->get_additional_content();
+if ($additional) {
+    echo wp_strip_all_tags(wptexturize($additional)) . "\n\n";
+}
+
+$footerBuffer = '';
+ob_start();
+do_action('woocommerce_email_footer', $email);
+$footerBuffer = trim(wp_strip_all_tags((string) ob_get_clean()));
+if ($footerBuffer !== '') {
+    echo $footerBuffer . "\n";
+} else {
+    echo wp_kses_post(apply_filters('woocommerce_email_footer_text', get_option('woocommerce_email_footer_text'))) . "\n";
+}

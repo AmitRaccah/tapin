@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Tapin\Events\Features\Orders\Email;
 
 use Tapin\Events\Core\Service;
+use Tapin\Events\Features\Orders\Email\Email_CustomerAwaitingProducer;
+use Tapin\Events\Features\Orders\Email\Email_TicketToAttendee;
 
 final class EmailsService implements Service
 {
@@ -18,9 +20,9 @@ final class EmailsService implements Service
      */
     public function registerEmails(array $emails): array
     {
-        $emails['tapin_ticket_to_attendee'] = new Email_TicketToAttendee();
+        $emails['tapin_ticket_to_attendee']         = new Email_TicketToAttendee();
+        $emails['tapin_customer_awaiting_producer'] = new Email_CustomerAwaitingProducer();
 
         return $emails;
     }
 }
-

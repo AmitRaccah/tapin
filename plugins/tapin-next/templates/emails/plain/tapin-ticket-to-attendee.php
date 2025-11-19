@@ -32,30 +32,31 @@ if (empty($login_url)) {
     $login_url = home_url('/');
 }
 
-$full_name = trim((string) ($ticket['full_name'] ?? ''));
-$display_name = $full_name !== '' ? $full_name : esc_html__( 'לקוח שלנו', 'tapin' );
+$full_name    = trim((string) ($ticket['full_name'] ?? ''));
+$display_name = $full_name !== '' ? $full_name : esc_html__( 'לקוח Tapin', 'tapin' );
 
 $label = (string) ($ticket['ticket_label'] ?? ($ticket['product_name'] ?? ''));
 if ($label === '') {
-    $label = sprintf( esc_html__( 'הזמנה #%s', 'tapin' ),
+    $label = sprintf(
+        esc_html__( 'הזמנה #%s', 'tapin' ),
         (string) ($ticket['order_id'] ?? '')
     );
 }
 
 $display_name_plain = trim(wp_strip_all_tags($display_name));
-$label_plain = trim(wp_strip_all_tags($label));
-$site_name_plain = trim(wp_strip_all_tags($site_name !== '' ? $site_name : 'Tapin'));
+$label_plain        = trim(wp_strip_all_tags($label));
+$site_name_plain    = trim(wp_strip_all_tags($site_name !== '' ? $site_name : 'Tapin'));
 
-echo sprintf(__('שלום %s,', 'tapin'), $display_name_plain) . "\n\n";
-echo sprintf(__('הכרטיס שלך לאירוע %s מוכן ומחכה לך. מצורף ברקוד לסריקה בזמן הכניסה.', 'tapin'), $label_plain) . "\n\n";
+echo sprintf( __( 'שלום %s,', 'tapin' ), $display_name_plain ) . "\n\n";
+echo sprintf( __( 'הכרטיס שלך לאירוע %s מוכן ומחכה לך. מצורף ברקוד לסריקה בכניסה.', 'tapin' ), $label_plain ) . "\n\n";
 
 if ($qr_image_url !== '') {
-    echo sprintf(__('ברקוד לצפייה: %s', 'tapin'), esc_url_raw($qr_image_url)) . "\n\n";
+    echo sprintf( __( 'ברקוד לצפייה: %s', 'tapin' ), esc_url_raw( $qr_image_url ) ) . "\n\n";
 }
 
-echo sprintf(__('לצפייה בהזמנה שלך: %s', 'tapin'), esc_url_raw($login_url)) . "\n\n";
-echo sprintf(__('תודה שבחרת %s!', 'tapin'), $site_name_plain) . "\n";
-echo __('צריך עזרה? אפשר להשיב להודעה זו או לכתוב ל-support@tapin.co.il', 'tapin') . "\n\n";
+echo sprintf( __( 'לצפייה בהזמנה שלך: %s', 'tapin' ), esc_url_raw( $login_url ) ) . "\n\n";
+echo sprintf( __( 'תודה שבחרת ב-%s!', 'tapin' ), $site_name_plain ) . "\n";
+echo __( 'צריך עזרה? אפשר להשיב למייל הזה או לכתוב ל-support@tapin.co.il', 'tapin' ) . "\n\n";
 
 $additional = $email->get_additional_content();
 if ($additional) {
