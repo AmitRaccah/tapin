@@ -18,7 +18,7 @@ final class Email_TicketToAttendee extends WC_Email
     {
         $this->id          = 'tapin_ticket_to_attendee';
         $this->title       = esc_html__('כרטיס ללקוח (Tapin)', 'tapin');
-        $this->description = esc_html__('אימייל זה נשלח לכל משתתף עם כרטיס אישי וקוד QR לסריקה בכניסה.', 'tapin');
+        $this->description = esc_html__('אימייל זה נשלח לכל משתתף עם כרטיס אישי וקוד QR לסריקה בכניסה לאירוע.', 'tapin');
 
         $this->customer_email = true;
         $this->template_html  = 'emails/tapin-ticket-to-attendee.php';
@@ -88,8 +88,8 @@ final class Email_TicketToAttendee extends WC_Email
             return;
         }
 
-        $label   = $this->resolveTicketLabel($ticket);
-        $subject = sprintf($this->get_subject(), $label);
+        $eventLabel = $this->resolveEventLabel($ticket);
+        $subject    = sprintf($this->get_subject(), $eventLabel);
 
         $this->send(
             $this->get_recipient(),
@@ -143,15 +143,15 @@ final class Email_TicketToAttendee extends WC_Email
     /**
      * @param array<string,mixed> $ticket
      */
-    private function resolveTicketLabel(array $ticket): string
+    private function resolveEventLabel(array $ticket): string
     {
-        $label = (string) ($ticket['ticket_label'] ?? '');
+        $label = (string) ($ticket['product_name'] ?? '');
         if ($label === '') {
-            $label = (string) ($ticket['product_name'] ?? '');
+            $label = (string) ($ticket['ticket_label'] ?? '');
         }
         if ($label === '') {
             $label = sprintf(
-                esc_html__('כרטיס #%s', 'tapin'),
+                esc_html__('הזמנה #%s', 'tapin'),
                 (string) ($ticket['order_id'] ?? '')
             );
         }

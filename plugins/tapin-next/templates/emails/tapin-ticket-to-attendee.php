@@ -74,7 +74,7 @@ ob_start();
     <?php esc_html_e('הכרטיס שלך לאירוע', 'tapin'); ?>
     <strong><?php echo esc_html($label); ?></strong>
     <?php esc_html_e('מוכן ומצורף כאן למטה.', 'tapin'); ?><br />
-    <?php esc_html_e('בכניסה לאירוע הציגי/ה את הברקוד המצורף לצוות המפיק.', 'tapin'); ?><br />
+    <?php esc_html_e('בכניסה לאירוע הציגו את הברקוד המצורף לצוות האירוע.', 'tapin'); ?><br />
     <?php esc_html_e('מומלץ לשמור את האימייל הזה עד לסיום האירוע.', 'tapin'); ?>
 </td>
 <?php
