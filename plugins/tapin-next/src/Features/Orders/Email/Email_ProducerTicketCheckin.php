@@ -1,5 +1,4 @@
-<?php
-declare(strict_types=1);
+<?php declare(strict_types=1);
 
 namespace Tapin\Events\Features\Orders\Email;
 
@@ -17,16 +16,14 @@ final class Email_ProducerTicketCheckin extends WC_Email
     {
         $this->id             = 'tapin_producer_ticket_checkin';
         $this->title          = esc_html__( 'התראה למפיק: אורח אושר בכניסה', 'tapin' );
-        $this->description    = esc_html__( 'נשלח למפיק כאשר צוות Tapin מאשר כרטיס בכניסה לאירוע.', 'tapin' );
-        $this->heading        = esc_html__( 'לקוח/ה אושר/ה בכניסה לאירוע שלך', 'tapin' );
+        $this->description    = esc_html__( 'אימייל זה נשלח למפיק כאשר כרטיס של לקוח מאושר בכניסה לאירוע.', 'tapin' );
+        $this->heading        = esc_html__( 'לקוח אושר בכניסה לאירוע שלך', 'tapin' );
         $this->subject        = esc_html__( 'לקוח מהזמנה #%s אושר בכניסה', 'tapin' );
         $this->customer_email = false;
-        $this->template_html  = '';
-        $this->template_plain = '';
-        $this->placeholders   = [
-            '{order_number}' => '',
-            '{site_title}'   => $this->get_blogname(),
-        ];
+
+        $this->template_html  = 'emails/tapin-producer-ticket-checkin.php';
+        $this->template_plain = 'emails/plain/tapin-producer-ticket-checkin.php';
+        $this->template_base  = trailingslashit(TAPIN_NEXT_PATH) . 'templates/';
 
         parent::__construct();
 
@@ -47,17 +44,15 @@ final class Email_ProducerTicketCheckin extends WC_Email
 
         $this->setup_locale();
 
-        $this->object                         = $order;
-        $this->recipient                      = $recipient;
-        $this->placeholders['{order_number}'] = $order->get_order_number();
-        $this->placeholders['{site_title}']   = $this->get_blogname();
+        $this->object    = $order;
+        $this->recipient = $recipient;
 
         if (!$this->is_enabled() || !$this->get_recipient()) {
             $this->restore_locale();
             return;
         }
 
-        $subject = sprintf($this->get_subject(), $this->placeholders['{order_number}']);
+        $subject = sprintf($this->get_subject(), $order->get_order_number());
 
         $this->send(
             $this->get_recipient(),
@@ -72,62 +67,40 @@ final class Email_ProducerTicketCheckin extends WC_Email
 
     public function get_content_html(): string
     {
-        $order       = $this->object instanceof WC_Order ? $this->object : null;
-        $orderNumber = $order ? $order->get_order_number() : '';
-        $attendee    = $this->resolveAttendeeName($this->ticket);
-        $label       = $this->resolveTicketLabel($this->ticket);
-        $approvedAt  = $this->formatApprovedAt($this->ticket);
-        $orderUrl    = $order ? $this->buildOrderLink($order) : admin_url('edit.php?post_type=shop_order');
-
         ob_start();
-        ?>
-        <div style="direction:rtl;text-align:right;font-family:Arial,Helvetica,sans-serif;">
-            <p>
-                <?php
-                printf(
-                    esc_html__( 'המשתתף/ת %1$s אושר/ה בכניסה לכרטיס %2$s.', 'tapin' ),
-                    esc_html($attendee),
-                    esc_html($label)
-                );
-                ?>
-            </p>
-            <?php if ($orderNumber !== '') : ?>
-                <p><?php printf( esc_html__( 'מספר הזמנה: #%s', 'tapin' ), esc_html($orderNumber) ); ?></p>
-            <?php endif; ?>
-            <?php if ($approvedAt !== '') : ?>
-                <p><?php printf( esc_html__( 'שעת הצ׳ק-אין: %s', 'tapin' ), esc_html($approvedAt) ); ?></p>
-            <?php endif; ?>
-            <p>
-                <a href="<?php echo esc_url($orderUrl); ?>" style="color:#0f766e;text-decoration:none;font-weight:600;">
-                    <?php esc_html_e( 'פתח/י את ההזמנה למעקב', 'tapin' ); ?>
-                </a>
-            </p>
-        </div>
-        <?php
+
+        wc_get_template(
+            'emails/tapin-producer-ticket-checkin.php',
+            [
+                'order'         => $this->object,
+                'email_heading' => $this->get_heading(),
+                'email'         => $this,
+                'ticket'        => $this->ticket,
+            ],
+            '',
+            $this->template_base
+        );
 
         return (string) ob_get_clean();
     }
 
     public function get_content_plain(): string
     {
-        $order       = $this->object instanceof WC_Order ? $this->object : null;
-        $orderNumber = $order ? $order->get_order_number() : '';
-        $attendee    = $this->resolveAttendeeName($this->ticket);
-        $label       = $this->resolveTicketLabel($this->ticket);
-        $approvedAt  = $this->formatApprovedAt($this->ticket);
-        $orderUrl    = $order ? $this->buildOrderLink($order) : admin_url('edit.php?post_type=shop_order');
+        ob_start();
 
-        $lines   = [];
-        $lines[] = sprintf(esc_html__( 'המשתתף/ת %1$s אושר/ה בכניסה לכרטיס %2$s.', 'tapin' ), $attendee, $label);
-        if ($orderNumber !== '') {
-            $lines[] = sprintf(esc_html__( 'מספר הזמנה: #%s', 'tapin' ), $orderNumber);
-        }
-        if ($approvedAt !== '') {
-            $lines[] = sprintf(esc_html__( 'שעת הצ׳ק-אין: %s', 'tapin' ), $approvedAt);
-        }
-        $lines[] = sprintf(esc_html__( 'לצפייה בהזמנה: %s', 'tapin' ), $orderUrl);
+        wc_get_template(
+            'emails/plain/tapin-producer-ticket-checkin.php',
+            [
+                'order'         => $this->object,
+                'email_heading' => $this->get_heading(),
+                'email'         => $this,
+                'ticket'        => $this->ticket,
+            ],
+            '',
+            $this->template_base
+        );
 
-        return implode("\n", array_filter($lines));
+        return (string) ob_get_clean();
     }
 
     private function resolveProducerEmail(int $producerId): string
@@ -143,62 +116,5 @@ final class Email_ProducerTicketCheckin extends WC_Email
 
         return (string) $producer->user_email;
     }
-
-    /**
-     * @param array<string,mixed> $ticket
-     */
-    private function resolveAttendeeName(array $ticket): string
-    {
-        $name = trim((string) ($ticket['full_name'] ?? ''));
-        if ($name === '') {
-            $name = trim((string) ($ticket['email'] ?? ''));
-        }
-
-        if ($name === '') {
-            $name = esc_html__( 'אורח/ת ללא שם', 'tapin' );
-        }
-
-        return $name;
-    }
-
-    /**
-     * @param array<string,mixed> $ticket
-     */
-    private function resolveTicketLabel(array $ticket): string
-    {
-        $label = trim((string) ($ticket['ticket_label'] ?? ''));
-        if ($label === '') {
-            $label = trim((string) ($ticket['product_name'] ?? ''));
-        }
-
-        if ($label === '') {
-            $label = esc_html__( 'האירוע שלך', 'tapin' );
-        }
-
-        return $label;
-    }
-
-    /**
-     * @param array<string,mixed> $ticket
-     */
-    private function formatApprovedAt(array $ticket): string
-    {
-        $value = trim((string) ($ticket['approved_at'] ?? ''));
-        if ($value === '') {
-            return current_time('d/m/Y H:i');
-        }
-
-        $format = trim((string) get_option('date_format')) . ' ' . trim((string) get_option('time_format'));
-        return mysql2date($format, $value, true);
-    }
-
-    private function buildOrderLink(WC_Order $order): string
-    {
-        $orderId = (int) $order->get_id();
-        if ($orderId <= 0) {
-            return admin_url('edit.php?post_type=shop_order');
-        }
-
-        return admin_url(sprintf('post.php?post=%d&action=edit', $orderId));
-    }
 }
+

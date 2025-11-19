@@ -15,6 +15,13 @@ final class EmailsService implements Service
     public function register(): void
     {
         add_filter('woocommerce_email_classes', [$this, 'registerEmails']);
+
+        if (function_exists('WC')) {
+            try {
+                WC()->mailer();
+            } catch (\Throwable $e) {
+            }
+        }
     }
 
     /**
