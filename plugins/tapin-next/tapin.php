@@ -30,6 +30,29 @@ if (!function_exists('tapin_next_debug_log')) {
     }
 }
 
+if (!function_exists('tapin_next_canonical_site_url')) {
+    function tapin_next_canonical_site_url(): string
+    {
+        $base = 'https://tapin.co.il/';
+
+        $url = apply_filters('tapin_next_canonical_site_url', $base);
+        $url = is_string($url) && $url !== '' ? $url : $base;
+
+        $parts = wp_parse_url($url);
+        if (!is_array($parts) || empty($parts['host'])) {
+            return trailingslashit($base);
+        }
+
+        $scheme = isset($parts['scheme']) && $parts['scheme'] !== '' ? $parts['scheme'] : 'https';
+        $host   = $parts['host'];
+        $path   = isset($parts['path']) ? rtrim($parts['path'], '/') : '';
+
+        $normalized = $scheme . '://' . $host . ($path !== '' ? $path : '') . '/';
+
+        return $normalized;
+    }
+}
+
 function tapin_next_is_sandbox(): bool {
     if (!is_user_logged_in() || !current_user_can('manage_options')) return false;
     return !empty($_COOKIE['tapin_sandbox']);
@@ -155,4 +178,3 @@ add_action('plugins_loaded', function () {
     if (!class_exists(\Tapin\Events\Core\Plugin::class)) return;
     (new \Tapin\Events\Core\Plugin())->boot(['sandbox' => tapin_next_is_sandbox()]);
 });
-

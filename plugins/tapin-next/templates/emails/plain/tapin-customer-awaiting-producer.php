@@ -30,7 +30,7 @@ if ($site_name === '') {
 
 $account_url = wc_get_page_permalink('myaccount');
 if (empty($account_url)) {
-    $account_url = home_url('/');
+    $account_url = function_exists('tapin_next_canonical_site_url') ? tapin_next_canonical_site_url() : home_url('/');
 }
 
 $view_order_url = '';

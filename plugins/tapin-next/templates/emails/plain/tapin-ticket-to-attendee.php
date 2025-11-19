@@ -29,7 +29,7 @@ if ($site_name === '') {
 
 $login_url = wc_get_page_permalink('myaccount');
 if (empty($login_url)) {
-    $login_url = home_url('/');
+    $login_url = function_exists('tapin_next_canonical_site_url') ? tapin_next_canonical_site_url() : home_url('/');
 }
 
 $full_name    = trim((string) ($ticket['full_name'] ?? ''));

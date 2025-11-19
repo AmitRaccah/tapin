@@ -15,7 +15,7 @@ if ($site_name === '') {
     $site_name = 'Tapin';
 }
 
-$site_url    = home_url('/');
+$site_url    = function_exists('tapin_next_canonical_site_url') ? tapin_next_canonical_site_url() : home_url('/');
 $account_url = wc_get_page_permalink('myaccount');
 if (empty($account_url)) {
     $account_url = $site_url;
@@ -206,4 +206,3 @@ wc_get_template(
 );
 
 do_action('woocommerce_email_footer', $email);
-

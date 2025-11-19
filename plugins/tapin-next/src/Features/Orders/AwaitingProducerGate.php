@@ -18,6 +18,7 @@ final class AwaitingProducerGate implements Service
         add_action('woocommerce_order_status_changed', [$this, 'revertIfNeeded'], 5, 4);
         add_filter('woocommerce_payment_complete_reduce_order_stock', [$this, 'preventStockReduction'], 10, 2);
         add_filter('woocommerce_email_enabled_customer_processing_order', [$this, 'suppressProcessingEmail'], 10, 2);
+        add_filter('woocommerce_email_enabled_customer_completed_order', [$this, 'suppressCompletedEmail'], 10, 2);
         add_action('woocommerce_thankyou', [$this, 'thankyouNotice'], 10, 1);
     }
 
@@ -123,6 +124,20 @@ final class AwaitingProducerGate implements Service
     public function suppressProcessingEmail(bool $enabled, ?WC_Order $order): bool
     {
         if ($order instanceof WC_Order && $order->has_status(self::awaitingStatusSlug())) {
+            return false;
+        }
+
+        return $enabled;
+    }
+
+    public function suppressCompletedEmail(bool $enabled, ?WC_Order $order): bool
+    {
+        if (!$order instanceof WC_Order) {
+            return $enabled;
+        }
+
+        $producerIds = Orders::collectProducerIds($order);
+        if ($producerIds !== []) {
             return false;
         }
 
@@ -237,4 +252,3 @@ final class AwaitingProducerGate implements Service
         return $ids;
     }
 }
-
