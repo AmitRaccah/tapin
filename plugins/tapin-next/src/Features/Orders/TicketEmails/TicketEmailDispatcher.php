@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Tapin\Events\Features\Orders\TicketEmails;
 
 use Tapin\Events\Core\Service;
+use Tapin\Events\Features\Orders\Email\Email_TicketToAttendee;
 use WC_Order;
 
 final class TicketEmailDispatcher implements Service
@@ -52,6 +53,11 @@ final class TicketEmailDispatcher implements Service
         $sentIndex = array_fill_keys($sentKeys, true);
         $changed   = false;
 
+        $emailObj = $this->getTicketEmail();
+        if ($emailObj === null) {
+            return;
+        }
+
         foreach ($tokenized as $ticketKey => $ticketData) {
             $ticketKey = (string) $ticketKey;
             if ($ticketKey === '' || isset($sentIndex[$ticketKey])) {
@@ -63,65 +69,26 @@ final class TicketEmailDispatcher implements Service
                 continue;
             }
 
+            $ticketData['email'] = $email;
+
             $ticketUrl = $this->urlBuilder->build($ticketData);
             if ($ticketUrl === '') {
                 continue;
             }
 
             $qrImageUrl = $this->generateQrImage((string) ($ticketData['token'] ?? ''), $ticketUrl);
-            $label      = $this->resolveTicketLabel($ticketData);
-            $subject    = sprintf(
-                /* translators: %s: ticket or event label */
-                esc_html__( 'הכרטיס שלך לאירוע %s', 'tapin' ),
-                $label
-            );
 
-            $fullName = trim((string) ($ticketData['full_name'] ?? ''));
-            $greeting = $fullName !== ''
-                ? sprintf( esc_html__( 'שלום %s,', 'tapin' ), esc_html( $fullName ) )
-                : esc_html__( 'שלום,', 'tapin' );
+            $emailObj->trigger($order, $ticketData, $qrImageUrl);
 
-            $body  = '<div style="direction:rtl;text-align:right;font-family:Arial,sans-serif;font-size:16px;line-height:1.6;">';
-            $body .= '<p>' . $greeting . '</p>';
-            $body .= '<p>' . sprintf(
-                esc_html__( 'הכרטיס שלך לאירוע %s מוכן. מצורף ברקוד לסריקה בכניסה.', 'tapin' ),
-                esc_html( $label )
-            ) . '</p>';
-
-            if ($qrImageUrl !== '') {
-                $body .= '<p style="text-align:center;"><img src="' . esc_url( $qrImageUrl ) . '" alt="' . esc_attr__( 'ברקוד הכרטיס שלך', 'tapin' ) . '" style="max-width:260px;height:auto;" /></p>';
-            }
-
-            $body .= '<p>' . esc_html__( 'נתראה במסיבה!', 'tapin' ) . '</p>';
-            $body .= '</div>';
-
-            $headers = ['Content-Type: text/html; charset=UTF-8'];
-            $sent    = wp_mail($email, wp_specialchars_decode($subject), $body, $headers);
-
-            if ($sent) {
-                $sentIndex[$ticketKey] = true;
-                $sentKeys[]            = $ticketKey;
-                $changed               = true;
-            }
+            $sentIndex[$ticketKey] = true;
+            $sentKeys[]            = $ticketKey;
+            $changed               = true;
         }
 
         if ($changed) {
             $order->update_meta_data('_tapin_ticket_emails_sent', array_values(array_unique($sentKeys)));
             $order->save();
         }
-    }
-
-    private function resolveTicketLabel(array $ticket): string
-    {
-        $label = (string) ($ticket['ticket_label'] ?? '');
-        if ($label === '') {
-            $label = (string) ($ticket['product_name'] ?? '');
-        }
-        if ($label === '') {
-            $label = sprintf(esc_html__('כרטיס #%s', 'tapin'), (string) ($ticket['order_id'] ?? ''));
-        }
-
-        return sanitize_text_field($label);
     }
 
     private function normalizeSentList($value): array
@@ -195,6 +162,32 @@ final class TicketEmailDispatcher implements Service
         }
 
         return class_exists('\QRcode');
+    }
+
+    private function getTicketEmail(): ?Email_TicketToAttendee
+    {
+        if (!function_exists('WC')) {
+            return null;
+        }
+
+        try {
+            $mailer = WC()->mailer();
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        if (!is_object($mailer) || !method_exists($mailer, 'get_emails')) {
+            return null;
+        }
+
+        $emails = $mailer->get_emails();
+        if (!is_array($emails)) {
+            return null;
+        }
+
+        $email = $emails['tapin_ticket_to_attendee'] ?? null;
+
+        return $email instanceof Email_TicketToAttendee ? $email : null;
     }
 }
 

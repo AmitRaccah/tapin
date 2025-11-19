@@ -39,6 +39,7 @@ class Plugin {
         \Tapin\Events\Features\Orders\PartiallyApprovedStatus::class,
         \Tapin\Events\Features\Orders\AwaitingProducerGate::class,
         \Tapin\Events\Features\Orders\TicketEmails\TicketEmailDispatcher::class,
+        \Tapin\Events\Features\Orders\Email\EmailsService::class,
         \Tapin\Events\Features\Shortcodes\TicketCheckin::class,
         \Tapin\Events\Features\Shortcodes\ProducerTicketDashboard::class,
         \Tapin\Events\Features\PricingOverrides::class,
