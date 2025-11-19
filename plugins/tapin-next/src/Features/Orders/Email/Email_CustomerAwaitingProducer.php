@@ -46,7 +46,7 @@ final class Email_CustomerAwaitingProducer extends WC_Email
 
         if (isset($this->form_fields['enabled'])) {
             $this->form_fields['enabled']['title'] = esc_html__( 'הפעלת אימייל', 'tapin' );
-            $this->form_fields['enabled']['label'] = esc_html__( 'שליחת הודעת \'הזמנה ממתינה לאישור מפיק\' ללקוח ולמוזמנים', 'tapin' );
+            $this->form_fields['enabled']['label'] = esc_html__( 'שליחת הודעת "הזמנה ממתינה לאישור מפיק" ללקוח ולמוזמנים', 'tapin' );
         }
 
         if (isset($this->form_fields['subject'])) {

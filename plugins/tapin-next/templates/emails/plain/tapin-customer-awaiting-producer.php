@@ -63,10 +63,10 @@ $site_name_plain     = trim(wp_strip_all_tags($site_name));
 $order_number        = $order instanceof WC_Order ? (string) $order->get_order_number() : '';
 
 echo sprintf( esc_html__( 'שלום %s,', 'tapin' ), $customer_name_plain ) . "\n\n";
-echo esc_html__( 'ההזמנה שלך התקבלה בהצלחה וממתינה לאישור המפיק.', 'tapin' ) . "\n\n";
+echo esc_html__( 'ההזמנה שלך התקבלה וממתינה לאישור המפיק.', 'tapin' ) . "\n\n";
 
 if ($order_number !== '') {
-    echo sprintf( esc_html__( 'מספר ההזמנה: #%s', 'tapin' ), $order_number ) . "\n\n";
+    echo sprintf( esc_html__( 'מספר הזמנה: #%s', 'tapin' ), $order_number ) . "\n\n";
 }
 
 echo sprintf( esc_html__( 'לצפייה בהזמנה שלך: %s', 'tapin' ), esc_url_raw( $view_order_url ) ) . "\n\n";

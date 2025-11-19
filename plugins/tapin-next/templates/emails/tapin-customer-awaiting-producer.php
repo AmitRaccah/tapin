@@ -82,7 +82,7 @@ ob_start();
     <strong><?php echo esc_html( $customer_name ); ?></strong>,<br />
     <?php esc_html_e( 'ההזמנה שלך התקבלה בהצלחה וממתינה כעת לאישור הסופי של המפיק.', 'tapin' ); ?><br />
     <?php esc_html_e( 'מיד לאחר האישור יישלח אליך אימייל נוסף עם הכרטיסים ו-QR קוד כניסה לכל משתתף.', 'tapin' ); ?><br />
-    <?php esc_html_e( 'אם יש שאלה או שמשהו נראה לך לא תקין, אפשר לפנות אלינו במייל התמיכה של Tapin.', 'tapin' ); ?>
+    <?php esc_html_e( 'אם יש שאלה או שמשהו נראה לא תקין, אפשר לפנות אלינו במייל התמיכה של Tapin.', 'tapin' ); ?>
 </td>
 <?php
 $body_html = trim((string) ob_get_clean());
@@ -105,7 +105,7 @@ if ($order_number !== '') {
     ?>
     <tr>
         <td style="padding: 0 24px 24px 24px; background: #121212; font-family: Arial,Helvetica,sans-serif; color: #e6e6e6; font-size: 14px; line-height: 1.8;">
-            <strong><?php esc_html_e( 'מספר ההזמנה:', 'tapin' ); ?></strong>
+            <strong><?php esc_html_e( 'מספר הזמנה:', 'tapin' ); ?></strong>
             <?php echo esc_html('#' . $order_number); ?>
         </td>
     </tr>
