@@ -13,7 +13,7 @@ final class PartiallyApprovedStatus implements Service
     public const STATUS_LABEL = 'אושר חלקית';
 
     private const ACTION_KEY   = 'mark_partially-appr';
-    private const ACTION_LABEL = 'סמן כאושר חלקית';
+    private const ACTION_LABEL = 'סמן כ״אושר חלקית״';
 
     public function register(): void
     {

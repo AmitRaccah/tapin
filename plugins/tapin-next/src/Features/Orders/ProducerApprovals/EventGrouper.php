@@ -41,7 +41,7 @@ final class EventGrouper
                     ];
 
                     if ($events[$key]['title'] === '') {
-                        $events[$key]['title'] = html_entity_decode('&#1488;&#1497;&#1512;&#1493;&#1506; &#1489;&#1500;&#1514;&#1497; &#1505;&#1493;&#1498;', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                        $events[$key]['title'] = 'אירוע ללא שם';
                     }
                 }
 

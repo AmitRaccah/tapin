@@ -15,7 +15,7 @@ final class Email_CustomerAwaitingProducer extends WC_Email
     {
         $this->id             = 'tapin_customer_awaiting_producer';
         $this->title          = esc_html__( 'הזמנה ממתינה לאישור מפיק (Tapin)', 'tapin' );
-        $this->description    = esc_html__( 'נשלח ללקוח ולמוזמנים מהפופאפ כאשר ההזמנה נמצאת במצב "ממתין לאישור מפיק".', 'tapin' );
+        $this->description    = esc_html__( 'אימייל זה נשלח ללקוח כאשר ההזמנה שלו נכנסת לסטטוס "ממתין לאישור מפיק".', 'tapin' );
 
         $this->customer_email = true;
 
@@ -46,12 +46,12 @@ final class Email_CustomerAwaitingProducer extends WC_Email
 
         if (isset($this->form_fields['enabled'])) {
             $this->form_fields['enabled']['title'] = esc_html__( 'הפעלת אימייל', 'tapin' );
-            $this->form_fields['enabled']['label'] = esc_html__( 'שליחת הודעת "הזמנה ממתינה לאישור מפיק" ללקוח ולמוזמנים', 'tapin' );
+            $this->form_fields['enabled']['label'] = esc_html__( 'שליחת הודעה על "הזמנה ממתינה לאישור מפיק" ללקוח/ות.', 'tapin' );
         }
 
         if (isset($this->form_fields['subject'])) {
             $this->form_fields['subject']['title']       = esc_html__( 'נושא', 'tapin' );
-            $this->form_fields['subject']['description'] = esc_html__( 'אפשר להשתמש ב-%s כדי לשלב את שם האתר או האירוע.', 'tapin' );
+            $this->form_fields['subject']['description'] = esc_html__( 'אפשר להשתמש ב-%s כדי לשלב את שם האתר בנושא.', 'tapin' );
             $this->form_fields['subject']['placeholder'] = $this->subject;
             $this->form_fields['subject']['default']     = $this->subject;
         }
@@ -64,7 +64,7 @@ final class Email_CustomerAwaitingProducer extends WC_Email
 
         if (isset($this->form_fields['additional_content'])) {
             $this->form_fields['additional_content']['title']       = esc_html__( 'תוכן נוסף', 'tapin' );
-            $this->form_fields['additional_content']['description'] = esc_html__( 'טקסט שיופיע בסוף האימייל, לפני שורת התמיכה.', 'tapin' );
+            $this->form_fields['additional_content']['description'] = esc_html__( 'טקסט שיופיע בסוף האימייל, לפני חתימת Tapin.', 'tapin' );
             $this->form_fields['additional_content']['placeholder'] = esc_html__( 'תודה שבחרת ב-Tapin.', 'tapin' );
             $this->form_fields['additional_content']['default']     = esc_html__( 'תודה שבחרת ב-Tapin.', 'tapin' );
         }
@@ -205,3 +205,4 @@ final class Email_CustomerAwaitingProducer extends WC_Email
         return (string) ob_get_clean();
     }
 }
+

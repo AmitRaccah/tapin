@@ -1,5 +1,4 @@
-<?php
-declare(strict_types=1);
+<?php declare(strict_types=1);
 
 namespace Tapin\Events\Features\Orders\Email;
 
@@ -18,9 +17,8 @@ final class Email_TicketToAttendee extends WC_Email
     public function __construct()
     {
         $this->id             = 'tapin_ticket_to_attendee';
-                $this->title          = esc_html__( 'כרטיס ללקוח (Tapin)', 'tapin' );
-
-                $this->description    = esc_html__( 'נשלח לכל משתתף אחרי שהמפיק אישר את ההזמנה, וכולל כרטיס אישי עם QR קוד לסריקה בכניסה.', 'tapin' );
+        $this->title          = esc_html__( 'כרטיס ללקוח (Tapin)', 'tapin' );
+        $this->description    = esc_html__( 'אימייל זה נשלח לכל משתתף עם כרטיס אישי וקוד QR לסריקה בכניסה.', 'tapin' );
 
         $this->customer_email = true;
         $this->template_html  = 'emails/tapin-ticket-to-attendee.php';
@@ -30,15 +28,11 @@ final class Email_TicketToAttendee extends WC_Email
             '{site_title}'   => $this->get_blogname(),
         ];
 
-                $this->subject        = esc_html__( 'הכרטיס שלך לאירוע %s מוכן', 'tapin' );
+        $this->subject        = esc_html__( 'הכרטיס שלך לאירוע %s מוכן', 'tapin' );
+        $this->heading        = esc_html__( 'הכרטיס שלך מוכן!', 'tapin' );
 
-                $this->heading        = esc_html__( 'הכרטיס שלך מוכן!', 'tapin' );
-
-
-        // Use the tapin-next templates directory as the base for this email.
         $this->template_base = trailingslashit(TAPIN_NEXT_PATH) . 'templates/';
 
-        // Declare support for manual sending and WPML.
         $this->supports = [
             'manual',
             'wpml',
@@ -51,36 +45,32 @@ final class Email_TicketToAttendee extends WC_Email
     {
         parent::init_form_fields();
 
-        if ( isset( $this->form_fields['enabled'] ) ) {
+        if (isset($this->form_fields['enabled'])) {
             $this->form_fields['enabled']['title'] = esc_html__( 'הפעלת אימייל', 'tapin' );
-            $this->form_fields['enabled']['label'] = esc_html__( 'שליחת כרטיס (עם QR קוד) לכל משתתף לאחר אישור המפיק', 'tapin' );
+            $this->form_fields['enabled']['label'] = esc_html__( 'שליחת כרטיס (עם קוד QR) לכל משתתף לאחר אישור התשלום.', 'tapin' );
         }
 
-        if ( isset( $this->form_fields['subject'] ) ) {
+        if (isset($this->form_fields['subject'])) {
             $this->form_fields['subject']['title']       = esc_html__( 'נושא', 'tapin' );
-            $this->form_fields['subject']['description'] = esc_html__( 'אפשר להשתמש ב-%s כדי לשלב את שם האירוע או המוצר בכותרת.', 'tapin' );
+            $this->form_fields['subject']['description'] = esc_html__( 'אפשר להשתמש ב-%s כדי לשלב את שם האתר או שם האירוע בנושא.', 'tapin' );
             $this->form_fields['subject']['placeholder'] = $this->subject;
             $this->form_fields['subject']['default']     = $this->subject;
         }
 
-        if ( isset( $this->form_fields['heading'] ) ) {
+        if (isset($this->form_fields['heading'])) {
             $this->form_fields['heading']['title']       = esc_html__( 'כותרת', 'tapin' );
-            $this->form_fields['heading']['description'] = esc_html__( 'כותרת שתופיע בראש האימייל.', 'tapin' );
+            $this->form_fields['heading']['description'] = esc_html__( 'כותרת שתופיע בראש ההודעה.', 'tapin' );
             $this->form_fields['heading']['default']     = $this->heading;
         }
 
-        if ( isset( $this->form_fields['additional_content'] ) ) {
+        if (isset($this->form_fields['additional_content'])) {
             $this->form_fields['additional_content']['title']       = esc_html__( 'תוכן נוסף', 'tapin' );
-            $this->form_fields['additional_content']['description'] = esc_html__( 'טקסט שיופיע בסוף האימייל, לפני שורת התמיכה.', 'tapin' );
+            $this->form_fields['additional_content']['description'] = esc_html__( 'טקסט שיופיע בסוף האימייל, למשל הוראות הגעה או פרטי יצירת קשר.', 'tapin' );
             $this->form_fields['additional_content']['placeholder'] = esc_html__( 'תודה שבחרת ב-Tapin.', 'tapin' );
             $this->form_fields['additional_content']['default']     = esc_html__( 'תודה שבחרת ב-Tapin.', 'tapin' );
             $this->form_fields['additional_content']['css']         = 'width:400px; height:75px;';
         }
     }
-
-
-
-
 
     /**
      * @param array<string,mixed> $ticket
@@ -161,7 +151,7 @@ final class Email_TicketToAttendee extends WC_Email
         }
         if ($label === '') {
             $label = sprintf(
-                esc_html__( 'הזמנה #%s', 'tapin' ),
+                esc_html__( 'כרטיס #%s', 'tapin' ),
                 (string) ( $ticket['order_id'] ?? '' )
             );
         }
@@ -169,3 +159,4 @@ final class Email_TicketToAttendee extends WC_Email
         return sanitize_text_field($label);
     }
 }
+

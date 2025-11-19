@@ -63,11 +63,20 @@ final class TicketTokensRepository
             return;
         }
 
+        $previousStatus = isset($store[$ticketKey]['status']) ? (string) $store[$ticketKey]['status'] : '';
         $store[$ticketKey]['status']      = 'approved';
         $store[$ticketKey]['approved_at'] = current_time('mysql');
 
         $order->update_meta_data(self::STORE_META_KEY, $store);
         $order->save();
+
+        if ($previousStatus !== 'approved') {
+            $payload    = $store[$ticketKey];
+            $producerId = isset($payload['producer_id']) ? (int) $payload['producer_id'] : 0;
+            if ($producerId > 0) {
+                do_action('tapin/events/ticket/approved_at_entry', $order, $producerId, $ticketKey, $payload);
+            }
+        }
     }
 
     /**

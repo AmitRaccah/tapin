@@ -37,10 +37,19 @@ final class AwaitingProducerGate implements Service
 
         $awaiting = self::awaitingStatusSlug();
         if ($order->get_status() !== $awaiting) {
-            $order->set_status($awaiting, 'הוזז לסטטוס ' . AwaitingProducerStatus::STATUS_LABEL . '.');
+            $order->set_status($awaiting, 'ההזמנה הועברה לסטטוס "ממתין לאישור מפיק".');
         }
 
         $order->save();
+
+        foreach ($producerIds as $producerId) {
+            $producerId = (int) $producerId;
+            if ($producerId <= 0) {
+                continue;
+            }
+
+            do_action('tapin/events/order/awaiting_producer', $order, $producerId);
+        }
     }
 
     /**
@@ -128,7 +137,7 @@ final class AwaitingProducerGate implements Service
 
         $order = wc_get_order($orderId);
         if ($order instanceof WC_Order && $order->has_status(self::awaitingStatusSlug())) {
-            echo '<p class="woocommerce-info" style="direction:rtl;text-align:right">ההזמנה ממתינה לאישור מפיק. נעדכן אותך ברגע שתאושר.</p>';
+            echo '<p class="woocommerce-info" style="direction:rtl;text-align:right">ההזמנה ממתינה לאישור המפיק. נעדכן אותך לאחר האישור.</p>';
         }
     }
 
@@ -148,7 +157,7 @@ final class AwaitingProducerGate implements Service
         }
 
         if (!$didCapture) {
-            $order->add_order_note('תפיסת תשלום: לא בוצעה אוטומטית, ניתן לבצע ידנית מתוך Order actions.');
+            $order->add_order_note('תזכורת סליקה: לא בוצעה פעולה אוטומטית, יש להשלים ידנית מתוך Order actions.');
         }
 
         $order->update_meta_data('_tapin_producer_approved', 1);
@@ -228,3 +237,4 @@ final class AwaitingProducerGate implements Service
         return $ids;
     }
 }
+

@@ -210,7 +210,7 @@ final class OrderSummaryBuilder
             'attendees'        => $attendeesList,
             'primary_attendee' => $primaryAttendee ?: [],
             'customer'         => [
-                'name'  => trim($order->get_formatted_billing_full_name()) ?: $order->get_billing_first_name() ?: ($order->get_user() ? $order->get_user()->display_name : html_entity_decode('&#1500;&#1511;&#1493;&#1495;&#32;&#1488;&#1504;&#1493;&#1504;&#1497;&#1502;&#1497;', ENT_QUOTES | ENT_HTML5, 'UTF-8')),
+                'name'  => trim($order->get_formatted_billing_full_name()) ?: $order->get_billing_first_name() ?: ($order->get_user() ? $order->get_user()->display_name : 'לקוח אנונימי'),
                 'email' => $order->get_billing_email(),
                 'phone' => $order->get_billing_phone(),
             ],

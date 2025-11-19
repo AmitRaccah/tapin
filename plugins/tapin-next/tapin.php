@@ -66,7 +66,7 @@ function tapin_next_toggle_sandbox_cookie(bool $enabled): void {
 
 function tapin_next_handle_sandbox_toggle(): void {
     if (!is_user_logged_in() || !current_user_can('manage_options')) {
-        wp_die(__('אין הרשאה לביצוע הפעולה.', 'tapin'), 'tapin_sandbox_forbidden', ['response' => 403]);
+        wp_die(__('אין הרשאה לבצע את הפעולה.', 'tapin'), 'tapin_sandbox_forbidden', ['response' => 403]);
     }
 
     check_admin_referer('tapin_toggle_sandbox');
@@ -155,3 +155,4 @@ add_action('plugins_loaded', function () {
     if (!class_exists(\Tapin\Events\Core\Plugin::class)) return;
     (new \Tapin\Events\Core\Plugin())->boot(['sandbox' => tapin_next_is_sandbox()]);
 });
+

@@ -39,7 +39,7 @@ final class TicketCheckin implements Service
     {
         $token = $this->detectToken();
         if ($token === '') {
-            return $this->renderMessage(esc_html__('לא נמצא מזהה כרטיס בכתובת.', 'tapin'));
+            return $this->renderMessage(esc_html__('לא נמצא קוד כרטיס בבקשה.', 'tapin'));
         }
 
         $lookup = $this->tokensRepository->findTicketByToken($token);
@@ -62,7 +62,7 @@ final class TicketCheckin implements Service
         if (!$this->isAuthorized($ticket)) {
             status_header(403);
             return $this->renderMessage(
-                esc_html__( 'אין לך הרשאה לצפות בכרטיס זה. אם אתה המפיק, ודא שאתה מחובר למערכת.', 'tapin' )
+                esc_html__( 'אין לך הרשאה לצפות בכרטיס זה. אם את/ה המפיק, היכנס/י למערכת ונסה שוב.', 'tapin' )
             );
         }
 
@@ -134,7 +134,7 @@ final class TicketCheckin implements Service
             ? sanitize_text_field(wp_unslash((string) $_POST['tapin_ticket_nonce']))
             : '';
         if (!wp_verify_nonce($nonce, 'tapin_ticket_approve')) {
-            return esc_html__('הבקשה לא אושרה. נסה לרענן את הדף ולנסות שוב.', 'tapin');
+            return esc_html__('הבקשה לא אושרה. נסה/י לרענן את הדף ולנסות שוב.', 'tapin');
         }
 
         $this->tokensRepository->markTicketApproved($order, $ticketKey);
@@ -313,3 +313,4 @@ final class TicketCheckin implements Service
         return [];
     }
 }
+

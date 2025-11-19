@@ -12,7 +12,7 @@ final class AwaitingProducerStatus implements Service
     public const STATUS_LABEL = 'ממתין לאישור מפיק';
 
     private const ACTION_KEY   = 'mark_awaiting-producer';
-    private const ACTION_LABEL = 'סמן כממתין לאישור מפיק';
+    private const ACTION_LABEL = 'סמן כ״ממתין לאישור מפיק״';
 
     public function register(): void
     {

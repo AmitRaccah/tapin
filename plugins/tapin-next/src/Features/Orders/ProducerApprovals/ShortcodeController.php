@@ -11,14 +11,14 @@ final class ShortcodeController
     public static function render(): string
     {
         if (!is_user_logged_in()) {
-            return '<div class="woocommerce-info" style="direction:rtl;text-align:right">&#1497;&#1513;&#32;&#1500;&#1492;&#1510;&#1495;&#1489;&#1512;&#32;&#1499;&#1491;&#1497;&#32;&#1500;&#1510;&#1508;&#1493;&#1514;&#32;&#1489;&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;.</div>';
+            return '<div class="woocommerce-info" style="direction:rtl;text-align:right">יש להתחבר כדי לצפות בהזמנות.</div>';
         }
 
         $guard = Security::producer();
         if (!$guard->allowed) {
             return $guard->message !== ''
                 ? $guard->message
-                : '<div class="woocommerce-error" style="direction:rtl;text-align:right">&#1488;&#1497;&#1503;&#32;&#1500;&#1495;&#32;&#1492;&#1512;&#1513;&#1488;&#1492;&#32;&#1500;&#1510;&#1508;&#1493;&#1514;&#32;&#1489;&#1506;&#1502;&#1493;&#1491;&#32;&#1494;&#1492;.</div>';
+                : '<div class="woocommerce-error" style="direction:rtl;text-align:right">אין לך הרשאה לצפות בעמוד זה.</div>';
         }
 
         $viewer     = $guard->user instanceof WP_User ? $guard->user : wp_get_current_user();

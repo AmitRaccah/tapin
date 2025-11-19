@@ -31,9 +31,9 @@ final class RegistrationForm {
                 <?php echo $message; ?>
 
                 <?php if (!$is_edit_mode && in_array('producer', (array) $current->roles, true)): ?>
-                    <div class="tapin-card tapin-notice tapin-notice--success">כבר מוגדר לך פרופיל מפיק.</div>
+                    <div class="tapin-card tapin-notice tapin-notice--success">כבר מוגדר לך פרופיל מפיק פעיל.</div>
                 <?php elseif (!$is_edit_mode && $status === 'pending'): ?>
-                    <div class="tapin-card tapin-notice tapin-notice--warning"><strong>הבקשה בטיפול.</strong><br>נעדכן ברגע שתאושר.</div>
+                    <div class="tapin-card tapin-notice tapin-notice--warning"><strong>הבקשה בטיפול.</strong><br>נעדכן אותך לאחר האישור.</div>
                 <?php elseif (!$is_edit_mode && $status === 'rejected'): ?>
                     <div class="tapin-card tapin-notice tapin-notice--error">בקשתך נדחתה. ניתן לעדכן את הפרטים ולשלוח מחדש.</div>
                 <?php endif; ?>
@@ -128,7 +128,7 @@ final class RegistrationForm {
           var form=document.getElementById('tapinProducerForm');
           if(!form) return;
           var btn=document.getElementById('tapinSubmitBtn');
-          form.addEventListener('submit', function(){ if(btn){ btn.disabled=true; btn.textContent='מעבד…'; }});
+            form.addEventListener('submit', function(){ if(btn){ btn.disabled=true; btn.textContent='שולח…'; }});
           ['producer_phone_public','producer_phone_private','producer_whatsapp'].forEach(function(name){
             form.querySelectorAll('input[name="'+name+'"]').forEach(function(el){
               el.addEventListener('input', function(){
@@ -193,11 +193,11 @@ final class RegistrationForm {
         $cover_in_post  = !empty($_FILES['producer_cover']['name']);
 
         if (empty($display_name) || empty($about) || empty($address) || empty($phone_priv_digits)) {
-            $message = '<div class="tapin-notice tapin-notice--error">יש למלא את כל שדות החובה (*).</div>';
+            $message = '<div class="tapin-notice tapin-notice--error">יש להשלים את כל שדות החובה (*).</div>';
         } elseif ((!empty($phone_pub_digits) && strlen($phone_pub_digits) < 9) || strlen($phone_priv_digits) < 9) {
             $message = '<div class="tapin-notice tapin-notice--error">מספרי טלפון חייבים להכיל לפחות 9 ספרות.</div>';
         } elseif (!$is_edit_mode && !$has_cover_meta && !$cover_in_post) {
-            $message = '<div class="tapin-notice tapin-notice--error">יש להעלות תמונת כותרת.</div>';
+            $message = '<div class="tapin-notice tapin-notice--error">יש להעלות תמונת כותרת תקינה.</div>';
         } else {
             $message = $this->persistProducer($user_id, $fields, $cover_in_post, $is_edit_mode);
         }
@@ -233,7 +233,7 @@ final class RegistrationForm {
         if ($cover_in_post && isset($_FILES['producer_cover']) && (int) $_FILES['producer_cover']['error'] === UPLOAD_ERR_OK) {
             $max = wp_max_upload_size();
             if (!empty($_FILES['producer_cover']['size']) && $_FILES['producer_cover']['size'] > $max) {
-                return '<div class="tapin-notice tapin-notice--error">תמונת הכותרת חורגת מגודל ההעלאה (' . size_format($max) . ').</div>';
+                return '<div class="tapin-notice tapin-notice--error">תמונת הכותרת חורגת מגודל המותר (' . size_format($max) . ').</div>';
             }
             $cover_id = media_handle_upload('producer_cover', 0);
             if (is_wp_error($cover_id)) {

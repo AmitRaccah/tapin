@@ -42,7 +42,7 @@ final class BulkActionsController
                 return [
                     'notice' => sprintf(
                         '<div class="woocommerce-error" style="direction:rtl;text-align:right">%s</div>',
-                        __('לא נבחרו משתתפים', 'tapin')
+                        __('לא נבחרו משתתפים לאישור.', 'tapin')
                     ),
                 ];
             }
@@ -62,9 +62,12 @@ final class BulkActionsController
 
             if ($approved || $failed) {
                 $notice = sprintf(
-                    '<div class="woocommerce-message" style="direction:rtl;text-align:right">&#1488;&#1493;&#1513;&#1512;&#1493;&#32;%1$d&#32;&#1492;&#1494;&#1502;&#1504;&#1493;&#1514;,&#32;&#1504;&#1499;&#1513;&#1500;&#1493;&#32;%2$d.</div>',
-                    $approved,
-                    $failed
+                    '<div class="woocommerce-message" style="direction:rtl;text-align:right">%s</div>',
+                    sprintf(
+                        esc_html__( 'אושרו %1$d הזמנות, נכשלו %2$d.', 'tapin' ),
+                        $approved,
+                        $failed
+                    )
                 );
             }
         }
@@ -104,7 +107,7 @@ final class BulkActionsController
             if ($cancelSelected) {
                 $order->update_status(
                     'cancelled',
-                    '&#1492;&#1492;&#1494;&#1502;&#1504;&#1492;&#32;&#1489;&#1493;&#1496;&#1500;&#1488;&#32;&#1500;&#1489;&#1511;&#1513;&#1514;&#32;&#1492;&#1502;&#1508;&#1497;&#1511;.'
+                    'ההזמנה בוטלה לבקשת המפיק.'
                 );
                 $approved++;
                 continue;
@@ -263,7 +266,7 @@ final class BulkActionsController
         if ($producerApproved < $producerTotalQty) {
             $order->update_status(
                 PartiallyApprovedStatus::STATUS_SLUG,
-                __('אושר חלקית ע\'י המפיק', 'tapin')
+                __('אושרו חלק מהמשתתפים על ידי המפיק', 'tapin')
             );
             $order->save();
             return true;
@@ -425,3 +428,4 @@ final class BulkActionsController
         return false;
     }
 }
+
