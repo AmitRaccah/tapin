@@ -19,27 +19,47 @@ if ($headerBuffer !== '') {
     echo $headerBuffer . "\n\n";
 }
 
-$fullName = trim((string) ($ticket['full_name'] ?? ''));
-$greeting = $fullName !== ''
-    ? sprintf(esc_html__('שלום %s,', 'tapin'), esc_html($fullName))
-    : esc_html__('שלום,', 'tapin');
+$site_name = trim((string) $email->get_blogname());
+if ($site_name === '') {
+    $site_name = get_bloginfo('name', 'display');
+}
+if ($site_name === '') {
+    $site_name = get_bloginfo('name');
+}
+
+$login_url = wc_get_page_permalink('myaccount');
+if (empty($login_url)) {
+    $login_url = home_url('/');
+}
+
+$full_name = trim((string) ($ticket['full_name'] ?? ''));
+$display_name = $full_name !== '' ? $full_name : esc_html__( 'לקוח שלנו', 'tapin' );
 
 $label = (string) ($ticket['ticket_label'] ?? ($ticket['product_name'] ?? ''));
 if ($label === '') {
-    $label = sprintf(esc_html__('כרטיס #%s', 'tapin'), (string) ($ticket['order_id'] ?? ''));
+    $label = sprintf( esc_html__( 'הזמנה #%s', 'tapin' ),
+        (string) ($ticket['order_id'] ?? '')
+    );
 }
-$label = esc_html($label);
 
-echo esc_html($greeting) . "\n\n";
-echo sprintf(esc_html__('הכרטיס שלך ל-%s מוכן. נשמח לראותך באירוע.', 'tapin'), $label) . "\n\n";
+$display_name_plain = trim(wp_strip_all_tags($display_name));
+$label_plain = trim(wp_strip_all_tags($label));
+$site_name_plain = trim(wp_strip_all_tags($site_name !== '' ? $site_name : 'Tapin'));
+
+echo sprintf(__('שלום %s,', 'tapin'), $display_name_plain) . "\n\n";
+echo sprintf(__('הכרטיס שלך לאירוע %s מוכן ומחכה לך. מצורף ברקוד לסריקה בזמן הכניסה.', 'tapin'), $label_plain) . "\n\n";
 
 if ($qr_image_url !== '') {
-    echo sprintf(esc_html__('קישור לקוד ה-QR שלך: %s', 'tapin'), esc_url_raw($qr_image_url)) . "\n\n";
+    echo sprintf(__('ברקוד לצפייה: %s', 'tapin'), esc_url_raw($qr_image_url)) . "\n\n";
 }
+
+echo sprintf(__('לצפייה בהזמנה שלך: %s', 'tapin'), esc_url_raw($login_url)) . "\n\n";
+echo sprintf(__('תודה שבחרת %s!', 'tapin'), $site_name_plain) . "\n";
+echo __('צריך עזרה? אפשר להשיב להודעה זו או לכתוב ל-support@tapin.co.il', 'tapin') . "\n\n";
 
 $additional = $email->get_additional_content();
 if ($additional) {
-    echo esc_html(wp_strip_all_tags(wptexturize($additional))) . "\n\n";
+    echo wp_strip_all_tags(wptexturize($additional)) . "\n\n";
 }
 
 $footerBuffer = '';
@@ -51,4 +71,3 @@ if ($footerBuffer !== '') {
 } else {
     echo wp_kses_post(apply_filters('woocommerce_email_footer_text', get_option('woocommerce_email_footer_text'))) . "\n";
 }
-

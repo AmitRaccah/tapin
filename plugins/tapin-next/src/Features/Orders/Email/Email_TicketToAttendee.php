@@ -18,8 +18,8 @@ final class Email_TicketToAttendee extends WC_Email
     public function __construct()
     {
         $this->id             = 'tapin_ticket_to_attendee';
-        $this->title          = esc_html__('כרטיס ללקוח (Tapin)', 'tapin');
-        $this->description    = esc_html__('שליחת כרטיס דיגיטלי ללקוח לאחר שאושר על ידי המפיק.', 'tapin');
+        $this->title = esc_html__( 'כרטיס ללקוח (Tapin)', 'tapin' );
+        $this->description = esc_html__( 'נשלח ללקוח לאחר שהמפיק אישר את ההזמנה.', 'tapin' );
         $this->customer_email = true;
         $this->template_html  = 'emails/tapin-ticket-to-attendee.php';
         $this->template_plain = 'emails/plain/tapin-ticket-to-attendee.php';
@@ -28,8 +28,21 @@ final class Email_TicketToAttendee extends WC_Email
             '{site_title}'   => $this->get_blogname(),
         ];
 
-        $this->subject = esc_html__('הכרטיס שלך לאירוע %s', 'tapin');
-        $this->heading = esc_html__('הכרטיס שלך מוכן', 'tapin');
+        $this->subject = esc_html__( 'הכרטיס שלך לאירוע %s', 'tapin' );
+        $this->heading = esc_html__( 'הכרטיס שלך מוכן', 'tapin' );
+
+        // Use the tapin-next templates directory as the base for this email.
+        $this->template_base = trailingslashit(TAPIN_NEXT_PATH) . 'templates/';
+
+        // Default email type: HTML.
+        $this->email_type = 'html';
+
+        // Declare support for HTML and plain text.
+        $this->supports = [
+            'email_type',
+            'manual',
+            'wpml',
+        ];
 
         parent::__construct();
     }
@@ -38,34 +51,48 @@ final class Email_TicketToAttendee extends WC_Email
     {
         $this->form_fields = [
             'enabled'            => [
-                'title'   => esc_html__('הפעלה/כיבוי', 'tapin'),
+                'title'   => esc_html__( 'הפעלת אימייל', 'tapin' ),
                 'type'    => 'checkbox',
-                'label'   => esc_html__('שליחת כרטיסי Tapin ללקוחות', 'tapin'),
+                'label'   => esc_html__( 'שליחת כרטיס Tapin ללקוחות', 'tapin' ),
                 'default' => 'yes',
             ],
             'subject'            => [
-                'title'       => esc_html__('נושא', 'tapin'),
+                'title'       => esc_html__( 'נוסא', 'tapin' ),
                 'type'        => 'text',
-                'description' => esc_html__('שימוש ב-%s עבור תיאור האירוע או הכרטיס.', 'tapin'),
-                'placeholder' => esc_html__('הכרטיס שלך לאירוע %s', 'tapin'),
-                'default'     => esc_html__('הכרטיס שלך לאירוע %s', 'tapin'),
+                'description' => esc_html__( 'שימוש ב-%s עבור שמ ההירוע או הכרטיס.', 'tapin' ),
+                'placeholder' => esc_html__( 'הכרטיס שלך לאירוע %s', 'tapin' ),
+                'default'     => esc_html__( 'הכרטיס שלך לאירוע %s', 'tapin' ),
             ],
             'heading'            => [
-                'title'       => esc_html__('כותרת', 'tapin'),
+                'title'       => esc_html__( 'כותרת', 'tapin' ),
                 'type'        => 'text',
-                'description' => esc_html__('הכותרת שתופיע בראש ההודעה.', 'tapin'),
-                'default'     => esc_html__('הכרטיס שלך מוכן', 'tapin'),
+                'description' => esc_html__( 'כותרת שתופיע בראש ההודעה.', 'tapin' ),
+                'default'     => esc_html__( 'הכרטיס שלך מוכן', 'tapin' ),
             ],
             'additional_content' => [
-                'title'       => esc_html__('תוכן נוסף', 'tapin'),
-                'description' => esc_html__('יופיע מתחת להודעה הראשית.', 'tapin'),
+                'title'       => esc_html__( 'תוכן נוסף', 'tapin' ),
+                'description' => esc_html__( 'יופיע מתחת להודעה הראשית.', 'tapin' ),
                 'css'         => 'width:400px; height:75px;',
-                'placeholder' => esc_html__('תודה שבחרת ב-Tapin.', 'tapin'),
+                'placeholder' => esc_html__( 'תודה שבחרת ב‑Tapin.', 'tapin' ),
                 'type'        => 'textarea',
-                'default'     => esc_html__('תודה שבחרת ב-Tapin.', 'tapin'),
+                'default'     => esc_html__( 'תודה שבחרת ב‑Tapin.', 'tapin' ),
+            ],
+            'email_type'         => [
+                'title'       => esc_html__( 'סוג אימייל', 'tapin' ),
+                'type'        => 'select',
+                'description' => esc_html__( 'בחר אמ לשלוח את ההודעה כ‑HTML, טקסת רגיל או שניהמ (HTML & טקסת רגיל).', 'tapin' ),
+                'default'     => 'html',
+                'class'       => 'email_type wc-enhanced-select',
+                'options'     => $this->get_email_type_options(),
             ],
         ];
     }
+
+    public function get_default_email_type(): string
+    {
+        return 'html';
+    }
+
 
     /**
      * @param array<string,mixed> $ticket
@@ -145,10 +172,11 @@ final class Email_TicketToAttendee extends WC_Email
             $label = (string) ($ticket['product_name'] ?? '');
         }
         if ($label === '') {
-            $label = sprintf(esc_html__('כרטיס #%s', 'tapin'), (string) ($ticket['order_id'] ?? ''));
+                            $label = sprintf( esc_html__( 'הזמנה #%s', 'tapin' ), (string) ($ticket['order_id'] ?? '') );
+
+
         }
 
         return sanitize_text_field($label);
     }
 }
-
