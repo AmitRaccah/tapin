@@ -6,6 +6,7 @@ use Tapin\Events\Core\Service;
 use Tapin\Events\Domain\SaleWindowsRepository;
 use Tapin\Events\Domain\TicketTypesRepository;
 use Tapin\Events\Support\Assets;
+use Tapin\Events\Support\TicketFee;
 use Tapin\Events\Support\Time;
 
 final class SaleWindowsCards implements Service
@@ -74,15 +75,27 @@ final class SaleWindowsCards implements Service
             $lowest      = null;
 
             foreach ($typeIndex as $typeId => $info) {
-                $price = isset($pricesMap[$typeId]) ? (float) $pricesMap[$typeId] : (float) $info['base_price'];
-                if ($price > 0 && ($lowest === null || $price < $lowest)) {
-                    $lowest = $price;
+                $rawPrice   = isset($pricesMap[$typeId]) ? (float) $pricesMap[$typeId] : (float) $info['base_price'];
+                $finalPrice = TicketFee::applyToPrice($rawPrice, $pid);
+                $feeAmount  = TicketFee::getFeeAmount($rawPrice, $pid);
+
+                if ($finalPrice > 0 && ($lowest === null || $finalPrice < $lowest)) {
+                    $lowest = $finalPrice;
                 }
 
-                $priceHtml = $price > 0 ? wc_price($price) : '&mdash;';
+                $priceHtml = $finalPrice > 0 ? wc_price($finalPrice) : '&mdash;';
+                $feeHtml   = '';
+                if ($feeAmount > 0) {
+                    $feeHtml = '<span class="tapin-pw-card__ticket-fee">'
+                        . esc_html__('עמלת כרטיס:', 'tapin') . ' '
+                        . wc_price($feeAmount)
+                        . '</span>';
+                }
+
                 $ticketsHtml .= '<div class="tapin-pw-card__ticket">'
                     . '<span class="tapin-pw-card__ticket-name">' . esc_html($info['name']) . '</span>'
                     . '<span class="tapin-pw-card__ticket-price">' . $priceHtml . '</span>'
+                    . $feeHtml
                     . '</div>';
             }
 

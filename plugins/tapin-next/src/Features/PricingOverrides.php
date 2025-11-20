@@ -4,6 +4,7 @@ namespace Tapin\Events\Features;
 use Tapin\Events\Core\Service;
 use Tapin\Events\Domain\SaleWindowsRepository;
 use Tapin\Events\Domain\TicketTypesRepository;
+use Tapin\Events\Support\TicketFee;
 
 final class PricingOverrides implements Service {
     public function register(): void {
@@ -61,7 +62,10 @@ final class PricingOverrides implements Service {
             return null;
         }
 
-        return $this->formatPrice((float) $window['price']);
+        $basePrice  = (float) $window['price'];
+        $finalPrice = TicketFee::applyToPrice($basePrice, $productId);
+
+        return $this->formatPrice($finalPrice);
     }
 
     private function resolveBasePrice($product): ?string
@@ -80,7 +84,8 @@ final class PricingOverrides implements Service {
             if (!isset($type['base_price']) || (float) $type['base_price'] <= 0) {
                 continue;
             }
-            $prices[] = (float) $type['base_price'];
+            $basePrice = (float) $type['base_price'];
+            $prices[]  = TicketFee::applyToPrice($basePrice, $productId);
         }
 
         if ($prices === []) {

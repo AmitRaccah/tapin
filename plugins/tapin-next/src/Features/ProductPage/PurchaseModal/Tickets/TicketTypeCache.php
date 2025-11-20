@@ -5,6 +5,7 @@ namespace Tapin\Events\Features\ProductPage\PurchaseModal\Tickets;
 use Tapin\Events\Domain\SaleWindowsRepository;
 use Tapin\Events\Domain\TicketTypesRepository;
 use Tapin\Events\Features\ProductPage\PurchaseModal\Messaging\MessagesProvider;
+use Tapin\Events\Support\TicketFee;
 use Tapin\Events\Support\TicketTypeTracer;
 
 final class TicketTypeCache
@@ -41,10 +42,14 @@ final class TicketTypeCache
                 }
 
                 $basePrice = isset($type['base_price']) ? (float) $type['base_price'] : 0.0;
-                $price = $basePrice;
+                $rawPrice  = $basePrice;
                 if (is_array($activeWindow) && isset($activeWindow['prices'][$id]) && (float) $activeWindow['prices'][$id] > 0.0) {
-                    $price = (float) $activeWindow['prices'][$id];
+                    $rawPrice = (float) $activeWindow['prices'][$id];
                 }
+
+                $finalPrice = TicketFee::applyToPrice($rawPrice, $productId);
+                $feeAmount  = TicketFee::getFeeAmount($rawPrice, $productId);
+                $feePercent = TicketFee::getPercent($productId);
 
                 $available = isset($type['available']) ? (int) $type['available'] : 0;
                 $capacity = isset($type['capacity']) ? (int) $type['capacity'] : 0;
@@ -61,11 +66,13 @@ final class TicketTypeCache
                     'id'                 => $id,
                     'name'               => (string) ($type['name'] ?? $id),
                     'description'        => (string) ($type['description'] ?? ''),
-                    'price'              => $price,
+                    'price'              => $finalPrice,
                     'base_price'         => $basePrice,
+                    'fee_amount'         => $feeAmount,
+                    'fee_percent'        => $feePercent,
                     'available'          => $available,
                     'capacity'           => $capacity,
-                    'price_html'         => $this->formatTicketPrice($price),
+                    'price_html'         => $this->formatTicketPrice($finalPrice),
                     'availability_label' => $this->formatAvailability($capacity, $available),
                     'sold_out'           => $isSoldOut,
                 ];

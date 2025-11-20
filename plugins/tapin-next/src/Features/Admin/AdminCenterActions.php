@@ -53,6 +53,7 @@ final class AdminCenterActions {
                     'sale_windows'=> $saleWindowsPost
                 ]);
                 self::persistProducerAffiliateMeta($pid);
+                self::persistTicketFeeMeta($pid);
                 wp_set_object_terms($pid, $termIds, 'product_cat', false);
                 if ($pending = get_term_by('slug','pending-events','product_cat')) wp_remove_object_terms($pid, [(int)$pending->term_id], 'product_cat');
                 wp_set_object_terms($pid,'simple','product_type',false);
@@ -78,6 +79,7 @@ final class AdminCenterActions {
                     'sale_windows'=> $saleWindowsPost
                 ]);
                 self::persistProducerAffiliateMeta($pid);
+                self::persistTicketFeeMeta($pid);
                 if (isset($_POST['cats'])) {
                     $termIds = Util::catSlugsToIds((array)$_POST['cats']);
                     if ($termIds) wp_set_object_terms($pid, $termIds, 'product_cat', false);
@@ -94,6 +96,7 @@ final class AdminCenterActions {
                     if (!empty($data['new_image_id'])) set_post_thumbnail($pid,(int)$data['new_image_id']);
                     if (!empty($data['new_background_id'])) update_post_meta($pid, MetaKeys::EVENT_BG_IMAGE, (int) $data['new_background_id']);
                     self::persistProducerAffiliateMeta($pid);
+                    self::persistTicketFeeMeta($pid);
                     delete_post_meta($pid, MetaKeys::EDIT_REQ);
                     if (function_exists('wc_delete_product_transients')) wc_delete_product_transients($pid);
                     clean_post_cache($pid);
@@ -146,6 +149,27 @@ final class AdminCenterActions {
 
         update_post_meta($pid, MetaKeys::PRODUCER_AFF_TYPE, $type);
         update_post_meta($pid, MetaKeys::PRODUCER_AFF_AMOUNT, $amount);
+    }
+
+    private static function persistTicketFeeMeta(int $pid): void
+    {
+        if ($pid <= 0) {
+            return;
+        }
+
+        if (!array_key_exists('ticket_fee_percent', $_POST)) {
+            return;
+        }
+
+        $raw = (string) wp_unslash((string) $_POST['ticket_fee_percent']);
+        $raw = trim($raw);
+        if ($raw === '') {
+            delete_post_meta($pid, MetaKeys::TICKET_FEE_PERCENT);
+            return;
+        }
+
+        $percent = max(0.0, (float) $raw);
+        update_post_meta($pid, MetaKeys::TICKET_FEE_PERCENT, $percent);
     }
 
     private static function respond(string $action, int $pid, string $message, bool $success, array $context = []): string

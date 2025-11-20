@@ -6,6 +6,7 @@ use Tapin\Events\Domain\SaleWindowsRepository;
 use Tapin\Events\Domain\TicketTypesRepository;
 use Tapin\Events\Support\Assets;
 use Tapin\Events\Support\MetaKeys;
+use Tapin\Events\Support\TicketFee;
 use Tapin\Events\Support\Time;
 use Tapin\Events\UI\Components\SaleWindowsRepeater;
 use Tapin\Events\UI\Components\TicketTypesEditor;
@@ -33,7 +34,8 @@ final class EventFormRenderer
             }
         }
 
-        $eventInput = Time::tsToLocalInput(Time::productEventTs($productId)); ?>
+        $eventInput = Time::tsToLocalInput(Time::productEventTs($productId));
+        $feePercent = TicketFee::getPercent($productId); ?>
         <style><?php echo Assets::sharedCss(); ?></style>
         <div class="tapin-form-row">
             <label>כותרת האירוע</label>
@@ -45,6 +47,18 @@ final class EventFormRenderer
         </div>
         <?php TicketTypesEditor::render($ticketTypes); ?>
         <?php SaleWindowsRepeater::render($windows, $opts['name_prefix'], $ticketTypes); ?>
+        <div class="tapin-form-row">
+            <label>עמלת כרטיס (%)</label>
+            <input
+                type="number"
+                name="ticket_fee_percent"
+                min="0"
+                step="0.1"
+                value="<?php echo esc_attr($feePercent); ?>">
+            <small style="display:block;margin-top:6px;color:#475569;font-size:.85rem;">
+                האחוז שיתווסף לכל כרטיס באירוע זה (ברירת מחדל 5% אם לא תשונה).
+            </small>
+        </div>
         <div class="tapin-form-row">
             <label>תאריך ושעת האירוע</label>
             <input type="datetime-local" name="event_dt" value="<?php echo esc_attr($eventInput); ?>">
