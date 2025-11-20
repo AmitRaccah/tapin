@@ -48,15 +48,18 @@ final class SaleWindowsRepeater
                 data-ticket-types="<?php echo esc_attr($typesJson); ?>"
             >
                 <div class="tapin-sale-w__rows" data-sale-rows>
-                    <?php foreach ($windows as $w):
+                    <?php foreach ($windows as $idx => $w):
                         $start  = $fmt($w['start'] ?? 0);
                         $end    = $fmt($w['end'] ?? 0);
                         $prices = is_array($w['prices'] ?? null) ? $w['prices'] : [];
+                        $lockStart = $idx > 0;
+                        $startClasses = 'tapin-sale-w__start' . ($lockStart ? ' tapin-sale-w__start--locked' : '');
+                        $startExtra   = $lockStart ? ' readonly data-locked-start="1" tabindex="-1"' : '';
                     ?>
                     <div class="tapin-sale-w__row" data-sale-row>
                         <div class="tapin-sale-w__dates">
-                            <input type="datetime-local" name="<?php echo esc_attr($namePrefix); ?>_start[]" value="<?php echo esc_attr($start); ?>">
-                            <input type="datetime-local" name="<?php echo esc_attr($namePrefix); ?>_end[]"   value="<?php echo esc_attr($end); ?>">
+                            <input class="<?php echo esc_attr($startClasses); ?>" type="datetime-local" name="<?php echo esc_attr($namePrefix); ?>_start[]" value="<?php echo esc_attr($start); ?>"<?php echo $startExtra; ?>>
+                            <input class="tapin-sale-w__end" type="datetime-local" name="<?php echo esc_attr($namePrefix); ?>_end[]"   value="<?php echo esc_attr($end); ?>">
                         </div>
                         <div class="tapin-sale-w__prices" data-price-fields>
                             <?php foreach ($types as $type):
@@ -138,20 +141,76 @@ final class SaleWindowsRepeater
                     container.innerHTML = html;
                 }
 
-                function createRow(defaults){
+                function getStartInput(row){
+                    return row ? row.querySelector('input[name="'+prefix+'_start[]"]') : null;
+                }
+
+                function getEndInput(row){
+                    return row ? row.querySelector('input[name="'+prefix+'_end[]"]') : null;
+                }
+
+                function isRowComplete(row){
+                    if(!row) return false;
+                    var startInput = getStartInput(row);
+                    var endInput   = getEndInput(row);
+                    if(!startInput || !endInput || !startInput.value || !endInput.value){
+                        return false;
+                    }
+                    var allPricesFilled = true;
+                    row.querySelectorAll('[data-sale-price-input]').forEach(function(input){
+                        if(!input.value){
+                            allPricesFilled = false;
+                        }
+                    });
+                    return allPricesFilled;
+                }
+
+                function applyStartLocking(rowEls){
+                    rowEls = rowEls || Array.from(rows.querySelectorAll('[data-sale-row]'));
+                    rowEls.forEach(function(row, idx){
+                        var startInput = getStartInput(row);
+                        if(!startInput) {
+                            return;
+                        }
+                        if(idx === 0){
+                            startInput.readOnly = false;
+                            startInput.removeAttribute('readonly');
+                            startInput.removeAttribute('data-locked-start');
+                            startInput.classList.remove('tapin-sale-w__start--locked');
+                            startInput.removeAttribute('tabindex');
+                        } else {
+                            var prevEndInput = getEndInput(rowEls[idx - 1]);
+                            var prevEndVal = prevEndInput ? prevEndInput.value : '';
+                            startInput.value = nextStartFrom(prevEndVal) || '';
+                            startInput.readOnly = true;
+                            startInput.setAttribute('readonly', 'readonly');
+                            startInput.setAttribute('data-locked-start', '1');
+                            startInput.classList.add('tapin-sale-w__start--locked');
+                            startInput.setAttribute('tabindex', '-1');
+                        }
+                    });
+                }
+
+                function createRow(defaults, options){
                     defaults = defaults || {};
+                    options = options || {};
+                    var lockStart = !!options.lockStart;
+                    var lockFrom  = options.lockFrom || '';
                     var row = document.createElement('div');
                     row.className = 'tapin-sale-w__row';
                     row.setAttribute('data-sale-row', '1');
                     var startVal = defaults.start || '';
+                    if(lockStart){
+                        var source = lockFrom || startVal || '';
+                        startVal = nextStartFrom(source) || '';
+                    }
                     var endVal   = defaults.end || '';
                     row.innerHTML =
                         '<div class="tapin-sale-w__dates">'+
-                            '<input type="datetime-local" name="'+escapeHtml(prefix)+'_start[]" value="'+escapeHtml(startVal)+'">'+
-                            '<input type="datetime-local" name="'+escapeHtml(prefix)+'_end[]" value="'+escapeHtml(endVal)+'">'+
+                            '<input type="datetime-local" class="tapin-sale-w__start'+(lockStart?' tapin-sale-w__start--locked':'')+'" name="'+escapeHtml(prefix)+'_start[]" value="'+escapeHtml(startVal)+'"'+(lockStart?' readonly data-locked-start="1" tabindex="-1"':'')+'>'+                            '<input type="datetime-local" class="tapin-sale-w__end" name="'+escapeHtml(prefix)+'_end[]" value="'+escapeHtml(endVal)+'">'+
                         '</div>'+
                         '<div class="tapin-sale-w__prices" data-price-fields></div>'+
-                        '<button type="button" class="tapin-sale-w__remove" aria-label="הסרת חלון">&times;</button>';
+                        '<button type="button" class="tapin-sale-w__remove" aria-label="?"???"?x ?-?????">&times;</button>';
 
                     rows.appendChild(row);
                     renderPrices(row, defaults.prices || {});
@@ -159,9 +218,16 @@ final class SaleWindowsRepeater
                 }
 
                 function refreshControls(){
-                    var count = rows.querySelectorAll('[data-sale-row]').length;
+                    var rowEls = Array.from(rows.querySelectorAll('[data-sale-row]'));
+                    applyStartLocking(rowEls);
+                    var count = rowEls.length;
                     if (addBtn) {
-                        if (count >= 10) {
+                        var disableAdd = count >= 10;
+                        if (!disableAdd) {
+                            var lastRow = rowEls[rowEls.length - 1] || null;
+                            disableAdd = !isRowComplete(lastRow);
+                        }
+                        if (disableAdd) {
                             addBtn.setAttribute('disabled', 'disabled');
                         } else {
                             addBtn.removeAttribute('disabled');
@@ -177,6 +243,7 @@ final class SaleWindowsRepeater
                     });
                 }
 
+
                 rows.addEventListener('click', function(event){
                     if(event.target && event.target.classList.contains('tapin-sale-w__remove')){
                         var row = event.target.closest('[data-sale-row]');
@@ -186,15 +253,50 @@ final class SaleWindowsRepeater
                         }
                     }
                 });
+                rows.addEventListener('input', function(event){
+                    var target = event.target;
+                    if(!target){
+                        return;
+                    }
+                    if (target.matches('input[name="'+prefix+'_end[]"]')) {
+                        var row = target.closest('[data-sale-row]');
+                        var nextRow = row ? row.nextElementSibling : null;
+                        if(nextRow){
+                            var nextStart = getStartInput(nextRow);
+                            if(nextStart && nextStart.hasAttribute('data-locked-start')){
+                                nextStart.value = nextStartFrom(target.value) || '';
+                            }
+                        }
+                    }
+                    if (
+                        target.matches('input[name="'+prefix+'_start[]"]') ||
+                        target.matches('input[name="'+prefix+'_end[]"]') ||
+                        target.hasAttribute('data-sale-price-input')
+                    ) {
+                        refreshControls();
+                    }
+                });
+
+
 
                 if (addBtn) {
                     addBtn.addEventListener('click', function(){
-                        var last = rows.querySelector('[data-sale-row]:last-child');
-                        var lastEnd = last ? last.querySelector('input[name="'+prefix+'_end[]"]').value : '';
+                        var rowsList = Array.from(rows.querySelectorAll('[data-sale-row]'));
+                        if (rowsList.length >= 10) {
+                            return;
+                        }
+                        var last = rowsList[rowsList.length - 1] || null;
+                        if (!isRowComplete(last)) {
+                            return;
+                        }
+                        var lastEndInput = getEndInput(last);
+                        var lastEnd = lastEndInput ? lastEndInput.value : '';
                         createRow({
-                            start: nextStartFrom(lastEnd),
                             end: '',
                             prices: {}
+                        }, {
+                            lockStart: true,
+                            lockFrom: lastEnd
                         });
                     });
                 }
@@ -208,6 +310,7 @@ final class SaleWindowsRepeater
                         var values = collectPrices(row);
                         renderPrices(row, values);
                     });
+                    refreshControls();
                 }
 
                 document.addEventListener('tapinTicketTypesChanged', function(event){

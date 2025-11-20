@@ -573,6 +573,16 @@ CSS;
   transition: border-color .2s, box-shadow .2s;
 }
 
+.tapin-sale-w__start--locked {
+  background: #f8fafc;
+  cursor: not-allowed;
+  color: var(--tapin-text-light);
+}
+
+.tapin-sale-w__start--locked:focus {
+  box-shadow: none;
+}
+
 .tapin-sale-w__prices {
   display: grid;
   gap: 12px;

@@ -251,6 +251,10 @@ final class ProducerEventRequest implements Service
                     </small>
                 </div>
                 <div class="tapin-form-row">
+                    <label>תאריך ושעה של האירוע *</label>
+                    <input type="datetime-local" name="tapin_event_dt" value="<?php echo esc_attr($eventVal); ?>" required>
+                </div>
+                <div class="tapin-form-row">
                     <label>תיאור מלא *</label>
                     <textarea name="tapin_desc" rows="6" required><?php echo esc_textarea($descVal); ?></textarea>
                 </div>
@@ -265,11 +269,7 @@ final class ProducerEventRequest implements Service
                 </div>
                 <?php TicketTypesEditor::render($ticketTypesPost); ?>
                 <?php SaleWindowsRepeater::render($saleWindowsPost, 'sale_w', $ticketTypesPost); ?>
-                <div class="tapin-form-row">
-                    <label>תאריך ושעה של האירוע *</label>
-                    <input type="datetime-local" name="tapin_event_dt" value="<?php echo esc_attr($eventVal); ?>" required>
-                </div>
-                <?php wp_nonce_field('tapin_event_submit', 'tapin_event_nonce'); ?>
+                                <?php wp_nonce_field('tapin_event_submit', 'tapin_event_nonce'); ?>
                 <div class="tapin-actions">
                     <button id="tapinSubmitBtn" type="submit" class="tapin-btn tapin-btn--primary">שליחת בקשה</button>
                 </div>
