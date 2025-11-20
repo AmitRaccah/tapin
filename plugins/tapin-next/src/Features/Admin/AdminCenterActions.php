@@ -47,7 +47,11 @@ final class AdminCenterActions {
                 $svc->applyFields($pid,[
                     'title'=>$_POST['title']??'','desc'=>$_POST['desc']??'',
                     'price'=>$_POST['price']??'','stock'=>$_POST['stock']??'',
-                    'event_dt'=>$_POST['event_dt']??'','image_field'=>'image',
+                    'event_dt'=>$_POST['event_dt']??'',
+                    'event_address'=>$_POST['event_address']??'',
+                    'event_city'=>$_POST['event_city']??'',
+                    'min_age'=>$_POST['min_age']??'',
+                    'image_field'=>'image',
                     'background_field'=>'bg_image',
                     'ticket_types'=> $ticketTypesPost,
                     'sale_windows'=> $saleWindowsPost
@@ -73,7 +77,11 @@ final class AdminCenterActions {
                 $svc->applyFields($pid,[
                     'title'=>$_POST['title']??'','desc'=>$_POST['desc']??'',
                     'price'=>$_POST['price']??'','stock'=>$_POST['stock']??'',
-                    'event_dt'=>$_POST['event_dt']??'','image_field'=>'image',
+                    'event_dt'=>$_POST['event_dt']??'',
+                    'event_address'=>$_POST['event_address']??'',
+                    'event_city'=>$_POST['event_city']??'',
+                    'min_age'=>$_POST['min_age']??'',
+                    'image_field'=>'image',
                     'background_field'=>'bg_image',
                     'ticket_types'=> $ticketTypesPost,
                     'sale_windows'=> $saleWindowsPost

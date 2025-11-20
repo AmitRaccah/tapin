@@ -33,6 +33,7 @@ class Plugin {
         \Tapin\Events\Features\Orders\OrderMetaPrivacy::class,
         \Tapin\Events\Features\Orders\AbandonedCheckoutCartCleanup::class,
         \Tapin\Events\Features\ProductPage\SaleWindowsCards::class,
+        \Tapin\Events\Features\ProductPage\EventDetailsCards::class,
         \Tapin\Events\Features\ProductPage\ProductBackground::class,
         \Tapin\Events\Features\ProductPage\StickyPurchaseBar::class,
         \Tapin\Events\Features\ProductPage\PurchaseDetailsModal::class,

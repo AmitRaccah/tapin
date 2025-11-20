@@ -35,11 +35,29 @@ final class EventFormRenderer
         }
 
         $eventInput = Time::tsToLocalInput(Time::productEventTs($productId));
+        $eventAddress = get_post_meta($productId, MetaKeys::EVENT_ADDRESS, true);
+        $eventCity    = get_post_meta($productId, MetaKeys::EVENT_CITY, true);
+        $minAgeVal    = get_post_meta($productId, MetaKeys::EVENT_MIN_AGE, true);
         $feePercent = TicketFee::getPercent($productId); ?>
         <style><?php echo Assets::sharedCss(); ?></style>
         <div class="tapin-form-row">
             <label>כותרת האירוע</label>
             <input type="text" name="title" value="<?php echo esc_attr($post->post_title); ?>">
+        </div>
+        <div class="tapin-form-row">
+            <label>כתובת אירוע</label>
+            <input type="text" name="event_address" value="<?php echo esc_attr((string) $eventAddress); ?>">
+        </div>
+        <div class="tapin-form-row">
+            <label>עיר</label>
+            <input type="text" name="event_city" value="<?php echo esc_attr((string) $eventCity); ?>">
+        </div>
+        <div class="tapin-form-row">
+            <label>גיל מינימלי</label>
+            <input type="number" name="min_age" min="0" step="1" value="<?php echo esc_attr($minAgeVal !== '' ? (string) (int) $minAgeVal : ''); ?>">
+            <small style="display:block;margin-top:6px;color:#475569;font-size:.85rem;">
+                השאר ריק אם אין מגבלת גיל.
+            </small>
         </div>
         <div class="tapin-form-row">
             <label>תיאור האירוע</label>

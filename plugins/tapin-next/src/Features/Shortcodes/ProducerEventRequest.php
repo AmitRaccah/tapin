@@ -38,6 +38,9 @@ final class ProducerEventRequest implements Service
         $titleVal = isset($_POST['tapin_title']) ? sanitize_text_field(wp_unslash($_POST['tapin_title'])) : '';
         $descVal  = isset($_POST['tapin_desc']) ? wp_kses_post(wp_unslash($_POST['tapin_desc'])) : '';
         $eventVal = isset($_POST['tapin_event_dt']) ? sanitize_text_field(wp_unslash($_POST['tapin_event_dt'])) : '';
+        $addressVal = isset($_POST['tapin_event_address']) ? sanitize_text_field(wp_unslash($_POST['tapin_event_address'])) : '';
+        $cityVal    = isset($_POST['tapin_event_city']) ? sanitize_text_field(wp_unslash($_POST['tapin_event_city'])) : '';
+        $minAgeRaw  = isset($_POST['tapin_min_age']) ? trim((string) wp_unslash($_POST['tapin_min_age'])) : '';
 
         $ticketTypesPost = ($_SERVER['REQUEST_METHOD'] === 'POST')
             ? TicketTypesRepository::parseFromPost('ticket_type')
@@ -82,12 +85,30 @@ final class ProducerEventRequest implements Service
 
             $uniqueKey = md5(get_current_user_id() . '|' . $titleVal . '|' . $eventTs . '|' . ($minBasePrice ?? 0) . '|' . $capacityTotal);
             $hasBackgroundUpload = !empty($_FILES['tapin_bg_image']['name']);
+            $addressMissing = ($addressVal === '');
+            $cityMissing    = ($cityVal === '');
+            $minAgeInvalid  = false;
+            if ($minAgeRaw !== '') {
+                if (!ctype_digit($minAgeRaw)) {
+                    $minAgeInvalid = true;
+                }
+            }
 
             if (get_transient('tapin_submit_' . $uniqueKey)) {
                 $msg = '<div class="tapin-notice tapin-notice--success">הבקשה כבר התקבלה ומטופלת.</div>';
             } elseif (empty($_FILES['tapin_image']['name'])) {
                 $msg = '<div class="tapin-notice tapin-notice--error">יש לצרף תמונת קאבר לאירוע.</div>';
-            } elseif (!$titleVal || !$descVal || !$eventVal || $ticketTypeErrors || $capacityTotal <= 0 || ($minBasePrice ?? 0) <= 0) {
+            } elseif (
+                !$titleVal
+                || !$descVal
+                || !$eventVal
+                || $addressMissing
+                || $cityMissing
+                || $minAgeInvalid
+                || $ticketTypeErrors
+                || $capacityTotal <= 0
+                || ($minBasePrice ?? 0) <= 0
+            ) {
                 $msg = '<div class="tapin-notice tapin-notice--error">וודאו שמילאתם את כל שדות החובה, הגדרתם לפחות סוג כרטיס אחד עם מחיר ומלאי, והזנתם תאריך אירוע תקין.</div>';
             } elseif ($eventTs && $eventTs < time()) {
                 $msg = '<div class="tapin-notice tapin-notice--error">תאריך האירוע חייב להיות עתידי.</div>';
@@ -120,6 +141,14 @@ final class ProducerEventRequest implements Service
                     update_post_meta($pid, '_virtual', 'yes');
                     update_post_meta($pid, '_stock_status', 'instock');
                     update_post_meta($pid, MetaKeys::EVENT_DATE, wp_date('Y-m-d H:i:s', $eventTs, wp_timezone()));
+                    update_post_meta($pid, MetaKeys::EVENT_ADDRESS, $addressVal);
+                    update_post_meta($pid, MetaKeys::EVENT_CITY, $cityVal);
+
+                    if ($minAgeRaw !== '') {
+                        update_post_meta($pid, MetaKeys::EVENT_MIN_AGE, max(0, (int) $minAgeRaw));
+                    } else {
+                        delete_post_meta($pid, MetaKeys::EVENT_MIN_AGE);
+                    }
                     wp_set_object_terms($pid, 'simple', 'product_type', false);
 
                     delete_post_meta($pid, '_sale_price');
@@ -205,6 +234,21 @@ final class ProducerEventRequest implements Service
                 <div class="tapin-form-row">
                     <label>שם האירוע *</label>
                     <input type="text" name="tapin_title" value="<?php echo esc_attr($titleVal); ?>" required>
+                </div>
+                <div class="tapin-form-row">
+                    <label>כתובת אירוע *</label>
+                    <input type="text" name="tapin_event_address" value="<?php echo esc_attr($addressVal); ?>" required>
+                </div>
+                <div class="tapin-form-row">
+                    <label>עיר *</label>
+                    <input type="text" name="tapin_event_city" value="<?php echo esc_attr($cityVal); ?>" required>
+                </div>
+                <div class="tapin-form-row">
+                    <label>גיל מינימלי</label>
+                    <input type="number" name="tapin_min_age" min="0" step="1" value="<?php echo esc_attr($minAgeRaw); ?>">
+                    <small style="display:block;margin-top:6px;color:#475569;font-size:.85rem;">
+                        השאר ריק אם אין מגבלת גיל.
+                    </small>
                 </div>
                 <div class="tapin-form-row">
                     <label>תיאור מלא *</label>

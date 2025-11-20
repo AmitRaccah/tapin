@@ -16,6 +16,10 @@ final class EventProductService {
         $ticketTypes = $hasTicketTypesInput ? TicketTypesRepository::save($pid, $arr['ticket_types']) : null;
         $event_dt_local = sanitize_text_field($arr['event_dt'] ?? '');
         $event_ts = $event_dt_local ? Time::localStrToUtcTs($event_dt_local) : 0;
+        $eventAddress = sanitize_text_field($arr['event_address'] ?? '');
+        $eventCity    = sanitize_text_field($arr['event_city'] ?? '');
+        $minAgeRaw    = isset($arr['min_age']) ? trim((string) $arr['min_age']) : '';
+        $minAge       = $minAgeRaw !== '' ? max(0, (int) $minAgeRaw) : null;
 
         if ($title !== '') wp_update_post(['ID'=>$pid,'post_title'=>$title]);
         if ($desc  !== '') wp_update_post(['ID'=>$pid,'post_content'=>$desc]);
@@ -56,6 +60,24 @@ final class EventProductService {
         if ($event_ts) {
             $local_str = wp_date('Y-m-d H:i:s', $event_ts, Time::tz());
             update_post_meta($pid, MetaKeys::EVENT_DATE, $local_str);
+        }
+
+        if ($eventAddress !== '') {
+            update_post_meta($pid, MetaKeys::EVENT_ADDRESS, $eventAddress);
+        } else {
+            delete_post_meta($pid, MetaKeys::EVENT_ADDRESS);
+        }
+
+        if ($eventCity !== '') {
+            update_post_meta($pid, MetaKeys::EVENT_CITY, $eventCity);
+        } else {
+            delete_post_meta($pid, MetaKeys::EVENT_CITY);
+        }
+
+        if ($minAge !== null) {
+            update_post_meta($pid, MetaKeys::EVENT_MIN_AGE, $minAge);
+        } else {
+            delete_post_meta($pid, MetaKeys::EVENT_MIN_AGE);
         }
 
         $uploadFields = [];

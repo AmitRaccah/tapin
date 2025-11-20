@@ -7,6 +7,9 @@ final class MetaKeys {
     public const PAUSED              = '_sale_paused';
     public const EDIT_REQ            = 'tapin_edit_request';
     public const EVENT_BG_IMAGE      = '_tapin_event_bg_image';
+    public const EVENT_ADDRESS       = '_tapin_event_address';
+    public const EVENT_CITY          = '_tapin_event_city';
+    public const EVENT_MIN_AGE       = '_tapin_event_min_age';
     public const TICKET_TYPES        = '_tapin_ticket_types';
     public const TICKET_TYPE_SALES   = '_tapin_ticket_type_sales';
     public const PRODUCER_AFF_TYPE   = '_tapin_producer_aff_type';
@@ -19,6 +22,9 @@ final class MetaKeys {
         if (!defined('TAPIN_META_PAUSED'))         define('TAPIN_META_PAUSED',         self::PAUSED);
         if (!defined('TAPIN_META_EDIT_REQ'))       define('TAPIN_META_EDIT_REQ',       self::EDIT_REQ);
         if (!defined('TAPIN_META_EVENT_BG_IMAGE')) define('TAPIN_META_EVENT_BG_IMAGE', self::EVENT_BG_IMAGE);
+        if (!defined('TAPIN_META_EVENT_ADDRESS')) define('TAPIN_META_EVENT_ADDRESS', self::EVENT_ADDRESS);
+        if (!defined('TAPIN_META_EVENT_CITY')) define('TAPIN_META_EVENT_CITY', self::EVENT_CITY);
+        if (!defined('TAPIN_META_EVENT_MIN_AGE')) define('TAPIN_META_EVENT_MIN_AGE', self::EVENT_MIN_AGE);
         if (!defined('TAPIN_META_TICKET_TYPES'))   define('TAPIN_META_TICKET_TYPES',   self::TICKET_TYPES);
         if (!defined('TAPIN_META_TICKET_TYPE_SALES')) define('TAPIN_META_TICKET_TYPE_SALES', self::TICKET_TYPE_SALES);
         if (!defined('TAPIN_META_PRODUCER_AFF_TYPE')) define('TAPIN_META_PRODUCER_AFF_TYPE', self::PRODUCER_AFF_TYPE);
