@@ -5,6 +5,7 @@ namespace Tapin\Events\Features\Sales;
 
 use Tapin\Events\Domain\TicketTypesRepository;
 use Tapin\Events\Support\MetaKeys;
+use Tapin\Events\Support\TicketFee;
 use Tapin\Events\Support\Time;
 
 final class EventRowFactory
@@ -31,6 +32,7 @@ final class EventRowFactory
         $eventTs   = $this->resolveEventTimestamp($productId);
         $createdTs = (int) get_post_time('U', true, $productId);
         $commissionMeta = $this->resolveCommissionMeta($productId);
+        $feePercent = TicketFee::getPercent($productId);
         $format = get_option('date_format') . ' H:i';
         $eventLabel = $eventTs > 0 ? Time::fmtLocal($eventTs, $format) : '';
 
@@ -51,6 +53,8 @@ final class EventRowFactory
             'regular_type_id'    => $regular['id'],
             'regular_type_label' => $regular['label'],
             'commission_meta'    => $commissionMeta,
+            'fee_percent'        => $feePercent,
+            'fee_total'          => 0.0,
             'stats'              => [
                 'regular_total'     => 0,
                 'regular_affiliate' => 0,

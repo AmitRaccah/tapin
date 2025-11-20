@@ -36,6 +36,7 @@ final class ProducerEventSales implements Service {
         'producer_commission_percent' => "\u{05D0}\u{05D7}\u{05D5}\u{05D6}\u{05D9}\u{05DD}",
         'producer_commission_flat'    => "\u{05E9}\u{05E7}\u{05DC}\u{05D9}\u{05DD}",
         'producer_commission_none'    => "\u{05DC}\u{05D0} \u{05D4}\u{05D5}\u{05D2}\u{05D3}\u{05D4} \u{05E2}\u{05DE}\u{05DC}\u{05D4}",
+        'ticket_fee'          => "\u{05E2}\u{05DE}\u{05DC}\u{05EA} \u{05DB}\u{05E8}\u{05D8}\u{05D9}\u{05E1}",
     ];
     public function register(): void { add_shortcode('producer_event_sales', [$this,'render']); }
 

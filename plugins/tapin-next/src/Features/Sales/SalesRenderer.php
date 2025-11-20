@@ -44,6 +44,8 @@ final class SalesRenderer
                 $sumTotal = (float) ($row['sum'] ?? 0.0);
                 $sumAffiliate = (float) ($row['ref_sum'] ?? 0.0);
                 $sumDirect = max(0.0, $sumTotal - $sumAffiliate);
+                $feePercent = isset($row['fee_percent']) ? (float) $row['fee_percent'] : 0.0;
+                $feeTotal = isset($row['fee_total']) ? (float) $row['fee_total'] : 0.0;
                 $producerCommissionLabel = $this->describeProducerCommission($row['commission_meta'] ?? [], $text);
                 ?>
                 <div class="tapin-pa-event<?php echo $isOpen ? ' is-open' : ''; ?>" data-search="<?php echo esc_attr($searchBlob); ?>">
@@ -128,6 +130,19 @@ final class SalesRenderer
                             <div class="tapin-pa-order__card">
                               <div class="tapin-pa-order__label"><?php echo esc_html($text['producer_commission']); ?></div>
                               <div class="tapin-pa-order__value"><?php echo esc_html($producerCommissionLabel); ?></div>
+                            </div>
+                            <div class="tapin-pa-order__card">
+                              <div class="tapin-pa-order__label"><?php echo esc_html($text['ticket_fee']); ?></div>
+                              <div class="tapin-pa-order__value">
+                                <?php
+                                $percentLabel = $feePercent > 0.0
+                                    ? number_format_i18n($feePercent, 2) . '%'
+                                    : '0%';
+                                echo esc_html($percentLabel);
+                                echo ' ';
+                                echo $this->formatMoney($feeTotal);
+                                ?>
+                              </div>
                             </div>
                           </div>
                         </div>

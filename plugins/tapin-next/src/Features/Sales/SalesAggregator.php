@@ -94,20 +94,43 @@ final class SalesAggregator
                     $lineTotal = $unit * $approved;
                 }
 
+                $lineTotalGross = $lineTotal;
+
                 if (!isset($rows[$productId])) {
                     $rows[$productId] = $factory->create($productId, $authorId);
                 } else {
                     $factory->ensureCommissionMeta($rows[$productId], $productId);
                 }
 
+                $feePercent = isset($rows[$productId]['fee_percent'])
+                    ? (float) $rows[$productId]['fee_percent']
+                    : 0.0;
+
+                $baseTotal = $lineTotalGross;
+                $feeTotal = 0.0;
+
+                if ($feePercent > 0.0) {
+                    $rate = 1.0 + ($feePercent / 100.0);
+                    $baseTotal = $rate > 0.0 ? ($lineTotalGross / $rate) : $lineTotalGross;
+                    $feeTotal = $lineTotalGross - $baseTotal;
+                    if ($feeTotal < 0.0) {
+                        $feeTotal = 0.0;
+                    }
+                }
+
                 $rows[$productId]['qty'] += $qty;
-                $rows[$productId]['sum'] += $lineTotal;
+                $rows[$productId]['sum'] += $baseTotal;
+                $rows[$productId]['fee_total'] = ($rows[$productId]['fee_total'] ?? 0.0) + $feeTotal;
 
                 if ($wasReferred) {
                     $rows[$productId]['ref_qty'] += $qty;
-                    $rows[$productId]['ref_sum'] += $lineTotal;
+                    $rows[$productId]['ref_sum'] += $baseTotal;
 
-                    $commission = Commission::calculate($rows[$productId]['commission_meta'] ?? [], $lineTotal, $qty);
+                    $commission = Commission::calculate(
+                        $rows[$productId]['commission_meta'] ?? [],
+                        $baseTotal,
+                        $qty
+                    );
                     if ($commission > 0) {
                         $rows[$productId]['ref_commission'] += $commission;
                     }
