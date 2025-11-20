@@ -5,6 +5,7 @@ namespace Tapin\Events\Features\Orders;
 use Tapin\Events\Core\Service;
 use Tapin\Events\Support\Orders;
 use WC_Order;
+use WC_Email_Customer_Processing_Order;
 
 final class AwaitingProducerGate implements Service
 {
@@ -15,6 +16,7 @@ final class AwaitingProducerGate implements Service
         add_action('woocommerce_checkout_order_processed', [$this, 'onCheckout'], 9999, 1);
         add_filter('woocommerce_payment_complete_order_status', [$this, 'forceAwaiting'], 10, 3);
         add_filter('woocommerce_cod_process_payment_order_status', [$this, 'forceAwaiting'], 10, 2);
+        add_action('woocommerce_order_status_' . AwaitingProducerStatus::STATUS_SLUG, [$this, 'maybeSendWooProcessingEmail'], 10, 2);
         add_action('woocommerce_order_status_changed', [$this, 'revertIfNeeded'], 5, 4);
         add_filter('woocommerce_payment_complete_reduce_order_stock', [$this, 'preventStockReduction'], 10, 2);
         add_filter('woocommerce_email_enabled_customer_processing_order', [$this, 'suppressProcessingEmail'], 10, 2);
@@ -123,10 +125,6 @@ final class AwaitingProducerGate implements Service
 
     public function suppressProcessingEmail(bool $enabled, ?WC_Order $order): bool
     {
-        if ($order instanceof WC_Order && $order->has_status(self::awaitingStatusSlug())) {
-            return false;
-        }
-
         return $enabled;
     }
 
@@ -142,6 +140,35 @@ final class AwaitingProducerGate implements Service
         }
 
         return $enabled;
+    }
+
+    public function maybeSendWooProcessingEmail(int $orderId, WC_Order $order): void
+    {
+        if (!function_exists('WC')) {
+            return;
+        }
+
+        try {
+            $mailer = WC()->mailer();
+        } catch (\Throwable $e) {
+            return;
+        }
+
+        if (!is_object($mailer) || !method_exists($mailer, 'get_emails')) {
+            return;
+        }
+
+        $emails = $mailer->get_emails();
+        if (!is_array($emails) || !isset($emails['WC_Email_Customer_Processing_Order'])) {
+            return;
+        }
+
+        $email = $emails['WC_Email_Customer_Processing_Order'];
+        if (!$email instanceof WC_Email_Customer_Processing_Order) {
+            return;
+        }
+
+        $email->trigger($orderId, $order);
     }
 
     public function thankyouNotice(int $orderId): void
