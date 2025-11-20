@@ -432,9 +432,25 @@ CSS;
   gap: 8px;
 }
 
+body.single-product.tapin-product-enhanced .entry-summary .tapin-pw-card__price,
+body.single-product.tapin-product-enhanced .entry-summary .tapin-pw-card__ticket {
+  color: #111827;
+}
+
+body.single-product.tapin-product-enhanced .entry-summary .tapin-pw-card__ticket-price {
+  color: var(--tapin-primary-color);
+}
+
 .tapin-pw-card__price {
   font-weight: 800;
   font-size: 1.15rem;
+  color: #111827;
+}
+
+.tapin-pw-card__price .woocommerce-Price-amount,
+.tapin-pw-card__price .woocommerce-Price-amount *,
+.tapin-pw-card__price .woocommerce-Price-currencySymbol {
+  color: inherit;
 }
 
 .tapin-pw-card__dates {

@@ -104,6 +104,12 @@ final class EventDetailsCards implements Service
             .tapin-producer-details__link:hover {
                 text-decoration:underline;
             }
+            body.single-product.tapin-product-enhanced .entry-summary .tapin-event-details__list,
+            body.single-product.tapin-product-enhanced .entry-summary .tapin-event-details__label,
+            body.single-product.tapin-product-enhanced .entry-summary .tapin-event-details__value,
+            body.single-product.tapin-product-enhanced .entry-summary .tapin-producer-details__link {
+                color:#111827;
+            }
         </style>
         <div class="tapin-box tapin-event-details">
             <h3 class="tapin-section-title">פרטי אירוע</h3>
