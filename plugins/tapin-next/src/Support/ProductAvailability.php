@@ -4,11 +4,12 @@ namespace Tapin\Events\Support;
 
 use Tapin\Events\Domain\SaleWindowsRepository;
 use Tapin\Events\Domain\TicketTypesRepository;
+use Tapin\Events\Support\CapacityValidator;
 
 final class ProductAvailability
 {
     /**
-     * @var array<int,array{has_windows:bool,sale_state:string,has_tickets:bool,is_purchasable:bool}>
+     * @var array<int,array{has_windows:bool,sale_state:string,has_tickets:bool,is_purchasable:bool,remaining_total:int,remaining_types:array<string,array{capacity:int,sold:int,remaining:int}>}>
      */
     private static array $cache = [];
 
@@ -48,9 +49,10 @@ final class ProductAvailability
 
         $types   = TicketTypesRepository::get($productId);
         $windows = SaleWindowsRepository::get($productId, $types);
+        $summary = CapacityValidator::summarize($productId, $types);
 
         $saleState   = self::resolveSaleState($windows);
-        $hasTickets  = self::hasAvailableTickets($types);
+        $hasTickets  = self::hasAvailableTickets($summary);
         $isPurchasable = ($saleState === 'none' || $saleState === 'active') && $hasTickets;
 
         self::$cache[$productId] = [
@@ -58,6 +60,8 @@ final class ProductAvailability
             'sale_state'     => $saleState,
             'has_tickets'    => $hasTickets,
             'is_purchasable' => $isPurchasable,
+            'remaining_total'=> (int) $summary['total_remaining'],
+            'remaining_types'=> $summary['types'],
         ];
 
         return self::$cache[$productId];
@@ -96,23 +100,19 @@ final class ProductAvailability
     }
 
     /**
-     * @param array<int,array<string,mixed>> $types
+     * @param array{types: array<string,array{capacity:int,sold:int,remaining:int}>, total_capacity:int,total_sold:int,total_remaining:int, has_unlimited:bool} $summary
      */
-    private static function hasAvailableTickets(array $types): bool
+    private static function hasAvailableTickets(array $summary): bool
     {
-        foreach ($types as $type) {
-            if (!is_array($type)) {
-                continue;
-            }
+        if (!empty($summary['has_unlimited'])) {
+            return true;
+        }
 
-            $capacity  = isset($type['capacity']) ? (int) $type['capacity'] : 0;
-            $available = isset($type['available']) ? (int) $type['available'] : 0;
+        foreach ($summary['types'] as $meta) {
+            $capacity  = isset($meta['capacity']) ? (int) $meta['capacity'] : 0;
+            $remaining = isset($meta['remaining']) ? (int) $meta['remaining'] : 0;
 
-            if ($capacity <= 0) {
-                return true;
-            }
-
-            if ($available > 0) {
+            if ($capacity <= 0 || $remaining > 0) {
                 return true;
             }
         }
@@ -120,4 +120,3 @@ final class ProductAvailability
         return false;
     }
 }
-

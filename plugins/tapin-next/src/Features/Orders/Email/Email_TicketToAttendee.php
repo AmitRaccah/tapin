@@ -13,6 +13,7 @@ final class Email_TicketToAttendee extends WC_Email
     private array $ticket = [];
 
     private string $qrImageUrl = '';
+    private string $ticketUrl = '';
 
     public function __construct()
     {
@@ -80,6 +81,7 @@ final class Email_TicketToAttendee extends WC_Email
         $this->object     = $order;
         $this->ticket     = $ticket;
         $this->qrImageUrl = $qrImageUrl;
+        $this->ticketUrl  = isset($ticket['ticket_url']) ? (string) $ticket['ticket_url'] : '';
         $this->recipient  = sanitize_email((string) ($ticket['email'] ?? ''));
         $this->placeholders['{order_number}'] = $order->get_order_number();
         $this->placeholders['{site_title}']   = $this->get_blogname();
@@ -112,6 +114,11 @@ final class Email_TicketToAttendee extends WC_Email
                 'email'         => $this,
                 'ticket'        => $this->ticket,
                 'qr_image_url'  => $this->qrImageUrl,
+                'ticket_url'    => $this->ticketUrl,
+                'qr_fallback'   => $this->qrImageUrl === '' ? __('QR code could not be generated; use the link below for check-in.', 'tapin') : '',
+                'event_context' => $this->object instanceof WC_Order
+                    ? EmailEventContext::fromOrder($this->object, $this->ticket)
+                    : [],
             ],
             '',
             trailingslashit(TAPIN_NEXT_PATH) . 'templates/'
@@ -132,6 +139,11 @@ final class Email_TicketToAttendee extends WC_Email
                 'email'         => $this,
                 'ticket'        => $this->ticket,
                 'qr_image_url'  => $this->qrImageUrl,
+                'ticket_url'    => $this->ticketUrl,
+                'qr_fallback'   => $this->qrImageUrl === '' ? __('QR code could not be generated; use the link below for check-in.', 'tapin') : '',
+                'event_context' => $this->object instanceof WC_Order
+                    ? EmailEventContext::fromOrder($this->object, $this->ticket)
+                    : [],
             ],
             '',
             trailingslashit(TAPIN_NEXT_PATH) . 'templates/'
@@ -159,4 +171,3 @@ final class Email_TicketToAttendee extends WC_Email
         return sanitize_text_field($label);
     }
 }
-

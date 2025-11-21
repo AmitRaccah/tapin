@@ -3,6 +3,7 @@
 namespace Tapin\Events\Domain;
 
 use Tapin\Events\Support\MetaKeys;
+use Tapin\Events\Support\TicketSalesCounter;
 use Tapin\Events\Support\Util;
 
 final class TicketTypesRepository
@@ -21,8 +22,7 @@ final class TicketTypesRepository
             $types = [self::fallbackType($productId)];
         }
 
-        $sales = get_post_meta($productId, MetaKeys::TICKET_TYPE_SALES, true);
-        $sales = is_array($sales) ? array_map('intval', $sales) : [];
+        $sales = TicketSalesCounter::get($productId);
 
         foreach ($types as &$type) {
             $id        = $type['id'];
@@ -55,8 +55,7 @@ final class TicketTypesRepository
             $sanitized = [self::fallbackType($productId)];
         }
 
-        $sales = get_post_meta($productId, MetaKeys::TICKET_TYPE_SALES, true);
-        $sales = is_array($sales) ? array_map('intval', $sales) : [];
+        $sales = TicketSalesCounter::get($productId);
 
         $allowedIds = [];
         foreach ($sanitized as $entry) {
@@ -82,7 +81,7 @@ final class TicketTypesRepository
         }
 
         update_post_meta($productId, MetaKeys::TICKET_TYPES, $sanitized);
-        update_post_meta($productId, MetaKeys::TICKET_TYPE_SALES, $filteredSales);
+        TicketSalesCounter::set($productId, $filteredSales);
 
         return $sanitized;
     }

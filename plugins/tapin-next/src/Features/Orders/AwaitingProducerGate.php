@@ -3,7 +3,10 @@
 namespace Tapin\Events\Features\Orders;
 
 use Tapin\Events\Core\Service;
+use Tapin\Events\Features\Orders\PartiallyApprovedStatus;
+use Tapin\Events\Support\PaymentGatewayHelper;
 use Tapin\Events\Support\Orders;
+use Tapin\Events\Support\TicketSalesCounter;
 use WC_Order;
 use WC_Email_Customer_Processing_Order;
 
@@ -16,8 +19,8 @@ final class AwaitingProducerGate implements Service
         add_action('woocommerce_checkout_order_processed', [$this, 'onCheckout'], 9999, 1);
         add_filter('woocommerce_payment_complete_order_status', [$this, 'forceAwaiting'], 10, 3);
         add_filter('woocommerce_cod_process_payment_order_status', [$this, 'forceAwaiting'], 10, 2);
-        add_action('woocommerce_order_status_' . AwaitingProducerStatus::STATUS_SLUG, [$this, 'maybeSendWooProcessingEmail'], 10, 2);
         add_action('woocommerce_order_status_changed', [$this, 'revertIfNeeded'], 5, 4);
+        add_action('woocommerce_order_status_changed', [$this, 'releaseTicketSalesOnClose'], 12, 4);
         add_filter('woocommerce_payment_complete_reduce_order_stock', [$this, 'preventStockReduction'], 10, 2);
         add_filter('woocommerce_email_enabled_customer_processing_order', [$this, 'suppressProcessingEmail'], 10, 2);
         add_filter('woocommerce_email_enabled_customer_completed_order', [$this, 'suppressCompletedEmail'], 10, 2);
@@ -125,6 +128,15 @@ final class AwaitingProducerGate implements Service
 
     public function suppressProcessingEmail(bool $enabled, ?WC_Order $order): bool
     {
+        if (!$order instanceof WC_Order) {
+            return $enabled;
+        }
+
+        $status = $order->get_status();
+        if (in_array($status, [self::awaitingStatusSlug(), PartiallyApprovedStatus::STATUS_SLUG], true)) {
+            return false;
+        }
+
         return $enabled;
     }
 
@@ -135,7 +147,9 @@ final class AwaitingProducerGate implements Service
         }
 
         $producerIds = Orders::collectProducerIds($order);
-        if ($producerIds !== []) {
+        $status      = $order->get_status();
+
+        if ($producerIds !== [] && in_array($status, [self::awaitingStatusSlug(), PartiallyApprovedStatus::STATUS_SLUG], true)) {
             return false;
         }
 
@@ -183,23 +197,24 @@ final class AwaitingProducerGate implements Service
         }
     }
 
-    public static function captureAndApprove(WC_Order $order): bool
+    public static function captureAndApprove(WC_Order $order, ?int $producerId = null, ?float $captureAmount = null): bool
     {
-        $didCapture = false;
-        $paymentMethod = $order->get_payment_method();
+        $alreadyCaptured = (float) $order->get_meta('_tapin_partial_captured_total', true);
+        $orderTotal      = (float) $order->get_total();
+        $intendedAmount  = $captureAmount !== null ? max(0.0, (float) $captureAmount) : $orderTotal;
+        $intendedAmount  = min($intendedAmount, $orderTotal);
+        $toCapture       = max(0.0, $intendedAmount - $alreadyCaptured);
 
-        if ($paymentMethod && strpos($paymentMethod, 'wcpay') !== false && has_action('woocommerce_order_action_wcpay_capture_charge')) {
-            do_action('woocommerce_order_action_wcpay_capture_charge', $order);
-            $didCapture = true;
-        }
-
-        if (!$didCapture && $paymentMethod && strpos($paymentMethod, 'stripe') !== false && has_action('woocommerce_order_action_stripe_capture_charge')) {
-            do_action('woocommerce_order_action_stripe_capture_charge', $order);
-            $didCapture = true;
+        $didCapture = true;
+        if ($toCapture > 0.0) {
+            $didCapture = PaymentGatewayHelper::capture($order, $toCapture);
+            if ($didCapture) {
+                $order->update_meta_data('_tapin_partial_captured_total', $alreadyCaptured + $toCapture);
+            }
         }
 
         if (!$didCapture) {
-            $order->add_order_note('תזכורת סליקה: לא בוצעה פעולה אוטומטית, יש להשלים ידנית מתוך Order actions.');
+            $order->add_order_note(__('Payment capture was not completed automatically. Please review the order actions.', 'tapin'));
         }
 
         $order->update_meta_data('_tapin_producer_approved', 1);
@@ -215,21 +230,69 @@ final class AwaitingProducerGate implements Service
 
         $order->update_status(
             $allVirtual ? 'completed' : 'processing',
-            'ההזמנה אושרה על ידי המפיק.'
+            __('Producer approved the order.', 'tapin')
         );
+        if ($didCapture && $captureAmount === null) {
+            $order->delete_meta_data('_tapin_partial_captured_total');
+        }
         $order->save();
 
         $producerIds = self::ensureProducerMeta($order);
-        foreach ($producerIds as $producerId) {
-            $producerId = (int) $producerId;
-            if ($producerId <= 0) {
+        foreach ($producerIds as $producer) {
+            $pid = (int) $producer;
+            if ($pid <= 0) {
                 continue;
             }
 
-            do_action('tapin/events/order/approved_by_producer', $order, $producerId);
+            do_action('tapin/events/order/approved_by_producer', $order, $pid);
         }
 
         return $didCapture;
+    }
+
+    public function releaseTicketSalesOnClose(int $orderId, string $from, string $to, ?WC_Order $order): void
+    {
+        if (!$order instanceof WC_Order) {
+            $order = wc_get_order($orderId);
+        }
+
+        if (!$order instanceof WC_Order) {
+            return;
+        }
+
+        $inactive = ['cancelled', 'refunded', 'failed'];
+        if (!in_array($to, $inactive, true)) {
+            return;
+        }
+
+        $rawRecorded = $order->get_meta('_tapin_ticket_sales_recorded', true);
+        if (!is_array($rawRecorded) || $rawRecorded === []) {
+            return;
+        }
+
+        $recorded = $this->normalizeSalesMap($rawRecorded);
+        if ($recorded === []) {
+            $order->delete_meta_data('_tapin_ticket_sales_recorded');
+            $order->save();
+            return;
+        }
+
+        foreach ($recorded as $productId => $types) {
+            $delta = [];
+            foreach ($types as $typeId => $count) {
+                $qty = max(0, (int) $count);
+                if ($qty > 0) {
+                    $delta[$typeId] = -1 * $qty;
+                }
+            }
+
+            if ($delta !== []) {
+                TicketSalesCounter::adjust((int) $productId, $delta);
+            }
+        }
+
+        $order->delete_meta_data('_tapin_ticket_sales_recorded');
+        $order->save();
     }
 
     private static function awaitingStatusSlug(): string
@@ -277,5 +340,37 @@ final class AwaitingProducerGate implements Service
 
         $order->update_meta_data('_tapin_producer_ids', $ids);
         return $ids;
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int,array<string,int>>
+     */
+    private function normalizeSalesMap($raw): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($raw as $productId => $types) {
+            $pid = (int) $productId;
+            if ($pid <= 0 || !is_array($types)) {
+                continue;
+            }
+
+            foreach ($types as $typeId => $count) {
+                $tid = is_string($typeId) || is_numeric($typeId) ? (string) $typeId : '';
+                $qty = max(0, (int) $count);
+
+                if ($tid === '' || $qty <= 0) {
+                    continue;
+                }
+
+                $result[$pid][$tid] = $qty;
+            }
+        }
+
+        return $result;
     }
 }

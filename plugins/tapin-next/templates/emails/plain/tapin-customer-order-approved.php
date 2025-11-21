@@ -1,6 +1,21 @@
 <?php
+/**
+ * Plain template for customer order approved email.
+ *
+ * @var WC_Order                                             $order
+ * @var string                                               $email_heading
+ * @var Tapin\Events\Features\Orders\Email\Email_CustomerOrderApproved $email
+ */
 
 defined('ABSPATH') || exit;
+
+$headerBuffer = '';
+ob_start();
+do_action('woocommerce_email_header', $email_heading, $email);
+$headerBuffer = trim(wp_strip_all_tags((string) ob_get_clean()));
+if ($headerBuffer !== '') {
+    echo $headerBuffer . "\n\n";
+}
 
 $site_name = trim((string) $email->get_blogname());
 if ($site_name === '') {
@@ -13,6 +28,25 @@ if ($site_name === '') {
     $site_name = 'Tapin';
 }
 
+$account_url = wc_get_page_permalink('myaccount');
+if (empty($account_url)) {
+    $account_url = function_exists('tapin_next_canonical_site_url') ? tapin_next_canonical_site_url() : home_url('/');
+}
+
+$view_order_url = '';
+if ($order instanceof WC_Order) {
+    if (method_exists($order, 'get_view_order_url')) {
+        $view_order_url = (string) $order->get_view_order_url();
+    }
+
+    if ($view_order_url === '') {
+        $view_order_url = wc_get_endpoint_url('view-order', (string) $order->get_id(), $account_url);
+    }
+}
+if ($view_order_url === '') {
+    $view_order_url = $account_url;
+}
+
 $customer_name = '';
 if ($order instanceof WC_Order) {
     $customer_name = trim((string) $order->get_formatted_billing_full_name());
@@ -21,86 +55,66 @@ if ($order instanceof WC_Order) {
     }
 }
 if ($customer_name === '') {
-    $customer_name = esc_html__('לקוח Tapin', 'tapin');
+    $customer_name = esc_html__('?????- Tapin', 'tapin');
 }
+
+$event_context = isset($event_context) && is_array($event_context) ? $event_context : [];
+$event_name    = trim((string) ($event_context['event_name'] ?? ''));
+$event_date    = trim((string) ($event_context['event_date_label'] ?? ''));
+$event_address = trim((string) ($event_context['event_address'] ?? ''));
+$event_city    = trim((string) ($event_context['event_city'] ?? ''));
+$event_location = trim($event_address . ($event_city !== '' ? ' ' . $event_city : ''));
 
 $order_number = $order instanceof WC_Order ? (string) $order->get_order_number() : '';
 $order_total  = $order instanceof WC_Order ? wp_strip_all_tags($order->get_formatted_order_total()) : '';
 
-$producer_id = isset($producer_id) ? (int) $producer_id : 0;
+$customer_name_plain   = trim(wp_strip_all_tags($customer_name));
+$site_name_plain       = trim(wp_strip_all_tags($site_name));
+$order_number_plain    = $order_number !== '' ? '#' . $order_number : '';
+$event_name_plain      = trim(wp_strip_all_tags($event_name));
+$event_date_plain      = trim(wp_strip_all_tags($event_date));
+$event_location_plain  = trim(wp_strip_all_tags($event_location));
 
-$approved_attendees = [];
+echo sprintf( esc_html__('?c????? %s,', 'tapin'), $customer_name_plain ) . "\n\n";
+echo esc_html__('?"?????T? ???T?c?" ???x ?>?? ?"???c?x?x???T?? ?`?"?-???�?" ?c????.', 'tapin') . "\n\n";
 
-if ($order instanceof WC_Order && $producer_id > 0 && class_exists('\Tapin\Events\Features\Orders\ProducerApprovals\OrderSummaryBuilder')) {
-    $builder = new \Tapin\Events\Features\Orders\ProducerApprovals\OrderSummaryBuilder();
-    $summary = $builder->buildOrderSummary($order, $producer_id);
-
-    $list = [];
-    if (!empty($summary['primary_attendee']) && is_array($summary['primary_attendee'])) {
-        $list[] = (array) $summary['primary_attendee'];
+if ($event_name_plain !== '' || $event_date_plain !== '' || $event_location_plain !== '') {
+    if ($event_name_plain !== '') {
+        echo sprintf( esc_html__('?c?? ?"???T?"??�: %s', 'tapin'), $event_name_plain ) . "\n";
     }
-    foreach ((array) ($summary['attendees'] ?? []) as $attendee) {
-        if (is_array($attendee)) {
-            $list[] = $attendee;
-        }
+    if ($event_date_plain !== '') {
+        echo sprintf( esc_html__('?x???"?T?? ??c?�?": %s', 'tapin'), $event_date_plain ) . "\n";
     }
-
-    foreach ($list as $attendee) {
-        $name = trim((string) ($attendee['full_name'] ?? ''));
-        if ($name === '') {
-            $first = trim((string) ($attendee['first_name'] ?? ''));
-            $last  = trim((string) ($attendee['last_name'] ?? ''));
-            $name  = trim($first . ' ' . $last);
-        }
-        if ($name === '') {
-            $name = esc_html__('משתתף ללא שם', 'tapin');
-        }
-
-        $label = (string) ($attendee['ticket_type_label'] ?? ($attendee['ticket_type'] ?? ''));
-
-        $approved_attendees[] = [
-            'name'  => $name,
-            'label' => $label,
-        ];
+    if ($event_location_plain !== '') {
+        echo sprintf( esc_html__('???T????: %s', 'tapin'), $event_location_plain ) . "\n";
     }
-}
-
-echo '=' . $email_heading . "=\n\n";
-
-printf(
-    esc_html__('שלום %1$s, כל המשתתפים בהזמנה שלך באתר %2$s אושרו.', 'tapin'),
-    $customer_name,
-    $site_name
-);
-echo "\n\n";
-
-if ($order_number !== '') {
-    printf(esc_html__('מספר ההזמנה: #%s', 'tapin'), $order_number);
     echo "\n";
 }
 
+if ($order_number_plain !== '') {
+    echo sprintf( esc_html__('???�???" ?"?"?-???�?": %s', 'tapin'), $order_number_plain ) . "\n";
+}
 if ($order_total !== '') {
-    printf(esc_html__('סכום החיוב הסופי: %s', 'tapin'), $order_total);
-    echo "\n";
+    echo sprintf( esc_html__('?�?>??? ?"?-?T??` ?"?�????T: %s', 'tapin'), $order_total ) . "\n";
 }
-
 echo "\n";
 
-if ($approved_attendees !== []) {
-    echo esc_html__('משתתפים שאושרו:', 'tapin') . "\n";
-    foreach ($approved_attendees as $row) {
-        $line = '- ' . $row['name'];
-        if ($row['label'] !== '') {
-            $line .= ' (' . $row['label'] . ')';
-        }
-        echo $line . "\n";
-    }
-    echo "\n";
+echo sprintf( esc_html__('???�???T?T?" ?`?"?-???�?" ?c????: %s', 'tapin'), esc_url_raw( $view_order_url ) ) . "\n\n";
+echo sprintf( esc_html__('?x??"?" ?c?`?-?"?x ?`-%s', 'tapin'), $site_name_plain ) . "\n";
+echo esc_html__('???-?>?T?? ???"????x ????x?? ?`???T?"??�. ??????? ???"?c?T?` ?????T?T?? ?-?" ??? ?????�??x ???�???x ?"?x???T?>?" ?c?? Tapin.', 'tapin') . "\n\n";
+
+$additional = $email->get_additional_content();
+if ($additional) {
+    echo wp_strip_all_tags(wptexturize($additional)) . "\n\n";
 }
 
-if ($additional_content = $email->get_additional_content()) {
-    echo wp_strip_all_tags(wptexturize($additional_content)) . "\n\n";
+$footerBuffer = '';
+ob_start();
+do_action('woocommerce_email_footer', $email);
+$footerBuffer = trim(wp_strip_all_tags((string) ob_get_clean()));
+if ($footerBuffer !== '') {
+    echo $footerBuffer . "\n";
+} else {
+    echo wp_kses_post(apply_filters('woocommerce_email_footer_text', get_option('woocommerce_email_footer_text'))) . "\n";
 }
 
-echo esc_html__('מחכים לראותך באירוע. עבור כל שאלה, ניתן להשיב למייל זה או לפנות לצוות התמיכה של Tapin.', 'tapin') . "\n";
-echo "support@tapin.co.il\n";

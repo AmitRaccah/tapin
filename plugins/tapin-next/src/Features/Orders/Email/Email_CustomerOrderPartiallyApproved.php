@@ -121,6 +121,9 @@ final class Email_CustomerOrderPartiallyApproved extends WC_Email
                 'email_heading' => $this->get_heading(),
                 'email'         => $this,
                 'producer_id'   => $this->producerId,
+                'event_context' => $this->object instanceof WC_Order
+                    ? EmailEventContext::fromOrder($this->object)
+                    : [],
             ],
             '',
             $this->template_base
@@ -140,6 +143,9 @@ final class Email_CustomerOrderPartiallyApproved extends WC_Email
                 'email_heading' => $this->get_heading(),
                 'email'         => $this,
                 'producer_id'   => $this->producerId,
+                'event_context' => $this->object instanceof WC_Order
+                    ? EmailEventContext::fromOrder($this->object)
+                    : [],
             ],
             '',
             $this->template_base
@@ -166,4 +172,3 @@ final class Email_CustomerOrderPartiallyApproved extends WC_Email
         return '';
     }
 }
-

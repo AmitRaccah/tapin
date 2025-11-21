@@ -46,6 +46,13 @@ if ($customer_name === '') {
     $customer_name = esc_html__('לקוח Tapin', 'tapin');
 }
 
+$event_context = isset($event_context) && is_array($event_context) ? $event_context : [];
+$event_name    = trim((string) ($event_context['event_name'] ?? ''));
+$event_date    = trim((string) ($event_context['event_date_label'] ?? ''));
+$event_address = trim((string) ($event_context['event_address'] ?? ''));
+$event_city    = trim((string) ($event_context['event_city'] ?? ''));
+$event_location = trim($event_address . ($event_city !== '' ? ' ' . $event_city : ''));
+
 $order_number   = $order instanceof WC_Order ? (string) $order->get_order_number() : '';
 $order_total    = $order instanceof WC_Order ? wp_strip_all_tags($order->get_formatted_order_total()) : '';
 $partial_raw    = $order instanceof WC_Order ? (float) $order->get_meta('_tapin_partial_approved_total', true) : 0.0;
@@ -164,6 +171,28 @@ if ($view_order_url !== '') {
 }
 
 $meta_rows_html = '';
+if ($event_name !== '' || $event_date !== '' || $event_location !== '') {
+    ob_start();
+    ?>
+    <tr>
+        <td style="padding: 0 24px 24px 24px; background: #121212; font-family: Arial,Helvetica,sans-serif; color: #e6e6e6; font-size: 14px; line-height: 1.8;">
+            <?php if ($event_name !== '') : ?>
+                <strong><?php esc_html_e('?"?? ?"???', 'tapin'); ?></strong>
+                <?php echo esc_html($event_name); ?><br />
+            <?php endif; ?>
+            <?php if ($event_date !== '') : ?>
+                <strong><?php esc_html_e('?�?�?� �-�?:', 'tapin'); ?></strong>
+                <?php echo esc_html($event_date); ?><br />
+            <?php endif; ?>
+            <?php if ($event_location !== '') : ?>
+                <strong><?php esc_html_e('?�???x:', 'tapin'); ?></strong>
+                <?php echo esc_html($event_location); ?><br />
+            <?php endif; ?>
+        </td>
+    </tr>
+    <?php
+    $meta_rows_html .= trim((string) ob_get_clean());
+}
 if ($order_number !== '' || $partial_total !== '' || $order_total !== '') {
     ob_start();
     ?>

@@ -1,4 +1,5 @@
-<?php declare(strict_types=1);
+<?php
+declare(strict_types=1);
 
 namespace Tapin\Events\Features\Orders\Email;
 
@@ -12,9 +13,9 @@ final class Email_ProducerAwaitingApproval extends WC_Email
     public function __construct()
     {
         $this->id             = 'tapin_producer_order_awaiting';
-        $this->title          = esc_html__( 'התראה למפיק: הזמנה ממתינה לאישור', 'tapin' );
-        $this->description    = esc_html__( 'אימייל זה נשלח למפיק כאשר הזמנה חדשה נכנסת לסטטוס "ממתין לאישור מפיק".', 'tapin' );
-        $this->heading        = esc_html__( 'יש הזמנה שממתינה לאישור שלך', 'tapin' );
+        $this->title          = esc_html__( 'אישור מפיק: הזמנה מחכה לאישורך', 'tapin' );
+        $this->description    = esc_html__( 'נשלח בזמן אמת למפיק כשיש הזמנה עם תשלום מושהה שממתינה לאישורו.', 'tapin' );
+        $this->heading        = esc_html__( 'יש הזמנה שממתינה לאישורך', 'tapin' );
         $this->subject        = esc_html__( 'הזמנה #%s ממתינה לאישור שלך', 'tapin' );
         $this->customer_email = false;
 
@@ -98,6 +99,9 @@ final class Email_ProducerAwaitingApproval extends WC_Email
                 'order'         => $this->object,
                 'email_heading' => $this->get_heading(),
                 'email'         => $this,
+                'event_context' => $this->object instanceof WC_Order
+                    ? EmailEventContext::fromOrder($this->object)
+                    : [],
             ],
             '',
             $this->template_base
@@ -116,6 +120,9 @@ final class Email_ProducerAwaitingApproval extends WC_Email
                 'order'         => $this->object,
                 'email_heading' => $this->get_heading(),
                 'email'         => $this,
+                'event_context' => $this->object instanceof WC_Order
+                    ? EmailEventContext::fromOrder($this->object)
+                    : [],
             ],
             '',
             $this->template_base
@@ -138,4 +145,3 @@ final class Email_ProducerAwaitingApproval extends WC_Email
         return (string) $producer->user_email;
     }
 }
-

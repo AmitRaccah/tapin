@@ -83,6 +83,7 @@ final class TicketEmailDispatcher implements Service
                 continue;
             }
 
+            $ticketData['ticket_url'] = $ticketUrl;
             $qrImageUrl = $this->generateQrImage((string) ($ticketData['token'] ?? ''), $ticketUrl);
 
             $emailObj->trigger($order, $ticketData, $qrImageUrl);

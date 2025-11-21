@@ -55,23 +55,46 @@ if ($order instanceof WC_Order) {
     }
 }
 if ($customer_name === '') {
-    $customer_name = esc_html__( 'לקוח Tapin', 'tapin' );
+    $customer_name = esc_html__( '?????- Tapin', 'tapin' );
 }
+
+$event_context = isset($event_context) && is_array($event_context) ? $event_context : [];
+$event_name    = trim((string) ($event_context['event_name'] ?? ''));
+$event_date    = trim((string) ($event_context['event_date_label'] ?? ''));
+$event_address = trim((string) ($event_context['event_address'] ?? ''));
+$event_city    = trim((string) ($event_context['event_city'] ?? ''));
+$event_location = trim($event_address . ($event_city !== '' ? ' ' . $event_city : ''));
 
 $customer_name_plain = trim(wp_strip_all_tags($customer_name));
 $site_name_plain     = trim(wp_strip_all_tags($site_name));
 $order_number        = $order instanceof WC_Order ? (string) $order->get_order_number() : '';
+$event_name_plain    = trim(wp_strip_all_tags($event_name));
+$event_date_plain    = trim(wp_strip_all_tags($event_date));
+$event_location_plain = trim(wp_strip_all_tags($event_location));
 
-echo sprintf( esc_html__( 'שלום %s,', 'tapin' ), $customer_name_plain ) . "\n\n";
-echo esc_html__( 'ההזמנה שלך התקבלה וממתינה לאישור המפיק.', 'tapin' ) . "\n\n";
+echo sprintf( esc_html__( '?c????? %s,', 'tapin' ), $customer_name_plain ) . "\n\n";
+echo esc_html__( '?"?"?-???�?" ?c???? ?"?x??`???" ??????x?T?�?" ?????T?c??" ?"?????T?.', 'tapin' ) . "\n\n";
 
-if ($order_number !== '') {
-    echo sprintf( esc_html__( 'מספר הזמנה: #%s', 'tapin' ), $order_number ) . "\n\n";
+if ($event_name_plain !== '' || $event_date_plain !== '' || $event_location_plain !== '') {
+    if ($event_name_plain !== '') {
+        echo sprintf( esc_html__( '?c?? ?"???T?"??�: %s', 'tapin' ), $event_name_plain ) . "\n";
+    }
+    if ($event_date_plain !== '') {
+        echo sprintf( esc_html__( '?x???"?T?? ??c?�?": %s', 'tapin' ), $event_date_plain ) . "\n";
+    }
+    if ($event_location_plain !== '') {
+        echo sprintf( esc_html__( '???T????: %s', 'tapin' ), $event_location_plain ) . "\n";
+    }
+    echo "\n";
 }
 
-echo sprintf( esc_html__( 'לצפייה בהזמנה שלך: %s', 'tapin' ), esc_url_raw( $view_order_url ) ) . "\n\n";
-echo sprintf( esc_html__( 'תודה שבחרת ב-%s', 'tapin' ), $site_name_plain ) . "\n";
-echo esc_html__( 'ליצירת קשר: support@tapin.co.il', 'tapin' ) . "\n\n";
+if ($order_number !== '') {
+    echo sprintf( esc_html__( '???�???" ?"?-???�?": #%s', 'tapin' ), $order_number ) . "\n\n";
+}
+
+echo sprintf( esc_html__( '???�???T?T?" ?`?"?-???�?" ?c????: %s', 'tapin' ), esc_url_raw( $view_order_url ) ) . "\n\n";
+echo sprintf( esc_html__( '?x??"?" ?c?`?-?"?x ?`-%s', 'tapin' ), $site_name_plain ) . "\n";
+echo esc_html__( '???T?�?T?"?x ??c?": support@tapin.co.il', 'tapin' ) . "\n\n";
 
 $additional = $email->get_additional_content();
 if ($additional) {
@@ -87,3 +110,4 @@ if ($footerBuffer !== '') {
 } else {
     echo wp_kses_post(apply_filters('woocommerce_email_footer_text', get_option('woocommerce_email_footer_text'))) . "\n";
 }
+

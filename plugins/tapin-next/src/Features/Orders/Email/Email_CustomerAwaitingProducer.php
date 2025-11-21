@@ -179,6 +179,9 @@ final class Email_CustomerAwaitingProducer extends WC_Email
                 'order'         => $this->object,
                 'email_heading' => $this->get_heading(),
                 'email'         => $this,
+                'event_context' => $this->object instanceof WC_Order
+                    ? EmailEventContext::fromOrder($this->object)
+                    : [],
             ],
             '',
             $this->template_base
@@ -197,6 +200,9 @@ final class Email_CustomerAwaitingProducer extends WC_Email
                 'order'         => $this->object,
                 'email_heading' => $this->get_heading(),
                 'email'         => $this,
+                'event_context' => $this->object instanceof WC_Order
+                    ? EmailEventContext::fromOrder($this->object)
+                    : [],
             ],
             '',
             $this->template_base
@@ -205,4 +211,3 @@ final class Email_CustomerAwaitingProducer extends WC_Email
         return (string) ob_get_clean();
     }
 }
-

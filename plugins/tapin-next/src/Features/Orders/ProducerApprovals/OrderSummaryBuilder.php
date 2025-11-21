@@ -7,6 +7,7 @@ use Tapin\Events\Integrations\Affiliate\ReferralsRepository;
 use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\AttendeeSecureStorage;
 use Tapin\Events\Support\Time;
+use Tapin\Events\Features\Orders\PartiallyApprovedStatus;
 use WC_Order;
 use WC_Order_Item_Product;
 use WC_Product;
@@ -204,7 +205,7 @@ final class OrderSummaryBuilder
             'number'           => $order->get_order_number(),
             'date'             => $order->get_date_created() ? $order->get_date_created()->date_i18n(get_option('date_format') . ' H:i') : '',
             'timestamp'        => $order->get_date_created() ? (int) $order->get_date_created()->getTimestamp() : 0,
-            'total'            => wp_strip_all_tags($order->get_formatted_order_total()),
+            'total'            => wp_strip_all_tags($this->formatOrderTotal($order)),
             'total_quantity'   => $totalQuantity,
             'items'            => $items,
             'attendees'        => $attendeesList,
@@ -555,5 +556,22 @@ final class OrderSummaryBuilder
 
         return trim(wp_strip_all_tags((string) $value));
     }
-}
 
+    private function formatOrderTotal(WC_Order $order): string
+    {
+        $total = (float) $order->get_total();
+
+        if ($order->has_status(PartiallyApprovedStatus::STATUS_SLUG)) {
+            $partial = (float) $order->get_meta('_tapin_partial_approved_total', true);
+            if ($partial > 0.0) {
+                $total = $partial;
+            }
+        }
+
+        if (function_exists('wc_price')) {
+            return wc_price($total, ['currency' => $order->get_currency()]);
+        }
+
+        return number_format($total, 2);
+    }
+}

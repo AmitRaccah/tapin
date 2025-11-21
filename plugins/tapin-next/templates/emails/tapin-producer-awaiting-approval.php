@@ -46,6 +46,13 @@ if ($order instanceof WC_Order) {
     }
 }
 
+$event_context = isset($event_context) && is_array($event_context) ? $event_context : [];
+$event_name    = trim((string) ($event_context['event_name'] ?? ''));
+$event_date    = trim((string) ($event_context['event_date_label'] ?? ''));
+$event_address = trim((string) ($event_context['event_address'] ?? ''));
+$event_city    = trim((string) ($event_context['event_city'] ?? ''));
+$event_location = trim($event_address . ($event_city !== '' ? ' ' . $event_city : ''));
+
 $order_number       = $order instanceof WC_Order ? (string) $order->get_order_number() : '';
 $additional_content = $email->get_additional_content();
 
@@ -96,6 +103,28 @@ if ($dashboard_url !== '') {
 
 // Meta rows
 $meta_rows_html = '';
+if ($event_name !== '' || $event_date !== '' || $event_location !== '') {
+    ob_start();
+    ?>
+    <tr>
+        <td style="padding: 0 24px 24px 24px; background: #121212; font-family: Arial,Helvetica,sans-serif; color: #e6e6e6; font-size: 14px; line-height: 1.8;">
+            <?php if ($event_name !== '') : ?>
+                <strong><?php esc_html_e('?"?? ?"???', 'tapin'); ?></strong>
+                <?php echo esc_html($event_name); ?><br />
+            <?php endif; ?>
+            <?php if ($event_date !== '') : ?>
+                <strong><?php esc_html_e('?�?�?� �-�?:', 'tapin'); ?></strong>
+                <?php echo esc_html($event_date); ?><br />
+            <?php endif; ?>
+            <?php if ($event_location !== '') : ?>
+                <strong><?php esc_html_e('?�???x:', 'tapin'); ?></strong>
+                <?php echo esc_html($event_location); ?><br />
+            <?php endif; ?>
+        </td>
+    </tr>
+    <?php
+    $meta_rows_html .= trim((string) ob_get_clean());
+}
 if ($order_number !== '') {
     ob_start();
     ?>
@@ -147,4 +176,3 @@ wc_get_template(
     '',
     trailingslashit(TAPIN_NEXT_PATH) . 'templates/'
 );
-
