@@ -109,15 +109,15 @@ if ($event_name !== '' || $event_date !== '' || $event_location !== '') {
     <tr>
         <td style="padding: 0 24px 24px 24px; background: #121212; font-family: Arial,Helvetica,sans-serif; color: #e6e6e6; font-size: 14px; line-height: 1.8;">
             <?php if ($event_name !== '') : ?>
-                <strong><?php esc_html_e('?"?? ?"???', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('שם האירוע:', 'tapin'); ?></strong>
                 <?php echo esc_html($event_name); ?><br />
             <?php endif; ?>
             <?php if ($event_date !== '') : ?>
-                <strong><?php esc_html_e('?�?�?� �-�?:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('תאריך ושעה:', 'tapin'); ?></strong>
                 <?php echo esc_html($event_date); ?><br />
             <?php endif; ?>
             <?php if ($event_location !== '') : ?>
-                <strong><?php esc_html_e('?�???x:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('מיקום:', 'tapin'); ?></strong>
                 <?php echo esc_html($event_location); ?><br />
             <?php endif; ?>
         </td>

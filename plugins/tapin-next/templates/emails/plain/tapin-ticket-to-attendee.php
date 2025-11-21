@@ -47,12 +47,12 @@ if ($view_order_url === '') {
 }
 
 $full_name    = trim((string) ($ticket['full_name'] ?? ''));
-$display_name = $full_name !== '' ? $full_name : esc_html__( '?????- Tapin', 'tapin' );
+$display_name = $full_name !== '' ? $full_name : esc_html__( 'לקוח Tapin', 'tapin' );
 
 $label = (string) ($ticket['ticket_label'] ?? ($ticket['product_name'] ?? ''));
 if ($label === '') {
     $label = sprintf(
-        esc_html__( '?"?-???�?" #%s', 'tapin' ),
+        esc_html__( 'הזמנה #%s', 'tapin' ),
         (string) ($ticket['order_id'] ?? '')
     );
 }
@@ -80,34 +80,34 @@ $event_date_plain    = trim(wp_strip_all_tags($event_date));
 $event_location_plain = trim(wp_strip_all_tags($event_location));
 $ticket_url_plain    = $ticket_url !== '' ? esc_url_raw($ticket_url) : '';
 
-echo sprintf( __( '?c????? %s,', 'tapin' ), $display_name_plain ) . "\n\n";
-echo sprintf( __( '?"?>?"?~?T?� ?c???? ?????T?"??� %s ????>?? ????-?>?" ????. ???�??"?� ?`?"???" ???�?"?T??" ?`?>?�?T?�?".', 'tapin' ), $label_plain ) . "\n\n";
+echo sprintf( __( 'שלום %s,', 'tapin' ), $display_name_plain ) . "\n\n";
+echo sprintf( __( 'הכרטיס שלך לאירוע %s מוכן ומחכה לך. מצורף ברקוד לסריקה בכניסה.', 'tapin' ), $label_plain ) . "\n\n";
 
 if ($event_name_plain !== '' || $event_date_plain !== '' || $event_location_plain !== '') {
     if ($event_name_plain !== '') {
-        echo sprintf( __( '?c?? ?"???T?"??�: %s', 'tapin' ), $event_name_plain ) . "\n";
+        echo sprintf( __( 'שם האירוע: %s', 'tapin' ), $event_name_plain ) . "\n";
     }
     if ($event_date_plain !== '') {
-        echo sprintf( __( '?x???"?T?? ??c?�?" %s', 'tapin' ), $event_date_plain ) . "\n";
+        echo sprintf( __( 'תאריך ושעה %s', 'tapin' ), $event_date_plain ) . "\n";
     }
     if ($event_location_plain !== '') {
-        echo sprintf( __( '???T????: %s', 'tapin' ), $event_location_plain ) . "\n";
+        echo sprintf( __( 'מיקום: %s', 'tapin' ), $event_location_plain ) . "\n";
     }
     echo "\n";
 }
 
 if ($qr_image_url !== '') {
-    echo sprintf( __( '?`?"???" ???�???T?T?": %s', 'tapin' ), esc_url_raw( $qr_image_url ) ) . "\n\n";
+    echo sprintf( __( 'ברקוד לצפייה: %s', 'tapin' ), esc_url_raw( $qr_image_url ) ) . "\n\n";
 } elseif ($ticket_url_plain !== '') {
-    echo sprintf( __( '??�? QR? ???x ?"?>?"?~?T?� ?`?????�?�??x ?"??T?c??": %s', 'tapin' ), $ticket_url_plain ) . "\n\n";
+    echo sprintf( __( 'אם QR לא נטען, ניתן להציג את הכרטיס בקישור הבא: %s', 'tapin' ), $ticket_url_plain ) . "\n\n";
 }
 
 if ($ticket_url_plain !== '') {
-    echo sprintf( __( '???�???T?T?" ?`?"?-???�?" ?c????: %s', 'tapin' ), $ticket_url_plain ) . "\n\n";
+    echo sprintf( __( 'לצפייה בכרטיס שלך: %s', 'tapin' ), $ticket_url_plain ) . "\n\n";
 }
 
-echo sprintf( __( '?x??"?" ?c?`?-?"?x ?`-%s!', 'tapin' ), $site_name_plain ) . "\n";
-echo __( '?�?"?T?? ?�?-?"?"? ?????c?" ???"?c?T?` ?????T?T?? ?"?-?" ??? ???>?x??` ??-support@tapin.co.il', 'tapin' ) . "\n\n";
+echo sprintf( __( 'תודה שבחרת ב-%s!', 'tapin' ), $site_name_plain ) . "\n";
+echo __( 'צריך עזרה? אפשר להשיב למייל הזה או לכתוב ל-support@tapin.co.il', 'tapin' ) . "\n\n";
 
 $additional = $email->get_additional_content();
 if ($additional) {
