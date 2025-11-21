@@ -32,6 +32,13 @@ if ($order instanceof WC_Order && $partial_raw > 0 && function_exists('wc_price'
     $partial_label = wp_strip_all_tags(wc_price($partial_raw, ['currency' => $order->get_currency()]));
 }
 
+$event_context = isset($event_context) && is_array($event_context) ? $event_context : [];
+$event_name    = trim((string) ($event_context['event_name'] ?? ''));
+$event_date    = trim((string) ($event_context['event_date_label'] ?? ''));
+$event_address = trim((string) ($event_context['event_address'] ?? ''));
+$event_city    = trim((string) ($event_context['event_city'] ?? ''));
+$event_location = trim($event_address . ($event_city !== '' ? ' ' . $event_city : ''));
+
 $producer_id = isset($producer_id) ? (int) $producer_id : 0;
 
 $approved_attendees = [];
@@ -86,6 +93,20 @@ printf(
     $site_name
 );
 echo "\n\n";
+
+if ($event_name !== '' || $event_date !== '' || $event_location !== '') {
+    // TODO: replace English labels with Hebrew equivalents
+    if ($event_name !== '') {
+        echo 'Event: ' . $event_name . "\n";
+    }
+    if ($event_date !== '') {
+        echo 'Date and time: ' . $event_date . "\n";
+    }
+    if ($event_location !== '') {
+        echo 'Location: ' . $event_location . "\n";
+    }
+    echo "\n";
+}
 
 if ($order_number !== '') {
     printf(esc_html__('מספר ההזמנה: #%s', 'tapin'), $order_number);

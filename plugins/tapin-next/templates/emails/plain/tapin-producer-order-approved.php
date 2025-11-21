@@ -46,6 +46,13 @@ $order_number = $order instanceof WC_Order ? (string) $order->get_order_number()
 $total        = $order instanceof WC_Order ? wp_strip_all_tags($order->get_formatted_order_total()) : '';
 $items_count  = $order instanceof WC_Order ? $order->get_item_count() : 0;
 
+$event_context = isset($event_context) && is_array($event_context) ? $event_context : [];
+$event_name    = trim((string) ($event_context['event_name'] ?? ''));
+$event_date    = trim((string) ($event_context['event_date_label'] ?? ''));
+$event_address = trim((string) ($event_context['event_address'] ?? ''));
+$event_city    = trim((string) ($event_context['event_city'] ?? ''));
+$event_location = trim($event_address . ($event_city !== '' ? ' ' . $event_city : ''));
+
 $lines   = [];
 $lines[] = sprintf(esc_html__( 'הזמנה #%1$s באתר %2$s אושרה בהצלחה.', 'tapin' ), $order_number, $site_name);
 if ($customer_name !== '') {
@@ -57,7 +64,19 @@ if ($items_count > 0) {
 if ($total !== '') {
     $lines[] = sprintf(esc_html__( 'סכום חיוב כולל: %s', 'tapin' ), $total);
 }
+$eventHasData = $event_name !== '' || $event_date !== '' || $event_location !== '';
+// TODO: replace English labels with Hebrew equivalents
+if ($eventHasData) {
+    if ($event_name !== '') {
+        $lines[] = 'Event: ' . $event_name;
+    }
+    if ($event_date !== '') {
+        $lines[] = 'Date and time: ' . $event_date;
+    }
+    if ($event_location !== '') {
+        $lines[] = 'Location: ' . $event_location;
+    }
+}
 $lines[] = sprintf(esc_html__( 'לצפייה בהזמנה: %s', 'tapin' ), $dashboard_url);
 
 echo implode("\n", array_filter($lines));
-

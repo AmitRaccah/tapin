@@ -135,7 +135,7 @@ if ($order_number !== '') {
         </td>
     </tr>
     <?php
-    $meta_rows_html = trim((string) ob_get_clean());
+    $meta_rows_html .= trim((string) ob_get_clean());
 }
 
 // Additional block

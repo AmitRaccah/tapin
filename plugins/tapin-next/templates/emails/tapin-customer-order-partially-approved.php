@@ -212,7 +212,7 @@ if ($order_number !== '' || $partial_total !== '' || $order_total !== '') {
         </td>
     </tr>
     <?php
-    $meta_rows_html = trim((string) ob_get_clean());
+    $meta_rows_html .= trim((string) ob_get_clean());
 }
 
 ob_start();

@@ -12,6 +12,8 @@ use WC_Email_Customer_Processing_Order;
 
 final class AwaitingProducerGate implements Service
 {
+    private const LEGACY_PRODUCER_ID = 0;
+
     private bool $statusGuard = false;
 
     public function register(): void
@@ -199,17 +201,39 @@ final class AwaitingProducerGate implements Service
 
     public static function captureAndApprove(WC_Order $order, ?int $producerId = null, ?float $captureAmount = null): bool
     {
-        $alreadyCaptured = (float) $order->get_meta('_tapin_partial_captured_total', true);
+        $producerKey = $producerId !== null && $producerId > 0 ? $producerId : null;
+        $capturedTotals = self::normalizeProducerFloatMap($order->get_meta('_tapin_partial_captured_total', true), $producerKey);
+        $alreadyCaptured = $producerKey !== null
+            ? ($capturedTotals[$producerKey] ?? ($capturedTotals[self::LEGACY_PRODUCER_ID] ?? 0.0))
+            : array_sum($capturedTotals);
+        $globalCaptured = array_sum($capturedTotals);
+
         $orderTotal      = (float) $order->get_total();
-        $intendedAmount  = $captureAmount !== null ? max(0.0, (float) $captureAmount) : $orderTotal;
-        $intendedAmount  = min($intendedAmount, $orderTotal);
-        $toCapture       = max(0.0, $intendedAmount - $alreadyCaptured);
+        $resolvedTarget  = $captureAmount !== null ? max(0.0, (float) $captureAmount) : $orderTotal;
+        if ($producerKey !== null && $captureAmount === null) {
+            $producerTotal = self::resolveProducerApprovedTotal($order, $producerKey);
+            if ($producerTotal > 0.0) {
+                $resolvedTarget = min($resolvedTarget, $producerTotal);
+            }
+        }
+
+        $intendedAmount    = min($resolvedTarget, $orderTotal);
+        $producerRemaining = $producerKey !== null
+            ? max(0.0, $intendedAmount - $alreadyCaptured)
+            : max(0.0, $intendedAmount - $globalCaptured);
+        $remainingGlobal   = max(0.0, $orderTotal - $globalCaptured);
+        $toCapture         = min($producerRemaining, $remainingGlobal);
 
         $didCapture = true;
         if ($toCapture > 0.0) {
             $didCapture = PaymentGatewayHelper::capture($order, $toCapture);
             if ($didCapture) {
-                $order->update_meta_data('_tapin_partial_captured_total', $alreadyCaptured + $toCapture);
+                if ($producerKey !== null) {
+                    $capturedTotals[$producerKey] = ($capturedTotals[$producerKey] ?? 0.0) + $toCapture;
+                    self::saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
+                } else {
+                    $order->update_meta_data('_tapin_partial_captured_total', $alreadyCaptured + $toCapture);
+                }
             }
         }
 
@@ -233,11 +257,16 @@ final class AwaitingProducerGate implements Service
             __('Producer approved the order.', 'tapin')
         );
         if ($didCapture && $captureAmount === null) {
-            $order->delete_meta_data('_tapin_partial_captured_total');
+            if ($producerKey !== null) {
+                unset($capturedTotals[$producerKey], $capturedTotals[self::LEGACY_PRODUCER_ID]);
+                self::saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
+            } else {
+                $order->delete_meta_data('_tapin_partial_captured_total');
+            }
         }
         $order->save();
 
-        $producerIds = self::ensureProducerMeta($order);
+        $producerIds = $producerKey !== null ? [$producerKey] : self::ensureProducerMeta($order);
         foreach ($producerIds as $producer) {
             $pid = (int) $producer;
             if ($pid <= 0) {
@@ -293,6 +322,88 @@ final class AwaitingProducerGate implements Service
 
         $order->delete_meta_data('_tapin_ticket_sales_recorded');
         $order->save();
+    }
+
+    private static function resolveProducerApprovedTotal(WC_Order $order, int $producerId): float
+    {
+        $totals = self::normalizeProducerFloatMap($order->get_meta('_tapin_partial_approved_total', true), $producerId);
+        if (isset($totals[$producerId])) {
+            return $totals[$producerId];
+        }
+
+        if (isset($totals[self::LEGACY_PRODUCER_ID])) {
+            return $totals[self::LEGACY_PRODUCER_ID];
+        }
+
+        if ($totals !== []) {
+            return array_sum($totals);
+        }
+
+        return 0.0;
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int,float>
+     */
+    private static function normalizeProducerFloatMap($raw, ?int $producerId = null): array
+    {
+        $result = [];
+        if (is_array($raw)) {
+            foreach ($raw as $producerKey => $value) {
+                $pid = (int) $producerKey;
+                if ($pid <= 0) {
+                    $pid = self::LEGACY_PRODUCER_ID;
+                }
+
+                if (is_array($value)) {
+                    continue;
+                }
+
+                $floatVal = max(0.0, (float) $value);
+                if ($floatVal > 0.0) {
+                    $result[$pid] = $floatVal;
+                }
+            }
+        }
+
+        if ($result !== []) {
+            return $result;
+        }
+
+        if (is_numeric($raw)) {
+            $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
+            $val    = max(0.0, (float) $raw);
+            if ($val > 0.0) {
+                $result[$target] = $val;
+            }
+        }
+
+        return $result;
+    }
+
+    private static function saveProducerFloatMap(WC_Order $order, string $key, array $map): void
+    {
+        $clean = [];
+        foreach ($map as $producerId => $value) {
+            $pid = (int) $producerId;
+            if ($pid <= 0) {
+                $pid = self::LEGACY_PRODUCER_ID;
+            }
+
+            $floatVal = max(0.0, (float) $value);
+            if ($floatVal <= 0.0) {
+                continue;
+            }
+            $clean[$pid] = $floatVal;
+        }
+
+        if ($clean === []) {
+            $order->delete_meta_data($key);
+            return;
+        }
+
+        $order->update_meta_data($key, $clean);
     }
 
     private static function awaitingStatusSlug(): string

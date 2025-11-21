@@ -16,6 +16,8 @@ use WC_Product;
 
 final class BulkActionsController
 {
+    private const LEGACY_PRODUCER_ID = 0;
+
     /**
      * @var array<int,string>
      */
@@ -129,12 +131,12 @@ final class BulkActionsController
             if ($cancelSelected) {
                 $producerProducts = $this->productIdsFromItems($this->collectProducerItems($order, $producerId));
                 $this->syncTicketSales($order, [], $producerProducts);
-                $this->persistApprovalMeta($order, [], [], 0.0);
+                $this->persistApprovalMeta($order, [], [], 0.0, $producerId);
 
-                $capturedAmount = (float) $order->get_meta('_tapin_partial_captured_total', true);
+                $capturedAmount = $this->resolveProducerCapturedTotal($order, $producerId);
                 $amount         = $capturedAmount > 0.0
                     ? $capturedAmount
-                    : (float) $order->get_meta('_tapin_partial_approved_total', true);
+                    : $this->resolveProducerPartialTotal($order, $producerId);
                 if ($amount <= 0.0) {
                     $amount = (float) $order->get_total();
                 }
@@ -146,7 +148,9 @@ final class BulkActionsController
                     }
                 }
 
-                $order->delete_meta_data('_tapin_partial_captured_total');
+                $capturedTotals = $this->normalizeProducerFloatMap($order->get_meta('_tapin_partial_captured_total', true), $producerId);
+                unset($capturedTotals[$producerId], $capturedTotals[self::LEGACY_PRODUCER_ID]);
+                $this->saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
                 $order->update_status(
                     'cancelled',
                     __('Cancellation requested while awaiting producer approval.', 'tapin')
@@ -210,13 +214,18 @@ final class BulkActionsController
             }
 
             $partialData = $this->computePartialData($order, $producerItems, $fullMeta);
-            $this->persistApprovalMeta($order, $fullMeta, $partialData['map'], $partialData['total']);
+            $this->persistApprovalMeta($order, $fullMeta, $partialData['map'], $partialData['total'], $producerId);
 
-            $order->delete_meta_data('_tapin_partial_approved_map');
-            $order->delete_meta_data('_tapin_partial_approved_total');
+            $existingMap    = $this->normalizeProducerPartialMap($order->get_meta('_tapin_partial_approved_map', true), $producerId);
+            unset($existingMap[$producerId]);
+            $this->saveProducerPartialMap($order, $existingMap);
+
+            $existingTotals = $this->normalizeProducerFloatMap($order->get_meta('_tapin_partial_approved_total', true), $producerId);
+            unset($existingTotals[$producerId]);
+            $this->saveProducerFloatMap($order, '_tapin_partial_approved_total', $existingTotals);
             $order->save();
 
-            AwaitingProducerGate::captureAndApprove($order, $producerId, null);
+            AwaitingProducerGate::captureAndApprove($order, $producerId, $partialData['total']);
             $approved++;
         }
 
@@ -303,7 +312,7 @@ final class BulkActionsController
             return false;
         }
 
-        $this->persistApprovalMeta($order, $finalApprovedMeta, $partialData['map'], $partialData['total']);
+        $this->persistApprovalMeta($order, $finalApprovedMeta, $partialData['map'], $partialData['total'], $producerId);
 
         if ($partialData['approved_qty'] <= 0) {
             $order->update_status(
@@ -321,7 +330,7 @@ final class BulkActionsController
             );
             $order->save();
 
-            $this->capturePartialIfSupported($order, $partialData['total']);
+            $this->capturePartialIfSupported($order, $producerId, $partialData['total']);
 
             do_action('tapin/events/order/producer_partial_approval', $order, $producerId);
             do_action('tapin/events/order/producer_attendees_approved', $order, $producerId);
@@ -331,14 +340,20 @@ final class BulkActionsController
             return true;
         }
 
-        $order->delete_meta_data('_tapin_partial_approved_map');
-        $order->delete_meta_data('_tapin_partial_approved_total');
+        $existingMap    = $this->normalizeProducerPartialMap($order->get_meta('_tapin_partial_approved_map', true), $producerId);
+        unset($existingMap[$producerId]);
+        $this->saveProducerPartialMap($order, $existingMap);
+
+        $existingTotals = $this->normalizeProducerFloatMap($order->get_meta('_tapin_partial_approved_total', true), $producerId);
+        unset($existingTotals[$producerId]);
+        $this->saveProducerFloatMap($order, '_tapin_partial_approved_total', $existingTotals);
         $order->save();
 
-        AwaitingProducerGate::captureAndApprove($order, $producerId, null);
+        AwaitingProducerGate::captureAndApprove($order, $producerId, $partialData['total']);
 
         return true;
     }
+
     /**
      * @return array<int,WC_Order_Item_Product>
      */
@@ -677,10 +692,10 @@ final class BulkActionsController
         ];
     }
 
-    private function capturePartialIfSupported(WC_Order $order, float $approvedTotal): void
+    private function capturePartialIfSupported(WC_Order $order, int $producerId, float $approvedTotal): void
     {
         $target = max(0.0, $approvedTotal);
-        $alreadyCaptured = (float) $order->get_meta('_tapin_partial_captured_total', true);
+        $alreadyCaptured = $this->resolveProducerCapturedTotal($order, $producerId);
         $toCapture       = $target - $alreadyCaptured;
 
         if ($toCapture <= 0.0) {
@@ -695,7 +710,9 @@ final class BulkActionsController
 
         $captured = PaymentGatewayHelper::capture($order, $toCapture);
         if ($captured) {
-            $order->update_meta_data('_tapin_partial_captured_total', $alreadyCaptured + $toCapture);
+            $allCaptured = $this->normalizeProducerFloatMap($order->get_meta('_tapin_partial_captured_total', true), $producerId);
+            $allCaptured[$producerId] = ($allCaptured[$producerId] ?? 0.0) + $toCapture;
+            $this->saveProducerFloatMap($order, '_tapin_partial_captured_total', $allCaptured);
         } else {
             $order->add_order_note(__('Partial capture failed. Please capture the approved amount manually.', 'tapin'));
         }
@@ -916,7 +933,7 @@ final class BulkActionsController
      * @param array<int,array<int,int>> $approvedMeta
      * @param array<int,int> $partialMap
      */
-    private function persistApprovalMeta(WC_Order $order, array $approvedMeta, array $partialMap, float $partialTotal): void
+    private function persistApprovalMeta(WC_Order $order, array $approvedMeta, array $partialMap, float $partialTotal, int $producerId): void
     {
         if ($approvedMeta === []) {
             $order->delete_meta_data('_tapin_producer_approved_attendees');
@@ -924,13 +941,211 @@ final class BulkActionsController
             $order->update_meta_data('_tapin_producer_approved_attendees', $approvedMeta);
         }
 
-        if ($partialMap === []) {
-            $order->delete_meta_data('_tapin_partial_approved_map');
-            $order->delete_meta_data('_tapin_partial_approved_total');
+        $partialByProducer = $this->normalizeProducerPartialMap($order->get_meta('_tapin_partial_approved_map', true), $producerId);
+        $cleanPartialMap   = $this->sanitizePartialMap($partialMap);
+
+        if ($cleanPartialMap === []) {
+            unset($partialByProducer[$producerId]);
         } else {
-            $order->update_meta_data('_tapin_partial_approved_map', $partialMap);
-            $order->update_meta_data('_tapin_partial_approved_total', $partialTotal);
+            $partialByProducer[$producerId] = $cleanPartialMap;
         }
+
+        $this->saveProducerPartialMap($order, $partialByProducer);
+
+        $totalByProducer = $this->normalizeProducerFloatMap($order->get_meta('_tapin_partial_approved_total', true), $producerId);
+        $cleanTotal      = max(0.0, (float) $partialTotal);
+        if ($cleanTotal <= 0.0) {
+            unset($totalByProducer[$producerId]);
+        } else {
+            $totalByProducer[$producerId] = $cleanTotal;
+        }
+
+        $this->saveProducerFloatMap($order, '_tapin_partial_approved_total', $totalByProducer);
+    }
+
+    /**
+     * @param array<int,int> $partialMap
+     * @return array<int,int>
+     */
+    private function sanitizePartialMap(array $partialMap): array
+    {
+        $clean = [];
+
+        foreach ($partialMap as $itemId => $count) {
+            $itemKey  = (int) $itemId;
+            $intCount = (int) $count;
+            if ($itemKey <= 0 || $intCount <= 0) {
+                continue;
+            }
+            $clean[$itemKey] = $intCount;
+        }
+
+        return $clean;
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int,array<int,int>>
+     */
+    private function normalizeProducerPartialMap($raw, ?int $producerId = null): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $hasNested = false;
+        foreach ($raw as $value) {
+            if (is_array($value)) {
+                $hasNested = true;
+                break;
+            }
+        }
+
+        if ($hasNested) {
+            $result = [];
+            foreach ($raw as $producerKey => $map) {
+                $pid = (int) $producerKey;
+                if ($pid <= 0) {
+                    $pid = self::LEGACY_PRODUCER_ID;
+                }
+                if (!is_array($map)) {
+                    continue;
+                }
+                $clean = $this->normalizePartialMap($map);
+                if ($clean !== []) {
+                    $result[$pid] = $clean;
+                }
+            }
+
+            return $result;
+        }
+
+        $legacy = $this->normalizePartialMap($raw);
+        if ($legacy === []) {
+            return [];
+        }
+
+        $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
+
+        return [$target => $legacy];
+    }
+
+    private function saveProducerPartialMap(WC_Order $order, array $map): void
+    {
+        if ($map === []) {
+            $order->delete_meta_data('_tapin_partial_approved_map');
+            return;
+        }
+
+        foreach ($map as $producerId => $partialMap) {
+            if (!is_array($partialMap) || $partialMap === []) {
+                unset($map[$producerId]);
+            }
+        }
+
+        if ($map === []) {
+            $order->delete_meta_data('_tapin_partial_approved_map');
+            return;
+        }
+
+        $order->update_meta_data('_tapin_partial_approved_map', $map);
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int,float>
+     */
+    private function normalizeProducerFloatMap($raw, ?int $producerId = null): array
+    {
+        $result = [];
+        if (is_array($raw)) {
+            foreach ($raw as $producerKey => $value) {
+                $pid = (int) $producerKey;
+                if ($pid <= 0) {
+                    $pid = self::LEGACY_PRODUCER_ID;
+                }
+                if (is_array($value)) {
+                    continue;
+                }
+                $floatVal = max(0.0, (float) $value);
+                if ($floatVal > 0.0) {
+                    $result[$pid] = $floatVal;
+                }
+            }
+        }
+
+        if ($result !== []) {
+            return $result;
+        }
+
+        if (is_numeric($raw)) {
+            $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
+            $val    = max(0.0, (float) $raw);
+            if ($val > 0.0) {
+                $result[$target] = $val;
+            }
+        }
+
+        return $result;
+    }
+
+    private function saveProducerFloatMap(WC_Order $order, string $key, array $map): void
+    {
+        $clean = [];
+        foreach ($map as $producerId => $value) {
+            $pid = (int) $producerId;
+            if ($pid <= 0) {
+                $pid = self::LEGACY_PRODUCER_ID;
+            }
+            $floatVal = max(0.0, (float) $value);
+            if ($floatVal <= 0.0) {
+                continue;
+            }
+            $clean[$pid] = $floatVal;
+        }
+
+        if ($clean === []) {
+            $order->delete_meta_data($key);
+            return;
+        }
+
+        $order->update_meta_data($key, $clean);
+    }
+
+    private function resolveProducerPartialTotal(WC_Order $order, int $producerId): float
+    {
+        $totals = $this->normalizeProducerFloatMap($order->get_meta('_tapin_partial_approved_total', true), $producerId);
+        if ($producerId > 0 && isset($totals[$producerId])) {
+            return $totals[$producerId];
+        }
+
+        if (isset($totals[self::LEGACY_PRODUCER_ID])) {
+            return $totals[self::LEGACY_PRODUCER_ID];
+        }
+
+        if ($totals !== []) {
+            return array_sum($totals);
+        }
+
+        return 0.0;
+    }
+
+    private function resolveProducerCapturedTotal(WC_Order $order, int $producerId): float
+    {
+        $totals = $this->normalizeProducerFloatMap($order->get_meta('_tapin_partial_captured_total', true), $producerId);
+        if ($producerId > 0 && isset($totals[$producerId])) {
+            return $totals[$producerId];
+        }
+
+        if (isset($totals[self::LEGACY_PRODUCER_ID])) {
+            return $totals[self::LEGACY_PRODUCER_ID];
+        }
+
+        if ($totals !== []) {
+            return array_sum($totals);
+        }
+
+        return 0.0;
     }
 
     /**

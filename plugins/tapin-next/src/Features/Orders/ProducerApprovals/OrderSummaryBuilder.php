@@ -14,6 +14,8 @@ use WC_Product;
 
 final class OrderSummaryBuilder
 {
+    private const LEGACY_PRODUCER_ID = 0;
+
     /**
      * @param array<int,int> $orderIds
      * @return array{orders: array<int,array<string,mixed>>, customer_stats: array<string,array<string,mixed>>}
@@ -205,7 +207,7 @@ final class OrderSummaryBuilder
             'number'           => $order->get_order_number(),
             'date'             => $order->get_date_created() ? $order->get_date_created()->date_i18n(get_option('date_format') . ' H:i') : '',
             'timestamp'        => $order->get_date_created() ? (int) $order->get_date_created()->getTimestamp() : 0,
-            'total'            => wp_strip_all_tags($this->formatOrderTotal($order)),
+            'total'            => wp_strip_all_tags($this->formatOrderTotal($order, $producerId)),
             'total_quantity'   => $totalQuantity,
             'items'            => $items,
             'attendees'        => $attendeesList,
@@ -557,12 +559,22 @@ final class OrderSummaryBuilder
         return trim(wp_strip_all_tags((string) $value));
     }
 
-    private function formatOrderTotal(WC_Order $order): string
+    private function formatOrderTotal(WC_Order $order, int $producerId): string
     {
         $total = (float) $order->get_total();
 
         if ($order->has_status(PartiallyApprovedStatus::STATUS_SLUG)) {
-            $partial = (float) $order->get_meta('_tapin_partial_approved_total', true);
+            $partialTotals = $this->normalizeProducerTotals($order->get_meta('_tapin_partial_approved_total', true), $producerId);
+            $partial = 0.0;
+
+            if ($producerId > 0 && isset($partialTotals[$producerId])) {
+                $partial = $partialTotals[$producerId];
+            } elseif (isset($partialTotals[self::LEGACY_PRODUCER_ID])) {
+                $partial = $partialTotals[self::LEGACY_PRODUCER_ID];
+            } elseif ($partialTotals !== []) {
+                $partial = array_sum($partialTotals);
+            }
+
             if ($partial > 0.0) {
                 $total = $partial;
             }
@@ -573,5 +585,45 @@ final class OrderSummaryBuilder
         }
 
         return number_format($total, 2);
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int,float>
+     */
+    private function normalizeProducerTotals($raw, ?int $producerId = null): array
+    {
+        $result = [];
+        if (is_array($raw)) {
+            foreach ($raw as $producerKey => $value) {
+                $pid = (int) $producerKey;
+                if ($pid <= 0) {
+                    $pid = self::LEGACY_PRODUCER_ID;
+                }
+
+                if (is_array($value)) {
+                    continue;
+                }
+
+                $val = max(0.0, (float) $value);
+                if ($val > 0.0) {
+                    $result[$pid] = $val;
+                }
+            }
+        }
+
+        if ($result !== []) {
+            return $result;
+        }
+
+        if (is_numeric($raw)) {
+            $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
+            $val    = max(0.0, (float) $raw);
+            if ($val > 0.0) {
+                $result[$target] = $val;
+            }
+        }
+
+        return $result;
     }
 }

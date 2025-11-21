@@ -12,6 +12,8 @@ use WC_Order_Item_Product;
 
 final class SalesAggregator
 {
+    private const LEGACY_PRODUCER_ID = 0;
+
     /**
      * @param array<int,int> $orderIds
      * @param array<string,mixed> $options
@@ -54,15 +56,11 @@ final class SalesAggregator
             $isPartial = $order->has_status(PartiallyApprovedStatus::STATUS_SLUG);
             $partialMap = [];
             if ($isPartial) {
-                $rawMap = $order->get_meta('_tapin_partial_approved_map', true);
-                if (is_array($rawMap)) {
-                    foreach ($rawMap as $rawItemId => $approvedQty) {
-                        $itemKey = (int) $rawItemId;
-                        if ($itemKey <= 0) {
-                            continue;
-                        }
-                        $partialMap[$itemKey] = (int) $approvedQty;
-                    }
+                $partialByProducer = $this->normalizeProducerPartialMap($order->get_meta('_tapin_partial_approved_map', true), $producerId);
+                if (isset($partialByProducer[$producerId])) {
+                    $partialMap = $partialByProducer[$producerId];
+                } elseif (isset($partialByProducer[self::LEGACY_PRODUCER_ID])) {
+                    $partialMap = $partialByProducer[self::LEGACY_PRODUCER_ID];
                 }
             }
 
@@ -176,4 +174,67 @@ final class SalesAggregator
         return 0;
     }
 
+    /**
+     * @param mixed $raw
+     * @return array<int,array<int,int>>
+     */
+    private function normalizeProducerPartialMap($raw, int $producerId): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $hasNested = false;
+        foreach ($raw as $value) {
+            if (is_array($value)) {
+                $hasNested = true;
+                break;
+            }
+        }
+
+        if ($hasNested) {
+            $result = [];
+            foreach ($raw as $producerKey => $map) {
+                $pid = (int) $producerKey;
+                if ($pid <= 0) {
+                    $pid = self::LEGACY_PRODUCER_ID;
+                }
+                if (!is_array($map)) {
+                    continue;
+                }
+                $clean = $this->sanitizePartialMap($map);
+                if ($clean !== []) {
+                    $result[$pid] = $clean;
+                }
+            }
+            return $result;
+        }
+
+        $legacy = $this->sanitizePartialMap($raw);
+        if ($legacy === []) {
+            return [];
+        }
+
+        $target = $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
+        return [$target => $legacy];
+    }
+
+    /**
+     * @param array<int,int|string|float> $map
+     * @return array<int,int>
+     */
+    private function sanitizePartialMap(array $map): array
+    {
+        $clean = [];
+        foreach ($map as $itemId => $count) {
+            $itemKey  = (int) $itemId;
+            $intCount = (int) $count;
+            if ($itemKey <= 0 || $intCount <= 0) {
+                continue;
+            }
+            $clean[$itemKey] = $intCount;
+        }
+
+        return $clean;
+    }
 }

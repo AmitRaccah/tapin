@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Tapin\Events\Features\Orders\TicketEmails;
 
 use Tapin\Events\Features\Orders\ProducerApprovals\OrderSummaryBuilder;
+use Tapin\Events\Support\Orders;
 use WC_Order;
 use WC_Order_Item_Product;
 use WC_Product;
@@ -27,6 +28,9 @@ final class TicketAttendeesResolver
 
         $approvedMap      = (array) ($summary['approved_attendee_map'] ?? []);
         $hasApprovalMap   = $approvedMap !== [];
+        $producerIds      = Orders::collectProducerIds($order);
+        $isSingleProducer = count($producerIds) <= 1;
+        $enforceApproval  = $hasApprovalMap || !$isSingleProducer;
 
         $primary = isset($summary['primary_attendee']) && is_array($summary['primary_attendee'])
             ? (array) $summary['primary_attendee']
@@ -56,7 +60,7 @@ final class TicketAttendeesResolver
         $records = [];
 
         foreach ($attendees as $attendee) {
-            if ($hasApprovalMap) {
+            if ($enforceApproval) {
                 $isApproved = !empty($attendee['is_producer_approved']);
                 if (!$isApproved) {
                     continue;

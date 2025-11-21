@@ -8,9 +8,12 @@ use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\AttendeeSecureStorage;
 use WC_Order;
 use WC_Order_Item_Product;
+use WC_Product;
 
 final class TicketStatsAccumulator
 {
+    private const LEGACY_PRODUCER_ID = 0;
+
     private WindowsBuckets $windows;
 
     public function __construct(?WindowsBuckets $windows = null)
@@ -24,7 +27,7 @@ final class TicketStatsAccumulator
         if ($tickets === []) {
             $order = $item->get_order();
             if ($order instanceof WC_Order && $order->has_status(PartiallyApprovedStatus::STATUS_SLUG)) {
-                $count = $this->approvedCountForItem($order, (int) $item->get_id());
+                $count = $this->approvedCountForItem($order, $item);
             } else {
                 $count = max(1, (int) $item->get_quantity());
             }
@@ -76,11 +79,10 @@ final class TicketStatsAccumulator
     {
         $order = $item->get_order();
         $orderObj = $order instanceof WC_Order ? $order : null;
-        $itemId = (int) $item->get_id();
         $decoded = AttendeeSecureStorage::decrypt((string) $item->get_meta('_tapin_attendees_json', true));
         if ($decoded !== []) {
             $tickets = array_map([$this, 'normalizeTicketMeta'], $decoded);
-            return $this->filterTicketsByApproval($tickets, $orderObj, $itemId);
+            return $this->filterTicketsByApproval($tickets, $orderObj, $item);
         }
 
         $legacy = (string) $item->get_meta('Tapin Attendees', true);
@@ -88,7 +90,7 @@ final class TicketStatsAccumulator
             $legacyDecoded = AttendeeSecureStorage::decrypt($legacy);
             if ($legacyDecoded !== []) {
                 $tickets = array_map([$this, 'normalizeTicketMeta'], $legacyDecoded);
-                return $this->filterTicketsByApproval($tickets, $orderObj, $itemId);
+                return $this->filterTicketsByApproval($tickets, $orderObj, $item);
             }
         }
 
@@ -97,7 +99,7 @@ final class TicketStatsAccumulator
             $aggregateDecoded = AttendeeSecureStorage::extractFromAggregate($aggregate, $item);
             if ($aggregateDecoded !== []) {
                 $tickets = array_map([$this, 'normalizeTicketMeta'], $aggregateDecoded);
-                return $this->filterTicketsByApproval($tickets, $orderObj, $itemId);
+                return $this->filterTicketsByApproval($tickets, $orderObj, $item);
             }
         }
 
@@ -117,7 +119,7 @@ final class TicketStatsAccumulator
             }
         }
 
-        return $this->filterTicketsByApproval($fallback, $orderObj, $itemId);
+        return $this->filterTicketsByApproval($fallback, $orderObj, $item);
     }
 
     /**
@@ -171,12 +173,13 @@ final class TicketStatsAccumulator
      * @param array<int,array<string,string>> $tickets
      * @return array<int,array<string,string>>
      */
-    private function filterTicketsByApproval(array $tickets, ?WC_Order $order, int $itemId): array
+    private function filterTicketsByApproval(array $tickets, ?WC_Order $order, WC_Order_Item_Product $item): array
     {
         if (!$order instanceof WC_Order || !$order->has_status(PartiallyApprovedStatus::STATUS_SLUG)) {
             return $tickets;
         }
 
+        $itemId = (int) $item->get_id();
         $indices = $this->approvedIndicesForItem($order, $itemId);
         if ($indices !== []) {
             $filtered = [];
@@ -188,7 +191,7 @@ final class TicketStatsAccumulator
             return $filtered;
         }
 
-        $approvedCount = $this->approvedCountForItem($order, $itemId);
+        $approvedCount = $this->approvedCountForItem($order, $item);
         if ($approvedCount > 0 && $tickets !== []) {
             return array_slice($tickets, 0, $approvedCount);
         }
@@ -228,16 +231,117 @@ final class TicketStatsAccumulator
         return array_values($unique);
     }
 
-    private function approvedCountForItem(WC_Order $order, int $itemId): int
+    private function approvedCountForItem(WC_Order $order, WC_Order_Item_Product $item): int
     {
-        $raw = $order->get_meta('_tapin_partial_approved_map', true);
-        if (!is_array($raw)) {
+        $itemId      = (int) $item->get_id();
+        $producerId  = $this->resolveProducerIdForItem($item);
+        $mapByProducer = $this->normalizeProducerPartialMap($order->get_meta('_tapin_partial_approved_map', true), $producerId);
+
+        if ($itemId <= 0) {
             return 0;
         }
 
-        foreach ($raw as $key => $value) {
-            if ((int) $key === $itemId) {
-                return max(0, (int) $value);
+        if ($producerId > 0 && isset($mapByProducer[$producerId][$itemId])) {
+            return max(0, (int) $mapByProducer[$producerId][$itemId]);
+        }
+
+        if (isset($mapByProducer[self::LEGACY_PRODUCER_ID][$itemId])) {
+            return max(0, (int) $mapByProducer[self::LEGACY_PRODUCER_ID][$itemId]);
+        }
+
+        foreach ($mapByProducer as $map) {
+            if (isset($map[$itemId])) {
+                return max(0, (int) $map[$itemId]);
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int,array<int,int>>
+     */
+    private function normalizeProducerPartialMap($raw, ?int $producerId = null): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $hasNested = false;
+        foreach ($raw as $value) {
+            if (is_array($value)) {
+                $hasNested = true;
+                break;
+            }
+        }
+
+        if ($hasNested) {
+            $result = [];
+            foreach ($raw as $producerKey => $map) {
+                $pid = (int) $producerKey;
+                if ($pid <= 0) {
+                    $pid = self::LEGACY_PRODUCER_ID;
+                }
+                if (!is_array($map)) {
+                    continue;
+                }
+                $clean = $this->sanitizePartialMap($map);
+                if ($clean !== []) {
+                    $result[$pid] = $clean;
+                }
+            }
+
+            return $result;
+        }
+
+        $legacy = $this->sanitizePartialMap($raw);
+        if ($legacy === []) {
+            return [];
+        }
+
+        $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
+
+        return [$target => $legacy];
+    }
+
+    /**
+     * @param array<int,int|string|float> $map
+     * @return array<int,int>
+     */
+    private function sanitizePartialMap(array $map): array
+    {
+        $clean = [];
+        foreach ($map as $itemId => $count) {
+            $itemKey  = (int) $itemId;
+            $intCount = (int) $count;
+            if ($itemKey <= 0 || $intCount <= 0) {
+                continue;
+            }
+            $clean[$itemKey] = $intCount;
+        }
+
+        return $clean;
+    }
+
+    private function resolveProducerIdForItem(WC_Order_Item_Product $item): int
+    {
+        $productId = $item->get_product_id();
+        if ($productId) {
+            $author = (int) get_post_field('post_author', $productId);
+            if ($author > 0) {
+                return $author;
+            }
+        }
+
+        $product = $item->get_product();
+        if ($product instanceof WC_Product) {
+            $parentId = $product->get_parent_id();
+            if ($parentId) {
+                $author = (int) get_post_field('post_author', $parentId);
+                if ($author > 0) {
+                    return $author;
+                }
             }
         }
 
