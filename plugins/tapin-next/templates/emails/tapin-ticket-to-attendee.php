@@ -42,7 +42,7 @@ if ($view_order_url === '') {
 }
 
 $full_name    = trim((string) ($ticket['full_name'] ?? ''));
-$display_name = $full_name !== '' ? $full_name : esc_html__('אורח Tapin', 'tapin');
+$display_name = $full_name !== '' ? $full_name : esc_html__('לקוח Tapin', 'tapin');
 
 $attendee_email = trim((string) ($ticket['email'] ?? ''));
 
@@ -71,7 +71,7 @@ if ($ticket_url === '' && $login_url !== '') {
 
 $additional_content = $email->get_additional_content();
 
-$button_label = esc_html__('צפייה בכרטיס באירוע', 'tapin');
+$button_label = esc_html__('מעבר לאזור האישי', 'tapin');
 $button_url   = $ticket_url !== '' ? $ticket_url : $login_url;
 
 $qr_image_alt = esc_attr__('קוד QR להצגת הכרטיס באירוע', 'tapin');
@@ -79,7 +79,7 @@ $qr_image_alt = esc_attr__('קוד QR להצגת הכרטיס באירוע', 'ta
 $preheader_text = '';
 ob_start();
 printf(
-    esc_html__('קישור/QR מאובטח ל-%s. הכרטיס מחכה לך בתיבה למטה.', 'tapin'),
+    esc_html__('ברוך/ה הבא/ה ל-%s. הכרטיס שלך לאירוע מצורף במייל זה.', 'tapin'),
     esc_html($site_name)
 );
 $preheader_text = trim((string) ob_get_clean());
@@ -88,7 +88,7 @@ $header_html = '';
 ob_start();
 ?>
 <td style="background: #151515; padding: 18px 22px; font-family: Arial,Helvetica,sans-serif; color: #ff0000; font-size: 20px; font-weight: 800;">
-    <?php esc_html_e('כרטיס כניסה של', 'tapin'); ?>
+    <?php esc_html_e('כרטיס לאירוע ב', 'tapin'); ?>
     <span style="color: #ff0000;"><?php echo esc_html($site_name); ?></span>
 </td>
 <?php
@@ -100,11 +100,11 @@ ob_start();
 <td style="padding: 26px 24px 8px 24px; font-family: Arial,Helvetica,sans-serif; color: #e6e6e6; font-size: 15px; line-height: 1.7; background: #121212;">
     <?php esc_html_e('היי', 'tapin'); ?>
     <strong><?php echo esc_html($display_name); ?></strong>.<br />
-    <?php esc_html_e('כרטיס הכניסה', 'tapin'); ?>
+    <?php esc_html_e('הכרטיס שלך לאירוע', 'tapin'); ?>
     <strong><?php echo esc_html($label); ?></strong>
-    <?php esc_html_e('ממתין לך למטה.', 'tapin'); ?><br />
-    <?php esc_html_e('תוכל/י להציג את הכרטיס באמצעות הקישור או QR המצורף.', 'tapin'); ?><br />
-    <?php esc_html_e('נשמח לראותך באירוע ובהמשך האירועים שלנו.', 'tapin'); ?>
+    <?php esc_html_e('מוכן ומצורף כאן למטה.', 'tapin'); ?><br />
+    <?php esc_html_e('בכניסה לאירוע הציגו את הברקוד המצורף לצוות האירוע.', 'tapin'); ?><br />
+    <?php esc_html_e('מומלץ לשמור את האימייל הזה עד לסיום האירוע.', 'tapin'); ?>
 </td>
 <?php
 $body_html = trim((string) ob_get_clean());
@@ -150,11 +150,11 @@ if ($attendee_email !== '' || $order_number !== '' || $event_name !== '' || $eve
                 <?php echo esc_html($event_location); ?><br />
             <?php endif; ?>
             <?php if ($attendee_email !== '') : ?>
-                <strong><?php esc_html_e('אימייל משתתף:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('אימייל:', 'tapin'); ?></strong>
                 <?php echo esc_html($attendee_email); ?><br />
             <?php endif; ?>
             <?php if ($order_number !== '') : ?>
-                <strong><?php esc_html_e('מספר הזמנה:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('מספר ההזמנה:', 'tapin'); ?></strong>
                 <?php echo esc_html('#' . $order_number); ?><br />
             <?php endif; ?>
             <?php if ($ticket_url !== '') : ?>
@@ -190,7 +190,7 @@ ob_start();
         <?php echo wp_kses_post(wpautop(wptexturize($additional_content))); ?>
         <br /><br />
     <?php endif; ?>
-    <?php esc_html_e('יש לך שאלה או בקשה? כתבו לנו ל-', 'tapin'); ?>
+    <?php esc_html_e('צריך עזרה? אפשר להשיב למייל זה או לכתוב לנו ב-', 'tapin'); ?>
     <a style="color: #ff0000; text-decoration: none;" href="mailto:support@tapin.co.il">support@tapin.co.il</a>.
 </td>
 <?php
@@ -201,14 +201,14 @@ ob_start();
 ?>
 <?php
 printf(
-    esc_html__('תודה על שבחרת להזמין דרך Tapin לאירוע %s.', 'tapin'),
+    esc_html__('הודעה זו נשלחה אוטומטית בעקבות אישור ההזמנה באתר %s.', 'tapin'),
     esc_html($site_name)
 );
 ?>
 <br />
-<?php esc_html_e('צוות Tapin מאחל לך הנאה ובילוי נעים.', 'tapin'); ?>
+<?php esc_html_e('הצוות של Tapin מאחל לך בילוי נעים.', 'tapin'); ?>
 <br />
-<?php esc_html_e('לפרטים נוספים:', 'tapin'); ?>
+<?php esc_html_e('לאתר שלנו:', 'tapin'); ?>
 <a style="color: #ff0000; text-decoration: none;" href="<?php echo esc_url($site_url); ?>"><?php echo esc_html($site_url); ?></a>
 <?php
 $footer_html = trim((string) ob_get_clean());
