@@ -421,6 +421,10 @@ CSS;
   box-shadow: 0 0 0 2px rgba(14,165,233,.12) inset;
 }
 
+.tapin-pw-card--default {
+  box-shadow: 0 0 0 2px rgba(148,163,184,.12) inset;
+}
+
 .tapin-pw-card--past {
   opacity: .7;
 }

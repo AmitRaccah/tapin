@@ -26,9 +26,6 @@ final class SaleWindowsCards implements Service
         $pid         = $product->get_id();
         $ticketTypes = TicketTypesRepository::get($pid);
         $windows     = SaleWindowsRepository::get($pid, $ticketTypes);
-        if ($windows === []) {
-            return;
-        }
 
         $typeIndex = [];
         foreach ($ticketTypes as $type) {
@@ -117,6 +114,51 @@ final class SaleWindowsCards implements Service
             }
             echo '</div>';
         }
+
+        $baseTicketsHtml = '';
+        $baseLowest      = null;
+
+        foreach ($typeIndex as $info) {
+            $rawBase   = isset($info['base_price']) ? (float) $info['base_price'] : 0.0;
+            $finalBase = TicketFee::applyToPrice($rawBase, $pid);
+            $feeAmount = TicketFee::getFeeAmount($rawBase, $pid);
+
+            if ($finalBase > 0 && ($baseLowest === null || $finalBase < $baseLowest)) {
+                $baseLowest = $finalBase;
+            }
+
+            $priceHtml = $finalBase > 0 ? wc_price($finalBase) : '&mdash;';
+            $feeHtml   = '';
+            if ($feeAmount > 0) {
+                $feeHtml = '<span class="tapin-pw-card__ticket-fee">'
+                        . esc_html__('עמלת כרטיס:', 'tapin') . ' '
+                        . wc_price($feeAmount)
+                        . '</span>';
+            }
+
+            $baseTicketsHtml .= '<div class="tapin-pw-card__ticket">'
+                . '<span class="tapin-pw-card__ticket-name">' . esc_html($info['name']) . '</span>'
+                . '<span class="tapin-pw-card__ticket-price">' . $priceHtml . '</span>'
+                . $feeHtml
+                . '</div>';
+        }
+
+        if ($baseLowest === null) {
+            $baseLowest = 0.0;
+        }
+
+        echo '<div class="tapin-pw-card tapin-pw-card--default">';
+        echo '<div class="tapin-pw-card__row">'
+            . '<span class="tapin-pw-card__price">' . ($baseLowest > 0 ? wc_price($baseLowest) : '&mdash;') . '</span>'
+            . '<span class="tapin-pw-card__badge">' . esc_html__('מחיר רגיל', 'tapin') . '</span>'
+            . '</div>';
+        echo '<div class="tapin-pw-card__dates">'
+            . '<span>' . esc_html__('בתוקף כאשר אין חלון הנחה פעיל', 'tapin') . '</span>'
+            . '</div>';
+        if ($baseTicketsHtml !== '') {
+            echo '<div class="tapin-pw-card__tickets">' . $baseTicketsHtml . '</div>';
+        }
+        echo '</div>';
 
         echo '</div><div class="tapin-pw__hint">' . esc_html__('מחירי הכרטיסים מתעדכנים אוטומטית לפי החלון הפעיל. בחרו את סוג הכרטיס והמועד שנוחים לכם.', 'tapin') . '</div></div>';
     }
