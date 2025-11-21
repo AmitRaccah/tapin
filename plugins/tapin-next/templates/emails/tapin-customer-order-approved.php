@@ -157,11 +157,11 @@ if ($event_name !== '' || $event_date !== '' || $event_location !== '') {
                 <?php echo esc_html($event_name); ?><br />
             <?php endif; ?>
             <?php if ($event_date !== '') : ?>
-                <strong><?php esc_html_e('?�?�?� �-�?:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('תאריך ושעה:', 'tapin'); ?></strong>
                 <?php echo esc_html($event_date); ?><br />
             <?php endif; ?>
             <?php if ($event_location !== '') : ?>
-                <strong><?php esc_html_e('?�???x:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('מיקום:', 'tapin'); ?></strong>
                 <?php echo esc_html($event_location); ?><br />
             <?php endif; ?>
         </td>

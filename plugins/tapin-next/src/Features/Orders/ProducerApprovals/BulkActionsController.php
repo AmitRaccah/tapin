@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 declare(strict_types=1);
 
 namespace Tapin\Events\Features\Orders\ProducerApprovals;
@@ -73,7 +73,7 @@ final class BulkActionsController
                 $notice = sprintf(
                     '<div class="woocommerce-message" style="direction:rtl;text-align:right">%s</div>',
                     sprintf(
-                        esc_html__('????c?"? %1$d ?"?-?????x, ?�?>?c??? %2$d.', 'tapin'),
+                        esc_html__('אושרו %1$d הזמנות, נכשלו %2$d.', 'tapin'),
                         $approved,
                         $failed
                     )
