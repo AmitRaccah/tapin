@@ -54,29 +54,28 @@ $event_city    = trim((string) ($event_context['event_city'] ?? ''));
 $event_location = trim($event_address . ($event_city !== '' ? ' ' . $event_city : ''));
 
 $lines   = [];
-$lines[] = sprintf(esc_html__( 'הזמנה #%1$s באתר %2$s אושרה בהצלחה.', 'tapin' ), $order_number, $site_name);
+$lines[] = sprintf(esc_html__('Order #%1$s from %2$s has been approved.', 'tapin'), $order_number, $site_name);
 if ($customer_name !== '') {
-    $lines[] = sprintf(esc_html__( 'שם הלקוח/ה: %s', 'tapin' ), $customer_name);
+    $lines[] = sprintf(esc_html__('Customer: %s', 'tapin'), $customer_name);
 }
 if ($items_count > 0) {
-    $lines[] = sprintf(esc_html__( 'כמות פריטים בהזמנה: %d', 'tapin' ), $items_count);
+    $lines[] = sprintf(esc_html__('Items: %d', 'tapin'), $items_count);
 }
 if ($total !== '') {
-    $lines[] = sprintf(esc_html__( 'סכום חיוב כולל: %s', 'tapin' ), $total);
+    $lines[] = sprintf(esc_html__('Order total: %s', 'tapin'), $total);
 }
 $eventHasData = $event_name !== '' || $event_date !== '' || $event_location !== '';
-// TODO: replace English labels with Hebrew equivalents
 if ($eventHasData) {
     if ($event_name !== '') {
-        $lines[] = 'Event: ' . $event_name;
+        $lines[] = sprintf(esc_html__('Event: %s', 'tapin'), $event_name);
     }
     if ($event_date !== '') {
-        $lines[] = 'Date and time: ' . $event_date;
+        $lines[] = sprintf(esc_html__('Date and time: %s', 'tapin'), $event_date);
     }
     if ($event_location !== '') {
-        $lines[] = 'Location: ' . $event_location;
+        $lines[] = sprintf(esc_html__('Location: %s', 'tapin'), $event_location);
     }
 }
-$lines[] = sprintf(esc_html__( 'לצפייה בהזמנה: %s', 'tapin' ), $dashboard_url);
+$lines[] = sprintf(esc_html__('Manage this order: %s', 'tapin'), $dashboard_url);
 
 echo implode("\n", array_filter($lines));

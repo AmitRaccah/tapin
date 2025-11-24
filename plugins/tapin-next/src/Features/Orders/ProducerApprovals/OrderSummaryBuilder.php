@@ -77,8 +77,9 @@ final class OrderSummaryBuilder
         $eventMap          = [];
         $allAttendeesList  = [];
         $primaryAttendee   = null;
-        $approvedPointers  = $this->normalizeApprovedPointers(
-            (array) $order->get_meta('_tapin_producer_approved_attendees', true)
+        $approvedPointers  = $this->normalizeProducerApprovedPointers(
+            (array) $order->get_meta('_tapin_producer_approved_attendees', true),
+            $producerId
         );
         $producerApprovedMap = [];
 
@@ -227,7 +228,7 @@ final class OrderSummaryBuilder
             'status'              => $status,
             'status_label'        => $statusLabel,
             'sale_type'           => $saleType,
-            'is_approved'         => (bool) $order->get_meta('_tapin_producer_approved'),
+            'is_approved'         => \Tapin\Events\Features\Orders\AwaitingProducerGate::allProducersApproved($order),
             'events'              => array_values($eventMap),
             'approved_attendee_map' => $producerApprovedMap,
         ];
@@ -372,6 +373,56 @@ final class OrderSummaryBuilder
     private function isAttendeeApproved(array $map, int $itemId, int $attendeeIndex): bool
     {
         return isset($map[$itemId]) && in_array($attendeeIndex, (array) $map[$itemId], true);
+    }
+
+    /**
+     * @param array<string|int,mixed> $raw
+     * @return array<int,array<int,int>>
+     */
+    private function normalizeProducerApprovedPointers(array $raw, int $producerId): array
+    {
+        $hasNested = false;
+        foreach ($raw as $value) {
+            if (is_array($value)) {
+                foreach ($value as $nested) {
+                    if (is_array($nested)) {
+                        $hasNested = true;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        if ($hasNested) {
+            $result = [];
+            foreach ($raw as $producerKey => $map) {
+                $pid = (int) $producerKey;
+                if ($pid <= 0) {
+                    $pid = self::LEGACY_PRODUCER_ID;
+                }
+
+                if (!is_array($map)) {
+                    continue;
+                }
+
+                $clean = $this->normalizeApprovedPointers($map);
+                if ($clean !== []) {
+                    $result[$pid] = $clean;
+                }
+            }
+
+            if ($producerId > 0 && isset($result[$producerId])) {
+                return $result[$producerId];
+            }
+
+            if (isset($result[self::LEGACY_PRODUCER_ID])) {
+                return $result[self::LEGACY_PRODUCER_ID];
+            }
+
+            return [];
+        }
+
+        return $this->normalizeApprovedPointers($raw);
     }
 
     /**

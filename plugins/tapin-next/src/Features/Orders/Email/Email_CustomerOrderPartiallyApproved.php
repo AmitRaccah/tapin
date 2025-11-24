@@ -8,6 +8,8 @@ use WC_Order;
 
 final class Email_CustomerOrderPartiallyApproved extends WC_Email
 {
+    private const LEGACY_PRODUCER_ID = 0;
+
     private int $producerId = 0;
 
     public function __construct()
@@ -68,7 +70,11 @@ final class Email_CustomerOrderPartiallyApproved extends WC_Email
             return;
         }
 
-        if ((int) $order->get_meta('_tapin_partial_approval_email_sent', true)) {
+        $sentMap   = $this->normalizeSentMap($order->get_meta('_tapin_partial_approval_email_sent', true));
+        $snapshot  = $this->resolvePartialSnapshot($order, $producerId);
+        $sentValue = $this->resolveSentValue($sentMap, $producerId);
+
+        if ($snapshot !== '' && $sentValue === $snapshot) {
             return;
         }
 
@@ -104,7 +110,11 @@ final class Email_CustomerOrderPartiallyApproved extends WC_Email
             $this->get_attachments()
         );
 
-        $order->update_meta_data('_tapin_partial_approval_email_sent', 1);
+        $sentMap[$producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID] = $snapshot !== ''
+            ? $snapshot
+            : (string) time();
+
+        $order->update_meta_data('_tapin_partial_approval_email_sent', $sentMap);
         $order->save();
 
         $this->restore_locale();
@@ -122,7 +132,7 @@ final class Email_CustomerOrderPartiallyApproved extends WC_Email
                 'email'         => $this,
                 'producer_id'   => $this->producerId,
                 'event_context' => $this->object instanceof WC_Order
-                    ? EmailEventContext::fromOrder($this->object)
+                    ? EmailEventContext::fromOrder($this->object, [], $this->producerId)
                     : [],
             ],
             '',
@@ -144,7 +154,7 @@ final class Email_CustomerOrderPartiallyApproved extends WC_Email
                 'email'         => $this,
                 'producer_id'   => $this->producerId,
                 'event_context' => $this->object instanceof WC_Order
-                    ? EmailEventContext::fromOrder($this->object)
+                    ? EmailEventContext::fromOrder($this->object, [], $this->producerId)
                     : [],
             ],
             '',
@@ -170,5 +180,168 @@ final class Email_CustomerOrderPartiallyApproved extends WC_Email
         }
 
         return '';
+    }
+
+    private function resolvePartialSnapshot(WC_Order $order, int $producerId): string
+    {
+        $partialMap    = $this->normalizeProducerPartialMap($order->get_meta('_tapin_partial_approved_map', true), $producerId);
+        $partialTotals = $this->normalizeProducerTotals($order->get_meta('_tapin_partial_approved_total', true), $producerId);
+
+        $map = $partialMap[$producerId] ?? $partialMap[self::LEGACY_PRODUCER_ID] ?? [];
+        $total = $partialTotals[$producerId] ?? $partialTotals[self::LEGACY_PRODUCER_ID] ?? 0.0;
+
+        $payload = [
+            'map'   => $map,
+            'total' => round($total, 2),
+        ];
+
+        $encoded = wp_json_encode($payload);
+
+        return is_string($encoded) && $encoded !== '' ? md5($encoded) : '';
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int,array<int,int>>
+     */
+    private function normalizeProducerPartialMap($raw, ?int $producerId = null): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $hasNested = false;
+        foreach ($raw as $value) {
+            if (is_array($value)) {
+                $hasNested = true;
+                break;
+            }
+        }
+
+        if ($hasNested) {
+            $result = [];
+            foreach ($raw as $producerKey => $map) {
+                $pid = (int) $producerKey;
+                if ($pid <= 0) {
+                    $pid = self::LEGACY_PRODUCER_ID;
+                }
+                if (!is_array($map)) {
+                    continue;
+                }
+                $clean = [];
+                foreach ($map as $itemId => $count) {
+                    $itemKey  = (int) $itemId;
+                    $intCount = (int) $count;
+                    if ($itemKey <= 0 || $intCount <= 0) {
+                        continue;
+                    }
+                    $clean[$itemKey] = $intCount;
+                }
+                if ($clean !== []) {
+                    $result[$pid] = $clean;
+                }
+            }
+
+            return $result;
+        }
+
+        $clean = [];
+        foreach ($raw as $itemId => $count) {
+            $itemKey  = (int) $itemId;
+            $intCount = (int) $count;
+            if ($itemKey <= 0 || $intCount <= 0) {
+                continue;
+            }
+            $clean[$itemKey] = $intCount;
+        }
+
+        if ($clean === []) {
+            return [];
+        }
+
+        $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
+
+        return [$target => $clean];
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int,float>
+     */
+    private function normalizeProducerTotals($raw, ?int $producerId = null): array
+    {
+        $result = [];
+        if (is_array($raw)) {
+            foreach ($raw as $producerKey => $value) {
+                $pid = (int) $producerKey;
+                if ($pid <= 0) {
+                    $pid = self::LEGACY_PRODUCER_ID;
+                }
+                if (is_array($value)) {
+                    continue;
+                }
+                $floatVal = max(0.0, (float) $value);
+                if ($floatVal > 0.0) {
+                    $result[$pid] = $floatVal;
+                }
+            }
+        }
+
+        if ($result !== []) {
+            return $result;
+        }
+
+        if (is_numeric($raw)) {
+            $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
+            $val    = max(0.0, (float) $raw);
+            if ($val > 0.0) {
+                $result[$target] = $val;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int,string>
+     */
+    private function normalizeSentMap($raw): array
+    {
+        if (!is_array($raw)) {
+            $flag = (int) $raw;
+            return $flag > 0 ? [self::LEGACY_PRODUCER_ID => '1'] : [];
+        }
+
+        $clean = [];
+        foreach ($raw as $producerKey => $hash) {
+            $pid = (int) $producerKey;
+            if ($pid <= 0) {
+                $pid = self::LEGACY_PRODUCER_ID;
+            }
+            $val = is_string($hash) ? trim($hash) : (is_numeric($hash) ? (string) $hash : '');
+            if ($val === '') {
+                continue;
+            }
+            $clean[$pid] = $val;
+        }
+
+        return $clean;
+    }
+
+    /**
+     * @param array<int,string> $sentMap
+     */
+    private function resolveSentValue(array $sentMap, int $producerId): ?string
+    {
+        if ($producerId > 0 && isset($sentMap[$producerId])) {
+            return $sentMap[$producerId];
+        }
+
+        if (isset($sentMap[self::LEGACY_PRODUCER_ID])) {
+            return $sentMap[self::LEGACY_PRODUCER_ID];
+        }
+
+        return null;
     }
 }

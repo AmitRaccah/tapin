@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace Tapin\Events\Features\Orders\Email;
 
+use Tapin\Events\Features\Orders\AwaitingProducerGate;
+use Tapin\Events\Features\Orders\AwaitingProducerStatus;
+use Tapin\Events\Features\Orders\PartiallyApprovedStatus;
 use WC_Email;
 use WC_Order;
 
@@ -72,6 +75,15 @@ final class Email_CustomerOrderApproved extends WC_Email
             return;
         }
 
+        if (!AwaitingProducerGate::allProducersApproved($order)) {
+            return;
+        }
+
+        $status = $order->get_status();
+        if (in_array($status, [AwaitingProducerStatus::STATUS_SLUG, PartiallyApprovedStatus::STATUS_SLUG], true)) {
+            return;
+        }
+
         $this->setup_locale();
 
         $this->object     = $order;
@@ -122,7 +134,7 @@ final class Email_CustomerOrderApproved extends WC_Email
                 'email'         => $this,
                 'producer_id'   => $this->producerId,
                 'event_context' => $this->object instanceof WC_Order
-                    ? EmailEventContext::fromOrder($this->object)
+                    ? EmailEventContext::fromOrder($this->object, [], $this->producerId)
                     : [],
             ],
             '',
@@ -144,7 +156,7 @@ final class Email_CustomerOrderApproved extends WC_Email
                 'email'         => $this,
                 'producer_id'   => $this->producerId,
                 'event_context' => $this->object instanceof WC_Order
-                    ? EmailEventContext::fromOrder($this->object)
+                    ? EmailEventContext::fromOrder($this->object, [], $this->producerId)
                     : [],
             ],
             '',

@@ -179,8 +179,7 @@ final class TicketStatsAccumulator
             return $tickets;
         }
 
-        $itemId = (int) $item->get_id();
-        $indices = $this->approvedIndicesForItem($order, $itemId);
+        $indices = $this->approvedIndicesForItem($order, $item);
         if ($indices !== []) {
             $filtered = [];
             foreach ($indices as $index) {
@@ -202,21 +201,26 @@ final class TicketStatsAccumulator
     /**
      * @return array<int,int>
      */
-    private function approvedIndicesForItem(WC_Order $order, int $itemId): array
+    private function approvedIndicesForItem(WC_Order $order, WC_Order_Item_Product $item): array
     {
-        $raw = $order->get_meta('_tapin_producer_approved_attendees', true);
-        if (!is_array($raw)) {
-            return [];
-        }
+        $producerId = $this->resolveProducerIdForItem($item);
+        $itemId     = (int) $item->get_id();
+        $byProducer = $this->normalizeApprovedMetaByProducer($order->get_meta('_tapin_producer_approved_attendees', true), $producerId);
 
-        $indices = null;
-        foreach ($raw as $key => $value) {
-            if ((int) $key === $itemId) {
-                $indices = is_array($value) ? $value : null;
-                break;
+        $map = [];
+        if ($producerId > 0 && isset($byProducer[$producerId])) {
+            $map = $byProducer[$producerId];
+        } elseif (isset($byProducer[self::LEGACY_PRODUCER_ID])) {
+            $map = $byProducer[self::LEGACY_PRODUCER_ID];
+        } elseif ($byProducer !== []) {
+            $first = reset($byProducer);
+            if (is_array($first)) {
+                $map = $first;
             }
         }
-        if (!is_array($indices)) {
+
+        $indices = isset($map[$itemId]) ? (array) $map[$itemId] : [];
+        if ($indices === []) {
             return [];
         }
 
@@ -229,6 +233,78 @@ final class TicketStatsAccumulator
         }
 
         return array_values($unique);
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int,array<int,array<int,int>>>
+     */
+    private function normalizeApprovedMetaByProducer($raw, ?int $producerId = null): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $hasNested = false;
+        foreach ($raw as $value) {
+            if (is_array($value)) {
+                foreach ($value as $nested) {
+                    if (is_array($nested)) {
+                        $hasNested = true;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        if ($hasNested) {
+            $result = [];
+            foreach ($raw as $producerKey => $map) {
+                $pid = (int) $producerKey;
+                if ($pid <= 0) {
+                    $pid = self::LEGACY_PRODUCER_ID;
+                }
+                if (!is_array($map)) {
+                    continue;
+                }
+                $clean = [];
+                foreach ($map as $itemId => $indices) {
+                    $itemKey = (int) $itemId;
+                    if ($itemKey <= 0 || !is_array($indices)) {
+                        continue;
+                    }
+                    $filtered = $this->filterIndices($indices);
+                    if ($filtered !== []) {
+                        $clean[$itemKey] = $filtered;
+                    }
+                }
+                if ($clean !== []) {
+                    $result[$pid] = $clean;
+                }
+            }
+
+            return $result;
+        }
+
+        $clean = [];
+        foreach ($raw as $itemId => $indices) {
+            $itemKey = (int) $itemId;
+            if ($itemKey <= 0 || !is_array($indices)) {
+                continue;
+            }
+            $filtered = $this->filterIndices($indices);
+            if ($filtered !== []) {
+                $clean[$itemKey] = $filtered;
+            }
+        }
+
+        if ($clean === []) {
+            return [];
+        }
+
+        $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
+
+        return [$target => $clean];
     }
 
     private function approvedCountForItem(WC_Order $order, WC_Order_Item_Product $item): int
@@ -346,5 +422,26 @@ final class TicketStatsAccumulator
         }
 
         return 0;
+    }
+
+    /**
+     * @param array<int|string,mixed> $indices
+     * @return array<int,int>
+     */
+    private function filterIndices(array $indices): array
+    {
+        $clean = [];
+        foreach ($indices as $value) {
+            $int = (int) $value;
+            if ($int < 0) {
+                continue;
+            }
+            $clean[] = $int;
+        }
+
+        $clean = array_values(array_unique($clean));
+        sort($clean);
+
+        return $clean;
     }
 }

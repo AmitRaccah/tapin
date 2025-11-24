@@ -208,6 +208,8 @@ final class BulkActionsController
                 continue;
             }
 
+            $stateSnapshot = $this->snapshotProducerState($order);
+
             if (!$this->syncTicketSales($order, $desiredCounts, $this->productIdsFromItems($producerItems))) {
                 $failed++;
                 continue;
@@ -225,7 +227,15 @@ final class BulkActionsController
             $this->saveProducerFloatMap($order, '_tapin_partial_approved_total', $existingTotals);
             $order->save();
 
-            AwaitingProducerGate::captureAndApprove($order, $producerId, $partialData['total']);
+            $captured = AwaitingProducerGate::captureAndApprove($order, $producerId, $partialData['total']);
+            if (!$captured) {
+                $this->restoreProducerState($order, $stateSnapshot);
+                $order->add_order_note(__('Tapin: final capture failed. Approval was rolled back and capacity released for this producer.', 'tapin'));
+                $order->save();
+                $failed++;
+                continue;
+            }
+
             $approved++;
         }
 
@@ -292,9 +302,13 @@ final class BulkActionsController
             return false;
         }
 
-        $approvedMeta = $this->normalizeApprovedMeta(
-            (array) $order->get_meta('_tapin_producer_approved_attendees', true)
+        $approvedMetaByProducer = $this->normalizeApprovedMetaByProducer(
+            (array) $order->get_meta('_tapin_producer_approved_attendees', true),
+            $producerId
         );
+        $approvedMeta = $approvedMetaByProducer[$producerId]
+            ?? $approvedMetaByProducer[self::LEGACY_PRODUCER_ID]
+            ?? [];
 
         $selectionMeta = $this->buildSelectionMeta($producerItems, $itemSelections, $approvedMeta);
         if ($selectionMeta['touched'] === false) {
@@ -306,6 +320,8 @@ final class BulkActionsController
         $desiredCounts     = $capacityResult['counts'];
 
         $partialData = $this->computePartialData($order, $producerItems, $finalApprovedMeta);
+
+        $stateSnapshot = $this->snapshotProducerState($order);
 
         if (!$this->syncTicketSales($order, $desiredCounts, $this->productIdsFromItems($producerItems))) {
             $order->save();
@@ -330,10 +346,14 @@ final class BulkActionsController
             );
             $order->save();
 
-            $this->capturePartialIfSupported($order, $producerId, $partialData['total']);
+            $capturedPartial = $this->capturePartialIfSupported($order, $producerId, $partialData['total']);
 
-            do_action('tapin/events/order/producer_partial_approval', $order, $producerId);
-            do_action('tapin/events/order/producer_attendees_approved', $order, $producerId);
+            if ($capturedPartial) {
+                do_action('tapin/events/order/producer_partial_approval', $order, $producerId);
+                do_action('tapin/events/order/producer_attendees_approved', $order, $producerId);
+            } else {
+                $order->add_order_note(__('Tapin: partial capture did not complete. Emails and tickets were not sent for this batch.', 'tapin'));
+            }
 
             $order->save();
 
@@ -349,7 +369,13 @@ final class BulkActionsController
         $this->saveProducerFloatMap($order, '_tapin_partial_approved_total', $existingTotals);
         $order->save();
 
-        AwaitingProducerGate::captureAndApprove($order, $producerId, $partialData['total']);
+        $captured = AwaitingProducerGate::captureAndApprove($order, $producerId, $partialData['total']);
+        if (!$captured) {
+            $this->restoreProducerState($order, $stateSnapshot);
+            $order->add_order_note(__('Tapin: final capture failed. Approval was rolled back and capacity released for this producer.', 'tapin'));
+            $order->save();
+            return false;
+        }
 
         return true;
     }
@@ -692,20 +718,20 @@ final class BulkActionsController
         ];
     }
 
-    private function capturePartialIfSupported(WC_Order $order, int $producerId, float $approvedTotal): void
+    private function capturePartialIfSupported(WC_Order $order, int $producerId, float $approvedTotal): bool
     {
         $target = max(0.0, $approvedTotal);
         $alreadyCaptured = $this->resolveProducerCapturedTotal($order, $producerId);
         $toCapture       = $target - $alreadyCaptured;
 
         if ($toCapture <= 0.0) {
-            return;
+            return true;
         }
 
         $gateway = PaymentGatewayHelper::getGateway($order);
         if (!PaymentGatewayHelper::supportsPartialCapture($gateway)) {
             $order->add_order_note(__('Gateway does not support partial capture; collect the approved amount manually.', 'tapin'));
-            return;
+            return false;
         }
 
         $captured = PaymentGatewayHelper::capture($order, $toCapture);
@@ -713,9 +739,13 @@ final class BulkActionsController
             $allCaptured = $this->normalizeProducerFloatMap($order->get_meta('_tapin_partial_captured_total', true), $producerId);
             $allCaptured[$producerId] = ($allCaptured[$producerId] ?? 0.0) + $toCapture;
             $this->saveProducerFloatMap($order, '_tapin_partial_captured_total', $allCaptured);
-        } else {
-            $order->add_order_note(__('Partial capture failed. Please capture the approved amount manually.', 'tapin'));
+
+            return true;
         }
+
+        $order->add_order_note(__('Partial capture failed. Please capture the approved amount manually.', 'tapin'));
+
+        return false;
     }
 
     /**
@@ -906,6 +936,85 @@ final class BulkActionsController
     }
 
     /**
+     * @return array<string,mixed>
+     */
+    private function snapshotProducerState(WC_Order $order): array
+    {
+        return [
+            'sales_map'      => $this->getRecordedSalesMap($order),
+            'approved_meta'  => $order->get_meta('_tapin_producer_approved_attendees', true),
+            'partial_map'    => $order->get_meta('_tapin_partial_approved_map', true),
+            'partial_totals' => $order->get_meta('_tapin_partial_approved_total', true),
+        ];
+    }
+
+    private function restoreProducerState(WC_Order $order, array $snapshot): void
+    {
+        $targetSales  = isset($snapshot['sales_map']) && is_array($snapshot['sales_map']) ? $snapshot['sales_map'] : [];
+        $currentSales = $this->getRecordedSalesMap($order);
+        $deltaMap     = $this->buildSalesDelta($targetSales, $currentSales);
+
+        foreach ($deltaMap as $productId => $types) {
+            TicketSalesCounter::adjust($productId, $types);
+        }
+
+        $this->storeRecordedSales($order, $targetSales);
+
+        $this->restoreMetaValue($order, '_tapin_producer_approved_attendees', $snapshot['approved_meta'] ?? null);
+        $this->restoreMetaValue($order, '_tapin_partial_approved_map', $snapshot['partial_map'] ?? null);
+        $this->restoreMetaValue($order, '_tapin_partial_approved_total', $snapshot['partial_totals'] ?? null);
+    }
+
+    /**
+     * @param array<int,array<string,int>> $target
+     * @param array<int,array<string,int>> $current
+     * @return array<int,array<string,int>>
+     */
+    private function buildSalesDelta(array $target, array $current): array
+    {
+        $delta       = [];
+        $allProducts = array_unique(array_merge(array_keys($target), array_keys($current)));
+
+        foreach ($allProducts as $productId) {
+            $pid = (int) $productId;
+            if ($pid <= 0) {
+                continue;
+            }
+
+            $targetTypes  = $target[$pid] ?? [];
+            $currentTypes = $current[$pid] ?? [];
+            $allTypes     = array_unique(array_merge(array_keys($targetTypes), array_keys($currentTypes)));
+
+            foreach ($allTypes as $typeId) {
+                $tid = is_string($typeId) || is_numeric($typeId) ? (string) $typeId : '';
+                if ($tid === '') {
+                    continue;
+                }
+
+                $targetVal  = max(0, (int) ($targetTypes[$tid] ?? 0));
+                $currentVal = max(0, (int) ($currentTypes[$tid] ?? 0));
+                $diff       = $targetVal - $currentVal;
+
+                if ($diff !== 0) {
+                    $delta[$pid][$tid] = $diff;
+                }
+            }
+        }
+
+        return $delta;
+    }
+
+    private function restoreMetaValue(WC_Order $order, string $key, $value): void
+    {
+        if ($value === null || $value === [] || $value === '') {
+            $order->delete_meta_data($key);
+            return;
+        }
+
+        $order->update_meta_data($key, $value);
+    }
+
+    /**
      * @param array<int,WC_Order_Item_Product> $items
      * @return array<int,int>
      */
@@ -935,10 +1044,23 @@ final class BulkActionsController
      */
     private function persistApprovalMeta(WC_Order $order, array $approvedMeta, array $partialMap, float $partialTotal, int $producerId): void
     {
-        if ($approvedMeta === []) {
+        $targetProducer = $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
+        $approvedByProducer = $this->normalizeApprovedMetaByProducer(
+            (array) $order->get_meta('_tapin_producer_approved_attendees', true),
+            $targetProducer
+        );
+        $cleanApproved = $this->normalizeApprovedMeta($approvedMeta);
+
+        if ($cleanApproved === []) {
+            unset($approvedByProducer[$targetProducer]);
+        } else {
+            $approvedByProducer[$targetProducer] = $cleanApproved;
+        }
+
+        if ($approvedByProducer === []) {
             $order->delete_meta_data('_tapin_producer_approved_attendees');
         } else {
-            $order->update_meta_data('_tapin_producer_approved_attendees', $approvedMeta);
+            $order->update_meta_data('_tapin_producer_approved_attendees', $approvedByProducer);
         }
 
         $partialByProducer = $this->normalizeProducerPartialMap($order->get_meta('_tapin_partial_approved_map', true), $producerId);
@@ -981,6 +1103,57 @@ final class BulkActionsController
         }
 
         return $clean;
+    }
+
+    /**
+     * @param mixed $raw
+     * @return array<int,array<int,int>>
+     */
+    private function normalizeApprovedMetaByProducer($raw, ?int $producerId = null): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $hasNested = false;
+        foreach ($raw as $value) {
+            if (is_array($value)) {
+                foreach ($value as $nested) {
+                    if (is_array($nested)) {
+                        $hasNested = true;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        if ($hasNested) {
+            $result = [];
+            foreach ($raw as $producerKey => $map) {
+                $pid = (int) $producerKey;
+                if ($pid <= 0) {
+                    $pid = self::LEGACY_PRODUCER_ID;
+                }
+                if (!is_array($map)) {
+                    continue;
+                }
+                $clean = $this->normalizeApprovedMeta($map);
+                if ($clean !== []) {
+                    $result[$pid] = $clean;
+                }
+            }
+
+            return $result;
+        }
+
+        $clean = $this->normalizeApprovedMeta($raw);
+        if ($clean === []) {
+            return [];
+        }
+
+        $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
+
+        return [$target => $clean];
     }
 
     /**
@@ -1139,10 +1312,6 @@ final class BulkActionsController
 
         if (isset($totals[self::LEGACY_PRODUCER_ID])) {
             return $totals[self::LEGACY_PRODUCER_ID];
-        }
-
-        if ($totals !== []) {
-            return array_sum($totals);
         }
 
         return 0.0;

@@ -4,6 +4,7 @@ namespace Tapin\Events\Features\Orders\Email;
 
 use WC_Email;
 use WC_Order;
+use Tapin\Events\Features\Orders\TicketEmails\TicketUrlBuilder;
 
 final class Email_ProducerTicketCheckin extends WC_Email
 {
@@ -11,6 +12,9 @@ final class Email_ProducerTicketCheckin extends WC_Email
      * @var array<string,mixed>
      */
     private array $ticket = [];
+    private TicketUrlBuilder $ticketUrlBuilder;
+    private string $ticketUrl = '';
+    private string $qrImageUrl = '';
 
     public function __construct()
     {
@@ -24,6 +28,8 @@ final class Email_ProducerTicketCheckin extends WC_Email
         $this->template_html  = 'emails/tapin-producer-ticket-checkin.php';
         $this->template_plain = 'emails/plain/tapin-producer-ticket-checkin.php';
         $this->template_base  = trailingslashit(TAPIN_NEXT_PATH) . 'templates/';
+
+        $this->ticketUrlBuilder = new TicketUrlBuilder();
 
         parent::__construct();
 
@@ -41,6 +47,11 @@ final class Email_ProducerTicketCheckin extends WC_Email
         }
 
         $this->ticket = $ticket;
+        $this->ticketUrl = $this->ticketUrlBuilder->build($this->ticket);
+        $this->qrImageUrl = $this->generateQrImage(
+            isset($this->ticket['token']) ? (string) $this->ticket['token'] : '',
+            $this->ticketUrl
+        );
 
         $this->setup_locale();
 
@@ -76,6 +87,15 @@ final class Email_ProducerTicketCheckin extends WC_Email
                 'email_heading' => $this->get_heading(),
                 'email'         => $this,
                 'ticket'        => $this->ticket,
+                'event_context' => $this->object instanceof WC_Order
+                    ? EmailEventContext::fromOrder(
+                        $this->object,
+                        $this->ticket,
+                        isset($this->ticket['producer_id']) ? (int) $this->ticket['producer_id'] : null
+                    )
+                    : [],
+                'ticket_url'    => $this->ticketUrl,
+                'qr_image_url'  => $this->qrImageUrl,
             ],
             '',
             $this->template_base
@@ -95,6 +115,15 @@ final class Email_ProducerTicketCheckin extends WC_Email
                 'email_heading' => $this->get_heading(),
                 'email'         => $this,
                 'ticket'        => $this->ticket,
+                'event_context' => $this->object instanceof WC_Order
+                    ? EmailEventContext::fromOrder(
+                        $this->object,
+                        $this->ticket,
+                        isset($this->ticket['producer_id']) ? (int) $this->ticket['producer_id'] : null
+                    )
+                    : [],
+                'ticket_url'    => $this->ticketUrl,
+                'qr_image_url'  => $this->qrImageUrl,
             ],
             '',
             $this->template_base
@@ -116,5 +145,60 @@ final class Email_ProducerTicketCheckin extends WC_Email
 
         return (string) $producer->user_email;
     }
-}
 
+    private function generateQrImage(string $token, string $ticketUrl): string
+    {
+        $token = strtolower(trim($token));
+        if ($token === '' || $ticketUrl === '' || !$this->ensureQrLibrary()) {
+            return '';
+        }
+
+        $uploads = wp_upload_dir();
+        if (!empty($uploads['error']) || empty($uploads['basedir']) || empty($uploads['baseurl'])) {
+            return '';
+        }
+
+        $dir = trailingslashit($uploads['basedir']) . 'tapin-tickets';
+        if (!wp_mkdir_p($dir)) {
+            return '';
+        }
+
+        $filename = 'tapin_ticket_' . md5($token) . '.png';
+        $filePath = trailingslashit($dir) . $filename;
+
+        try {
+            $level = defined('QR_ECLEVEL_M') ? \QR_ECLEVEL_M : \QR_ECLEVEL_L;
+            \QRcode::png($ticketUrl, $filePath, $level, 4, 2);
+        } catch (\Throwable $e) {
+            return '';
+        }
+
+        $url = trailingslashit($uploads['baseurl']) . 'tapin-tickets/' . $filename;
+        if (file_exists($filePath)) {
+            $mtime = (int) @filemtime($filePath);
+            if ($mtime > 0) {
+                $url = add_query_arg('v', $mtime, $url);
+            }
+        }
+
+        return $url;
+    }
+
+    private function ensureQrLibrary(): bool
+    {
+        if (class_exists('\QRcode')) {
+            return true;
+        }
+
+        if (!defined('WP_PLUGIN_DIR')) {
+            return false;
+        }
+
+        $path = trailingslashit(WP_PLUGIN_DIR) . 'generate-qr-code/phpqrcode/qrlib.php';
+        if (file_exists($path)) {
+            require_once $path;
+        }
+
+        return class_exists('\QRcode');
+    }
+}

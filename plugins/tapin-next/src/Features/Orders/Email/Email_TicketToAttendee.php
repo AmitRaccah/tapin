@@ -117,7 +117,11 @@ final class Email_TicketToAttendee extends WC_Email
                 'ticket_url'    => $this->ticketUrl,
                 'qr_fallback'   => $this->qrImageUrl === '' ? __('QR code could not be generated; use the link below for check-in.', 'tapin') : '',
                 'event_context' => $this->object instanceof WC_Order
-                    ? EmailEventContext::fromOrder($this->object, $this->ticket)
+                    ? EmailEventContext::fromOrder(
+                        $this->object,
+                        $this->ticket,
+                        isset($this->ticket['producer_id']) ? (int) $this->ticket['producer_id'] : null
+                    )
                     : [],
             ],
             '',
@@ -142,7 +146,11 @@ final class Email_TicketToAttendee extends WC_Email
                 'ticket_url'    => $this->ticketUrl,
                 'qr_fallback'   => $this->qrImageUrl === '' ? __('QR code could not be generated; use the link below for check-in.', 'tapin') : '',
                 'event_context' => $this->object instanceof WC_Order
-                    ? EmailEventContext::fromOrder($this->object, $this->ticket)
+                    ? EmailEventContext::fromOrder(
+                        $this->object,
+                        $this->ticket,
+                        isset($this->ticket['producer_id']) ? (int) $this->ticket['producer_id'] : null
+                    )
                     : [],
             ],
             '',

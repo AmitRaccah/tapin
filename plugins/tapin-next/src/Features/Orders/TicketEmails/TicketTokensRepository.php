@@ -148,6 +148,26 @@ final class TicketTokensRepository
         return $this->normalizeTokenStore($order->get_meta(self::STORE_META_KEY, true));
     }
 
+    public function invalidateTokensForOrder(WC_Order $order): void
+    {
+        $store = $this->normalizeTokenStore($order->get_meta(self::STORE_META_KEY, true));
+
+        foreach ($store as $ticketData) {
+            if (!is_array($ticketData)) {
+                continue;
+            }
+            $token = $this->normalizeToken((string) ($ticketData['token'] ?? ''));
+            if ($token === '') {
+                continue;
+            }
+
+            $order->delete_meta_data(self::TOKEN_META_PREF . $token);
+        }
+
+        $order->delete_meta_data(self::STORE_META_KEY);
+        $order->save();
+    }
+
     private function normalizeTokenStore($value): array
     {
         $store = [];

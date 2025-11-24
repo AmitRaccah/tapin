@@ -56,39 +56,79 @@ final class PaymentGatewayHelper
 
     public static function capture(WC_Order $order, ?float $amount = null): bool
     {
-        $didCapture = false;
-        $paymentMethod = $order->get_payment_method();
-        $gateway = self::getGateway($order);
-
+        $paymentMethod    = $order->get_payment_method();
+        $gateway          = self::getGateway($order);
         $normalizedAmount = $amount !== null ? max(0.0, (float) $amount) : null;
+
+        $captureCallbacks = [];
 
         if ($normalizedAmount !== null && $normalizedAmount > 0 && self::supportsPartialCapture($gateway)) {
             if ($gateway && method_exists($gateway, 'capture_charge')) {
-                $gateway->capture_charge($order, $normalizedAmount);
-                $didCapture = true;
+                $captureCallbacks[] = static function () use ($gateway, $order, $normalizedAmount) {
+                    return $gateway->capture_charge($order, $normalizedAmount);
+                };
             } elseif ($gateway && method_exists($gateway, 'process_capture')) {
-                $gateway->process_capture($order, $normalizedAmount);
-                $didCapture = true;
+                $captureCallbacks[] = static function () use ($gateway, $order, $normalizedAmount) {
+                    return $gateway->process_capture($order, $normalizedAmount);
+                };
             } elseif ($paymentMethod && has_action('woocommerce_order_action_' . $paymentMethod . '_capture_charge')) {
-                do_action('woocommerce_order_action_' . $paymentMethod . '_capture_charge', $order, $normalizedAmount);
-                $didCapture = true;
+                $captureCallbacks[] = static function () use ($order, $paymentMethod, $normalizedAmount) {
+                    return do_action('woocommerce_order_action_' . $paymentMethod . '_capture_charge', $order, $normalizedAmount);
+                };
             } elseif ($paymentMethod && has_action('woocommerce_order_action_' . $paymentMethod . '_capture')) {
-                do_action('woocommerce_order_action_' . $paymentMethod . '_capture', $order, $normalizedAmount);
-                $didCapture = true;
+                $captureCallbacks[] = static function () use ($order, $paymentMethod, $normalizedAmount) {
+                    return do_action('woocommerce_order_action_' . $paymentMethod . '_capture', $order, $normalizedAmount);
+                };
             }
         }
 
-        if (!$didCapture && $paymentMethod && strpos($paymentMethod, 'wcpay') !== false && has_action('woocommerce_order_action_wcpay_capture_charge')) {
-            do_action('woocommerce_order_action_wcpay_capture_charge', $order);
-            $didCapture = true;
+        if ($paymentMethod && strpos($paymentMethod, 'wcpay') !== false && has_action('woocommerce_order_action_wcpay_capture_charge')) {
+            $captureCallbacks[] = static function () use ($order) {
+                return do_action('woocommerce_order_action_wcpay_capture_charge', $order);
+            };
         }
 
-        if (!$didCapture && $paymentMethod && strpos($paymentMethod, 'stripe') !== false && has_action('woocommerce_order_action_stripe_capture_charge')) {
-            do_action('woocommerce_order_action_stripe_capture_charge', $order);
-            $didCapture = true;
+        if ($paymentMethod && strpos($paymentMethod, 'stripe') !== false && has_action('woocommerce_order_action_stripe_capture_charge')) {
+            $captureCallbacks[] = static function () use ($order) {
+                return do_action('woocommerce_order_action_stripe_capture_charge', $order);
+            };
         }
 
-        return $didCapture;
+        if ($captureCallbacks === []) {
+            self::addFailureNote($order, __('Tapin: capture could not be attempted for this gateway. Please capture manually.', 'tapin'));
+            return false;
+        }
+
+        foreach ($captureCallbacks as $callback) {
+            try {
+                $result = $callback();
+                if (self::didCaptureSucceed($result)) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                self::addFailureNote(
+                    $order,
+                    sprintf(
+                        /* translators: 1: gateway id 2: error message */
+                        __('Tapin: capture failed for %1$s. %2$s', 'tapin'),
+                        $paymentMethod !== '' ? $paymentMethod : __('payment gateway', 'tapin'),
+                        $e->getMessage()
+                    )
+                );
+                return false;
+            }
+        }
+
+        self::addFailureNote(
+            $order,
+            sprintf(
+                /* translators: %s payment method id */
+                __('Tapin: capture failed for %s. Please capture manually.', 'tapin'),
+                $paymentMethod !== '' ? $paymentMethod : __('payment gateway', 'tapin')
+            )
+        );
+
+        return false;
     }
 
     public static function maybeRefund(WC_Order $order, float $amount, string $reason = ''): bool
@@ -109,5 +149,50 @@ final class PaymentGatewayHelper
         } catch (\Throwable $e) {
             return false;
         }
+    }
+
+    /**
+     * @param mixed $result
+     */
+    private static function didCaptureSucceed($result): bool
+    {
+        if ($result instanceof \WP_Error) {
+            return false;
+        }
+
+        if (is_array($result) && isset($result['result'])) {
+            $value = $result['result'];
+            if (is_string($value)) {
+                return strtolower($value) === 'success';
+            }
+
+            return (bool) $value;
+        }
+
+        if (is_object($result) && isset($result->result)) {
+            $value = $result->result;
+            if (is_string($value)) {
+                return strtolower($value) === 'success';
+            }
+
+            return (bool) $value;
+        }
+
+        if ($result === false) {
+            return false;
+        }
+
+        return $result === null ? true : (bool) $result;
+    }
+
+    private static function addFailureNote(WC_Order $order, string $message): void
+    {
+        $message = trim($message);
+        if ($message === '') {
+            return;
+        }
+
+        $order->add_order_note($message);
+        $order->save();
     }
 }

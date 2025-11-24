@@ -10,6 +10,7 @@ use WC_Order;
 
 final class Email_ProducerAwaitingApproval extends WC_Email
 {
+    private int $producerId = 0;
     public function __construct()
     {
         $this->id             = 'tapin_producer_order_awaiting';
@@ -68,8 +69,9 @@ final class Email_ProducerAwaitingApproval extends WC_Email
 
         $this->setup_locale();
 
-        $this->object    = $order;
-        $this->recipient = $recipient;
+        $this->object     = $order;
+        $this->recipient  = $recipient;
+        $this->producerId = $producerId;
 
         if (!$this->is_enabled() || !$this->get_recipient()) {
             $this->restore_locale();
@@ -100,7 +102,7 @@ final class Email_ProducerAwaitingApproval extends WC_Email
                 'email_heading' => $this->get_heading(),
                 'email'         => $this,
                 'event_context' => $this->object instanceof WC_Order
-                    ? EmailEventContext::fromOrder($this->object)
+                    ? EmailEventContext::fromOrder($this->object, [], $this->producerId)
                     : [],
             ],
             '',
@@ -121,7 +123,7 @@ final class Email_ProducerAwaitingApproval extends WC_Email
                 'email_heading' => $this->get_heading(),
                 'email'         => $this,
                 'event_context' => $this->object instanceof WC_Order
-                    ? EmailEventContext::fromOrder($this->object)
+                    ? EmailEventContext::fromOrder($this->object, [], $this->producerId)
                     : [],
             ],
             '',

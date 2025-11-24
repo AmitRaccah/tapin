@@ -21,7 +21,7 @@ if ($order instanceof WC_Order) {
     }
 }
 if ($customer_name === '') {
-    $customer_name = esc_html__('לקוח Tapin', 'tapin');
+    $customer_name = esc_html__('Tapin customer', 'tapin');
 }
 
 $order_number  = $order instanceof WC_Order ? (string) $order->get_order_number() : '';
@@ -66,7 +66,7 @@ if ($order instanceof WC_Order && $producer_id > 0 && class_exists('\Tapin\Event
             $name  = trim($first . ' ' . $last);
         }
         if ($name === '') {
-            $name = esc_html__('משתתף ללא שם', 'tapin');
+            $name = esc_html__('Attendee', 'tapin');
         }
 
         $label = (string) ($attendee['ticket_type_label'] ?? ($attendee['ticket_type'] ?? ''));
@@ -88,43 +88,45 @@ if ($order instanceof WC_Order && $producer_id > 0 && class_exists('\Tapin\Event
 echo '=' . $email_heading . "=\n\n";
 
 printf(
-    esc_html__('שלום %1$s, המפיק אישר חלק מהמשתתפים בהזמנה שלך באתר %2$s.', 'tapin'),
+    esc_html__('Hi %1$s, part of your order at %2$s has been approved.', 'tapin'),
     $customer_name,
     $site_name
 );
 echo "\n\n";
 
 if ($event_name !== '' || $event_date !== '' || $event_location !== '') {
-    // TODO: replace English labels with Hebrew equivalents
     if ($event_name !== '') {
-        echo 'Event: ' . $event_name . "\n";
+        printf(esc_html__('Event: %s', 'tapin'), $event_name);
+        echo "\n";
     }
     if ($event_date !== '') {
-        echo 'Date and time: ' . $event_date . "\n";
+        printf(esc_html__('Date and time: %s', 'tapin'), $event_date);
+        echo "\n";
     }
     if ($event_location !== '') {
-        echo 'Location: ' . $event_location . "\n";
+        printf(esc_html__('Location: %s', 'tapin'), $event_location);
+        echo "\n";
     }
     echo "\n";
 }
 
 if ($order_number !== '') {
-    printf(esc_html__('מספר ההזמנה: #%s', 'tapin'), $order_number);
+    printf(esc_html__('Order number: #%s', 'tapin'), $order_number);
     echo "\n";
 }
 
 if ($partial_label !== '') {
-    printf(esc_html__('סכום משוער לחיוב עבור המשתתפים שאושרו: %s', 'tapin'), $partial_label);
+    printf(esc_html__('Approved amount so far: %s', 'tapin'), $partial_label);
     echo "\n";
 } elseif ($order_total !== '') {
-    printf(esc_html__('סכום ההזמנה: %s', 'tapin'), $order_total);
+    printf(esc_html__('Order total: %s', 'tapin'), $order_total);
     echo "\n";
 }
 
 echo "\n";
 
 if ($approved_attendees !== []) {
-    echo esc_html__("משתתפים שאושרו:", 'tapin') . "\n";
+    echo esc_html__("Approved attendees:", 'tapin') . "\n";
     foreach ($approved_attendees as $row) {
         $line = '- ' . $row['name'];
         if ($row['label'] !== '') {
@@ -136,7 +138,7 @@ if ($approved_attendees !== []) {
 }
 
 if ($pending_attendees !== []) {
-    echo esc_html__("משתתפים שלא אושרו בשלב זה:", 'tapin') . "\n";
+    echo esc_html__("Waiting for approval:", 'tapin') . "\n";
     foreach ($pending_attendees as $row) {
         $line = '- ' . $row['name'];
         if ($row['label'] !== '') {
@@ -151,5 +153,5 @@ if ($additional_content = $email->get_additional_content()) {
     echo wp_strip_all_tags(wptexturize($additional_content)) . "\n\n";
 }
 
-echo esc_html__('אם יש לך שאלות לגבי האישור החלקי, ניתן להשיב למייל זה או לפנות לצוות התמיכה של Tapin.', 'tapin') . "\n";
+echo esc_html__('If you have questions about this order, please contact Tapin support.', 'tapin') . "\n";
 echo "support@tapin.co.il\n";
