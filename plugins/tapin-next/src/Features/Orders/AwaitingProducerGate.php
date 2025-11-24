@@ -251,22 +251,16 @@ final class AwaitingProducerGate implements Service
         $didCapture = true;
         if ($toCapture > 0.0) {
             $didCapture = PaymentGatewayHelper::capture($order, $toCapture);
-            if ($didCapture) {
-                if ($producerKey !== null) {
-                    $capturedTotals[$producerKey] = ($capturedTotals[$producerKey] ?? 0.0) + $toCapture;
-                    self::saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
-                } else {
-                    $order->update_meta_data('_tapin_partial_captured_total', $alreadyCaptured + $toCapture);
-                }
+            if (!$didCapture) {
+                $order->add_order_note(__('Tapin: capture failed. Please capture the approved amount manually before approving the order.', 'tapin'));
+                return false;
+            }
+
+            if ($producerKey !== null) {
+                $capturedTotals[$producerKey] = ($capturedTotals[$producerKey] ?? 0.0) + $toCapture;
+                self::saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
             } else {
-                $order->add_order_note(__('Tapin: gateway does not support capture; marked as captured based on paid total.', 'tapin'));
-                if ($producerKey !== null) {
-                    $capturedTotals[$producerKey] = ($capturedTotals[$producerKey] ?? 0.0) + $toCapture;
-                    self::saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
-                } else {
-                    $order->update_meta_data('_tapin_partial_captured_total', $alreadyCaptured + $toCapture);
-                }
-                $didCapture = true;
+                $order->update_meta_data('_tapin_partial_captured_total', $alreadyCaptured + $toCapture);
             }
         }
 
