@@ -180,7 +180,7 @@ final class Renderer
                                   ];
                               }
 
-                              $saleTypeLabel = __('סוג מחירה', 'tapin');
+                              $saleTypeLabel = __('סוג מכירה', 'tapin');
                               $saleTypeRaw = (string) ($orderData['sale_type'] ?? 'organic');
                               $saleTypeValue = $saleTypeRaw === 'producer_link'
                                   ? __('לינק מפיק', 'tapin')
