@@ -11,6 +11,11 @@ use WC_Order;
 
 final class Email_CustomerOrderApproved extends WC_Email
 {
+    /**
+     * @var array<int,string>
+     */
+    protected $supports = [];
+
     private int $producerId = 0;
 
     public function __construct()
@@ -88,7 +93,7 @@ final class Email_CustomerOrderApproved extends WC_Email
 
         $this->object     = $order;
         $this->recipient  = $recipient;
-        $this->producerId = $producerId;
+        $this->producerId = $this->resolvePrimaryProducerId($order);
 
         if (!$this->is_enabled() || !$this->get_recipient()) {
             $this->restore_locale();
@@ -133,9 +138,7 @@ final class Email_CustomerOrderApproved extends WC_Email
                 'email_heading' => $this->get_heading(),
                 'email'         => $this,
                 'producer_id'   => $this->producerId,
-                'event_context' => $this->object instanceof WC_Order
-                    ? EmailEventContext::fromOrder($this->object, [], $this->producerId)
-                    : [],
+                'event_context' => $this->object instanceof WC_Order ? EmailEventContext::fromOrder($this->object) : [],
             ],
             '',
             $this->template_base
@@ -155,9 +158,7 @@ final class Email_CustomerOrderApproved extends WC_Email
                 'email_heading' => $this->get_heading(),
                 'email'         => $this,
                 'producer_id'   => $this->producerId,
-                'event_context' => $this->object instanceof WC_Order
-                    ? EmailEventContext::fromOrder($this->object, [], $this->producerId)
-                    : [],
+                'event_context' => $this->object instanceof WC_Order ? EmailEventContext::fromOrder($this->object) : [],
             ],
             '',
             $this->template_base
@@ -182,5 +183,21 @@ final class Email_CustomerOrderApproved extends WC_Email
         }
 
         return '';
+    }
+
+    private function resolvePrimaryProducerId(WC_Order $order): int
+    {
+        $ids = AwaitingProducerGate::ensureProducerMeta($order);
+        if (!is_array($ids) || $ids === []) {
+            return 0;
+        }
+
+        $ids = array_values(array_filter(array_map('intval', $ids), static function ($id): bool {
+            return $id > 0;
+        }));
+
+        sort($ids);
+
+        return (int) ($ids[0] ?? 0);
     }
 }

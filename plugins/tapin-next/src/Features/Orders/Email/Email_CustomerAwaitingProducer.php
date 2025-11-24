@@ -11,6 +11,11 @@ use WC_Order_Item_Product;
 
 final class Email_CustomerAwaitingProducer extends WC_Email
 {
+    /**
+     * @var array<int,string>
+     */
+    protected $supports = [];
+
     public function __construct()
     {
         $this->id             = 'tapin_customer_awaiting_producer';

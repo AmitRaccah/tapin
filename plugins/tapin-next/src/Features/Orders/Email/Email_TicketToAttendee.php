@@ -8,6 +8,11 @@ use WC_Order;
 final class Email_TicketToAttendee extends WC_Email
 {
     /**
+     * @var array<int,string>
+     */
+    protected $supports = [];
+
+    /**
      * @var array<string,mixed>
      */
     private array $ticket = [];

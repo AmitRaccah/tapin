@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 declare(strict_types=1);
 
 namespace Tapin\Events\Features\Orders\ProducerApprovals;
@@ -148,9 +148,7 @@ final class BulkActionsController
                     }
                 }
 
-                $capturedTotals = $this->normalizeProducerFloatMap($order->get_meta('_tapin_partial_captured_total', true), $producerId);
-                unset($capturedTotals[$producerId], $capturedTotals[self::LEGACY_PRODUCER_ID]);
-                $this->saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
+                $this->clearAllPartialApprovalState($order);
                 $order->update_status(
                     'cancelled',
                     __('Cancellation requested while awaiting producer approval.', 'tapin')
@@ -322,6 +320,7 @@ final class BulkActionsController
         $partialData = $this->computePartialData($order, $producerItems, $finalApprovedMeta);
 
         $stateSnapshot = $this->snapshotProducerState($order);
+        $previousStatus = $order->get_status();
 
         if (!$this->syncTicketSales($order, $desiredCounts, $this->productIdsFromItems($producerItems))) {
             $order->save();
@@ -351,13 +350,16 @@ final class BulkActionsController
             if ($capturedPartial) {
                 do_action('tapin/events/order/producer_partial_approval', $order, $producerId);
                 do_action('tapin/events/order/producer_attendees_approved', $order, $producerId);
-            } else {
-                $order->add_order_note(__('Tapin: partial capture did not complete. Emails and tickets were not sent for this batch.', 'tapin'));
+                $order->save();
+                return true;
             }
 
+            $this->restoreProducerState($order, $stateSnapshot);
+            $order->set_status($previousStatus);
+            $order->add_order_note(__('Tapin: partial capture failed. Approval was rolled back and capacity released.', 'tapin'));
             $order->save();
 
-            return true;
+            return false;
         }
 
         $existingMap    = $this->normalizeProducerPartialMap($order->get_meta('_tapin_partial_approved_map', true), $producerId);
@@ -963,6 +965,14 @@ final class BulkActionsController
         $this->restoreMetaValue($order, '_tapin_producer_approved_attendees', $snapshot['approved_meta'] ?? null);
         $this->restoreMetaValue($order, '_tapin_partial_approved_map', $snapshot['partial_map'] ?? null);
         $this->restoreMetaValue($order, '_tapin_partial_approved_total', $snapshot['partial_totals'] ?? null);
+    }
+
+    private function clearAllPartialApprovalState(WC_Order $order): void
+    {
+        $order->delete_meta_data('_tapin_partial_captured_total');
+        $order->delete_meta_data('_tapin_partial_approved_map');
+        $order->delete_meta_data('_tapin_partial_approved_total');
+        $order->delete_meta_data('_tapin_producer_approved_attendees');
     }
 
     /**

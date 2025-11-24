@@ -342,6 +342,11 @@ final class AwaitingProducerGate implements Service
             }
         }
 
+        $order->delete_meta_data('_tapin_partial_captured_total');
+        $order->delete_meta_data('_tapin_partial_approved_map');
+        $order->delete_meta_data('_tapin_partial_approved_total');
+        $order->delete_meta_data('_tapin_producer_approved_attendees');
+
         $tokens = new TicketTokensRepository();
         $tokens->invalidateTokensForOrder($order);
         $order->delete_meta_data('_tapin_ticket_emails_sent');

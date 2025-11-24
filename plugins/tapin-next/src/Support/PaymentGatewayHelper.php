@@ -59,6 +59,7 @@ final class PaymentGatewayHelper
         $paymentMethod    = $order->get_payment_method();
         $gateway          = self::getGateway($order);
         $normalizedAmount = $amount !== null ? max(0.0, (float) $amount) : null;
+        $methodLabel      = $paymentMethod !== '' ? $paymentMethod : __('payment gateway', 'tapin');
 
         $captureCallbacks = [];
 
@@ -99,19 +100,21 @@ final class PaymentGatewayHelper
             return false;
         }
 
+        $lastFailure = '';
         foreach ($captureCallbacks as $callback) {
             try {
                 $result = $callback();
                 if (self::didCaptureSucceed($result)) {
                     return true;
                 }
+                $lastFailure = self::summarizeResult($result);
             } catch (\Throwable $e) {
                 self::addFailureNote(
                     $order,
                     sprintf(
                         /* translators: 1: gateway id 2: error message */
                         __('Tapin: capture failed for %1$s. %2$s', 'tapin'),
-                        $paymentMethod !== '' ? $paymentMethod : __('payment gateway', 'tapin'),
+                        $methodLabel,
                         $e->getMessage()
                     )
                 );
@@ -119,13 +122,14 @@ final class PaymentGatewayHelper
             }
         }
 
+        $detail = $lastFailure !== '' ? ' ' . $lastFailure : '';
         self::addFailureNote(
             $order,
             sprintf(
                 /* translators: %s payment method id */
                 __('Tapin: capture failed for %s. Please capture manually.', 'tapin'),
-                $paymentMethod !== '' ? $paymentMethod : __('payment gateway', 'tapin')
-            )
+                $methodLabel
+            ) . $detail
         );
 
         return false;
@@ -160,6 +164,10 @@ final class PaymentGatewayHelper
             return false;
         }
 
+        if ($result === null) {
+            return false;
+        }
+
         if (is_array($result) && isset($result['result'])) {
             $value = $result['result'];
             if (is_string($value)) {
@@ -182,7 +190,43 @@ final class PaymentGatewayHelper
             return false;
         }
 
-        return $result === null ? true : (bool) $result;
+        return (bool) $result;
+    }
+
+    /**
+     * @param mixed $result
+     */
+    private static function summarizeResult($result): string
+    {
+        if ($result instanceof \WP_Error) {
+            return $result->get_error_message();
+        }
+
+        if ($result === null) {
+            return __('Gateway did not return a capture result.', 'tapin');
+        }
+
+        if (is_array($result) && isset($result['result'])) {
+            return sprintf(
+                /* translators: %s result value */
+                __('Gateway responded with result: %s', 'tapin'),
+                is_scalar($result['result']) ? (string) $result['result'] : __('unknown', 'tapin')
+            );
+        }
+
+        if (is_object($result) && isset($result->result)) {
+            return sprintf(
+                /* translators: %s result value */
+                __('Gateway responded with result: %s', 'tapin'),
+                is_scalar($result->result) ? (string) $result->result : __('unknown', 'tapin')
+            );
+        }
+
+        if (is_bool($result)) {
+            return $result ? '' : __('Gateway reported capture failure.', 'tapin');
+        }
+
+        return __('Gateway capture response was ambiguous.', 'tapin');
     }
 
     private static function addFailureNote(WC_Order $order, string $message): void

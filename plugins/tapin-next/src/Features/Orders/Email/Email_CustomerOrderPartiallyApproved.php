@@ -8,6 +8,11 @@ use WC_Order;
 
 final class Email_CustomerOrderPartiallyApproved extends WC_Email
 {
+    /**
+     * @var array<int,string>
+     */
+    protected $supports = [];
+
     private const LEGACY_PRODUCER_ID = 0;
 
     private int $producerId = 0;
