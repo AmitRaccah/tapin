@@ -21,5 +21,15 @@ final class PhoneUrl
         $digits = self::digits($raw);
         return $digits !== '' ? ('https://wa.me/' . $digits) : '';
     }
-}
 
+    /**
+     * @return array{digits: string, href: string}
+     */
+    public static function normalizePhone(string $raw): array
+    {
+        return [
+            'digits' => self::digits($raw),
+            'href'   => self::telHref($raw),
+        ];
+    }
+}

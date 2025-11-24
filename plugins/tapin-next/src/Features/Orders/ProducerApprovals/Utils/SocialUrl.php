@@ -21,5 +21,34 @@ final class SocialUrl
 
         return $handle !== '' ? '@' . $handle : '';
     }
-}
 
+    /**
+     * @return array{display: string, url: string}
+     */
+    public static function normalizeInstagram(string $value): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return ['display' => '', 'url' => ''];
+        }
+
+        $handle  = self::trimHandle($value);
+        $display = $handle !== '' ? $handle : $value;
+
+        $candidate = $value;
+        if ($handle !== '') {
+            $candidate = 'https://instagram.com/' . ltrim($handle, '@');
+        }
+
+        if (!preg_match('#^https?://#i', $candidate)) {
+            $candidate = 'https://' . ltrim($candidate, '/');
+        }
+
+        $url = filter_var($candidate, FILTER_VALIDATE_URL) ? (string) $candidate : '';
+
+        return [
+            'display' => $display,
+            'url'     => $url,
+        ];
+    }
+}

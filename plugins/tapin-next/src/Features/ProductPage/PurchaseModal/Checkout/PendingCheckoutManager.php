@@ -106,6 +106,14 @@ final class PendingCheckoutManager
         }
 
         if ($errors !== [] || $sanitized === []) {
+            if (function_exists('tapin_next_debug_log')) {
+                tapin_next_debug_log(
+                    sprintf(
+                        '[pending-checkout] resume aborted: %s',
+                        $errors !== [] ? 'validation errors' : 'no attendees'
+                    )
+                );
+            }
             return;
         }
 
@@ -119,6 +127,9 @@ final class PendingCheckoutManager
             !$product->is_purchasable() ||
             !$this->guards->isProductPurchasable($productId)
         ) {
+            if (function_exists('tapin_next_debug_log')) {
+                tapin_next_debug_log(sprintf('[pending-checkout] resume failed: product %d not purchasable', $productId));
+            }
             return;
         }
 

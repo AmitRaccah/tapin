@@ -4,8 +4,10 @@ declare(strict_types=1);
 namespace Tapin\Events\Features\Sales;
 
 use Tapin\Events\Features\Orders\PartiallyApprovedStatus;
+use Tapin\Events\Features\Orders\ProducerApprovalStore;
 use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\AttendeeSecureStorage;
+use Tapin\Events\Support\OrderMeta;
 use WC_Order;
 use WC_Order_Item_Product;
 use WC_Product;
@@ -311,7 +313,7 @@ final class TicketStatsAccumulator
     {
         $itemId      = (int) $item->get_id();
         $producerId  = $this->resolveProducerIdForItem($item);
-        $mapByProducer = $this->normalizeProducerPartialMap($order->get_meta('_tapin_partial_approved_map', true), $producerId);
+        $mapByProducer = $this->normalizeProducerPartialMap($order->get_meta(OrderMeta::PARTIAL_APPROVED_MAP, true), $producerId);
 
         if ($itemId <= 0) {
             return 0;
@@ -340,45 +342,7 @@ final class TicketStatsAccumulator
      */
     private function normalizeProducerPartialMap($raw, ?int $producerId = null): array
     {
-        if (!is_array($raw)) {
-            return [];
-        }
-
-        $hasNested = false;
-        foreach ($raw as $value) {
-            if (is_array($value)) {
-                $hasNested = true;
-                break;
-            }
-        }
-
-        if ($hasNested) {
-            $result = [];
-            foreach ($raw as $producerKey => $map) {
-                $pid = (int) $producerKey;
-                if ($pid <= 0) {
-                    $pid = self::LEGACY_PRODUCER_ID;
-                }
-                if (!is_array($map)) {
-                    continue;
-                }
-                $clean = $this->sanitizePartialMap($map);
-                if ($clean !== []) {
-                    $result[$pid] = $clean;
-                }
-            }
-
-            return $result;
-        }
-
-        $legacy = $this->sanitizePartialMap($raw);
-        if ($legacy === []) {
-            return [];
-        }
-
-        $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
-
-        return [$target => $legacy];
+        return ProducerApprovalStore::normalizeProducerPartialMap($raw, $producerId);
     }
 
     /**

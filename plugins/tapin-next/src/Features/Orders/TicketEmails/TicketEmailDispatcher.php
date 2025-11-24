@@ -5,6 +5,7 @@ namespace Tapin\Events\Features\Orders\TicketEmails;
 
 use Tapin\Events\Core\Service;
 use Tapin\Events\Features\Orders\Email\Email_TicketToAttendee;
+use Tapin\Events\Support\OrderMeta;
 use WC_Order;
 
 final class TicketEmailDispatcher implements Service
@@ -53,17 +54,21 @@ final class TicketEmailDispatcher implements Service
 
         $tokenized = $this->tokensRepository->createTokensForOrder($order, $producerId, $tickets);
         if ($tokenized === []) {
+            $this->logTicketWarning($order, $producerId, 'Token generation returned empty set');
             return;
         }
 
-        $sentKeys  = $this->normalizeSentList($order->get_meta('_tapin_ticket_emails_sent', true));
+        $sentKeys  = $this->normalizeSentList($order->get_meta(OrderMeta::TICKET_EMAILS_SENT, true));
         $sentIndex = array_fill_keys($sentKeys, true);
         $changed   = false;
 
         $emailObj = $this->getTicketEmail();
         if ($emailObj === null) {
+            $this->logTicketWarning($order, $producerId, 'Ticket email object missing');
             return;
         }
+
+        $missingQr = false;
 
         foreach ($tokenized as $ticketKey => $ticketData) {
             $ticketKey = (string) $ticketKey;
@@ -85,6 +90,9 @@ final class TicketEmailDispatcher implements Service
 
             $ticketData['ticket_url'] = $ticketUrl;
             $qrImageUrl = $this->generateQrImage((string) ($ticketData['token'] ?? ''), $ticketUrl);
+            if ($qrImageUrl === '') {
+                $missingQr = true;
+            }
 
             $emailObj->trigger($order, $ticketData, $qrImageUrl);
 
@@ -94,8 +102,30 @@ final class TicketEmailDispatcher implements Service
         }
 
         if ($changed) {
-            $order->update_meta_data('_tapin_ticket_emails_sent', array_values(array_unique($sentKeys)));
+            $order->update_meta_data(OrderMeta::TICKET_EMAILS_SENT, array_values(array_unique($sentKeys)));
             $order->save();
+        }
+
+        if ($missingQr) {
+            $this->logTicketWarning($order, $producerId, 'QR image generation failed; email sent without QR');
+        }
+    }
+
+    private function logTicketWarning(WC_Order $order, int $producerId, string $reason): void
+    {
+        $orderId = (int) $order->get_id();
+        $message = sprintf(
+            'Tapin: ticket email handling issue for producer %d: %s',
+            $producerId,
+            $reason
+        );
+
+        if ($orderId > 0) {
+            $order->add_order_note($message);
+        }
+
+        if (function_exists('tapin_next_debug_log')) {
+            tapin_next_debug_log(sprintf('[ticket-email] order %d producer %d: %s', $orderId, $producerId, $reason));
         }
     }
 

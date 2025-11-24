@@ -7,7 +7,10 @@ use Tapin\Events\Integrations\Affiliate\ReferralsRepository;
 use Tapin\Events\Support\AttendeeFields;
 use Tapin\Events\Support\AttendeeSecureStorage;
 use Tapin\Events\Support\Time;
+use Tapin\Events\Features\Orders\ProducerApprovalStore;
 use Tapin\Events\Features\Orders\PartiallyApprovedStatus;
+use Tapin\Events\Support\OrderMeta;
+use Tapin\Events\Support\Orders;
 use WC_Order;
 use WC_Order_Item_Product;
 use WC_Product;
@@ -78,13 +81,13 @@ final class OrderSummaryBuilder
         $allAttendeesList  = [];
         $primaryAttendee   = null;
         $approvedPointers  = $this->normalizeProducerApprovedPointers(
-            (array) $order->get_meta('_tapin_producer_approved_attendees', true),
+            (array) $order->get_meta(OrderMeta::PRODUCER_APPROVED_ATTENDEES, true),
             $producerId
         );
         $producerApprovedMap = [];
 
         foreach ($order->get_items('line_item') as $item) {
-            if (!$this->isProducerLineItem($item, $producerId)) {
+            if (!Orders::isProducerLineItem($item, $producerId)) {
                 continue;
             }
 
@@ -312,7 +315,7 @@ final class OrderSummaryBuilder
      */
     private function extractAttendees(WC_Order_Item_Product $item): array
     {
-        $decoded = AttendeeSecureStorage::decrypt((string) $item->get_meta('_tapin_attendees_json', true));
+        $decoded = AttendeeSecureStorage::decrypt((string) $item->get_meta(OrderMeta::ATTENDEES_JSON, true));
         if ($decoded === []) {
             $legacy = (string) $item->get_meta('Tapin Attendees', true);
             if ($legacy !== '') {
@@ -543,32 +546,6 @@ final class OrderSummaryBuilder
         do_action('tapin_events_attendee_audit_log', $orderId, $viewerId, $count, time());
     }
 
-    private function isProducerLineItem($item, int $producerId): bool
-    {
-        if (!$item instanceof WC_Order_Item_Product) {
-            return false;
-        }
-
-        $productId = $item->get_product_id();
-        if (!$productId) {
-            return false;
-        }
-
-        if ((int) get_post_field('post_author', $productId) === $producerId) {
-            return true;
-        }
-
-        $product = $item->get_product();
-        if ($product instanceof WC_Product) {
-            $parentId = $product->get_parent_id();
-            if ($parentId && (int) get_post_field('post_author', $parentId) === $producerId) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private function getUserProfile(int $userId): array
     {
         $profile = [
@@ -615,7 +592,7 @@ final class OrderSummaryBuilder
         $total = (float) $order->get_total();
 
         if ($order->has_status(PartiallyApprovedStatus::STATUS_SLUG)) {
-            $partialTotals = $this->normalizeProducerTotals($order->get_meta('_tapin_partial_approved_total', true), $producerId);
+            $partialTotals = $this->normalizeProducerTotals($order->get_meta(OrderMeta::PARTIAL_APPROVED_TOTAL, true), $producerId);
             $partial = 0.0;
 
             if ($producerId > 0 && isset($partialTotals[$producerId])) {
@@ -644,37 +621,6 @@ final class OrderSummaryBuilder
      */
     private function normalizeProducerTotals($raw, ?int $producerId = null): array
     {
-        $result = [];
-        if (is_array($raw)) {
-            foreach ($raw as $producerKey => $value) {
-                $pid = (int) $producerKey;
-                if ($pid <= 0) {
-                    $pid = self::LEGACY_PRODUCER_ID;
-                }
-
-                if (is_array($value)) {
-                    continue;
-                }
-
-                $val = max(0.0, (float) $value);
-                if ($val > 0.0) {
-                    $result[$pid] = $val;
-                }
-            }
-        }
-
-        if ($result !== []) {
-            return $result;
-        }
-
-        if (is_numeric($raw)) {
-            $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
-            $val    = max(0.0, (float) $raw);
-            if ($val > 0.0) {
-                $result[$target] = $val;
-            }
-        }
-
-        return $result;
+        return ProducerApprovalStore::normalizeProducerFloatMap($raw, $producerId);
     }
 }

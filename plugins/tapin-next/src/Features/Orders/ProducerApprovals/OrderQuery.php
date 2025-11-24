@@ -5,10 +5,9 @@ namespace Tapin\Events\Features\Orders\ProducerApprovals;
 
 use Tapin\Events\Features\Orders\AwaitingProducerStatus;
 use Tapin\Events\Features\Orders\PartiallyApprovedStatus;
+use Tapin\Events\Support\OrderMeta;
 use Tapin\Events\Support\Orders;
 use WC_Order;
-use WC_Order_Item_Product;
-use WC_Product;
 
 final class OrderQuery
 {
@@ -32,19 +31,13 @@ final class OrderQuery
 
         foreach ($awaitingIds as $orderId) {
             $order = wc_get_order($orderId);
-            if ($order instanceof WC_Order && !$order->get_meta('_tapin_producer_ids')) {
-                $order->update_meta_data('_tapin_producer_ids', Orders::collectProducerIds($order));
+            if ($order instanceof WC_Order && !$order->get_meta(OrderMeta::PRODUCER_IDS)) {
+                $order->update_meta_data(OrderMeta::PRODUCER_IDS, Orders::collectProducerIds($order));
                 $order->save();
             }
         }
 
-        $pendingIds = wc_get_orders([
-            'status'  => $pendingStatusKeys,
-            'limit'   => 200,
-            'orderby' => 'date',
-            'order'   => 'DESC',
-            'return'  => 'ids',
-        ]);
+        $pendingIds = $awaitingIds;
 
         $relevantIds = [];
         foreach ($pendingIds as $orderId) {
@@ -95,33 +88,12 @@ final class OrderQuery
 
     private function isProducerLineItem($item, int $producerId): bool
     {
-        if (!$item instanceof WC_Order_Item_Product) {
-            return false;
-        }
-
-        $productId = $item->get_product_id();
-        if (!$productId) {
-            return false;
-        }
-
-        if ((int) get_post_field('post_author', $productId) === $producerId) {
-            return true;
-        }
-
-        $product = $item->get_product();
-        if ($product instanceof WC_Product) {
-            $parentId = $product->get_parent_id();
-            if ($parentId && (int) get_post_field('post_author', $parentId) === $producerId) {
-                return true;
-            }
-        }
-
-        return false;
+        return Orders::isProducerLineItem($item, $producerId);
     }
 
     private function orderBelongsToProducer(WC_Order $order, int $producerId): bool
     {
-        $metaIds = array_filter(array_map('intval', (array) $order->get_meta('_tapin_producer_ids')));
+        $metaIds = array_filter(array_map('intval', (array) $order->get_meta(OrderMeta::PRODUCER_IDS)));
         if ($metaIds && in_array($producerId, $metaIds, true)) {
             return true;
         }

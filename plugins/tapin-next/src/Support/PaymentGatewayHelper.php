@@ -58,6 +58,7 @@ final class PaymentGatewayHelper
     {
         $paymentMethod    = $order->get_payment_method();
         $gateway          = self::getGateway($order);
+        $gatewayId        = $gateway && isset($gateway->id) ? (string) $gateway->id : '';
         $normalizedAmount = $amount !== null ? max(0.0, (float) $amount) : null;
         $methodLabel      = $paymentMethod !== '' ? $paymentMethod : __('payment gateway', 'tapin');
 
@@ -95,8 +96,26 @@ final class PaymentGatewayHelper
             };
         }
 
+        if (function_exists('tapin_next_debug_log')) {
+            tapin_next_debug_log(sprintf(
+                '[capture] order %d gateway=%s amount=%s callbacks=%d',
+                (int) $order->get_id(),
+                $gatewayId !== '' ? $gatewayId : 'unknown',
+                $normalizedAmount !== null ? number_format((float) $normalizedAmount, 2, '.', '') : 'null',
+                count($captureCallbacks)
+            ));
+        }
+
         if ($captureCallbacks === []) {
-            self::addFailureNote($order, __('Tapin: capture could not be attempted for this gateway. Please capture manually.', 'tapin'));
+            $fallbackMsg = $gatewayId !== ''
+                ? sprintf(__('Tapin: capture could not be attempted for gateway %s. Please capture manually.', 'tapin'), $gatewayId)
+                : __('Tapin: capture could not be attempted for this gateway. Please capture manually.', 'tapin');
+
+            if ($normalizedAmount !== null && $normalizedAmount > 0 && function_exists('wc_price')) {
+                $fallbackMsg .= ' ' . sprintf(__('Target amount: %s', 'tapin'), wc_price($normalizedAmount, ['currency' => $order->get_currency()]));
+            }
+
+            self::addFailureNote($order, $fallbackMsg);
             return false;
         }
 

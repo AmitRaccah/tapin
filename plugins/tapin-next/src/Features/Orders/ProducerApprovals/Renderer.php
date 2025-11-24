@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Tapin\Events\Features\Orders\ProducerApprovals;
 
+use Tapin\Events\Features\Orders\ProducerApprovals\Utils\PhoneUrl;
+use Tapin\Events\Features\Orders\ProducerApprovals\Utils\SocialUrl;
 use Tapin\Events\UI\Components\CounterBadge;
 
 final class Renderer
@@ -170,13 +172,12 @@ final class Renderer
 
                               $customerPhone = trim((string) ($orderData['customer']['phone'] ?? ''));
                               if ($customerPhone !== '') {
-                                  $digitsOnly = preg_replace('/\D+/', '', $customerPhone);
-                                  $telHref = preg_replace('/[^0-9+]/', '', $customerPhone);
+                                  $phoneMeta = PhoneUrl::normalizePhone($customerPhone);
                                   $contactRows[] = [
                                       'label' => __('טלפון', 'tapin'),
                                       'value' => $customerPhone,
-                                      'type'  => $digitsOnly !== '' ? 'phone' : 'text',
-                                      'href'  => $telHref !== '' ? $telHref : $digitsOnly,
+                                      'type'  => $phoneMeta['digits'] !== '' ? 'phone' : 'text',
+                                      'href'  => $phoneMeta['href'] !== '' ? $phoneMeta['href'] : $phoneMeta['digits'],
                                   ];
                               }
 
@@ -237,35 +238,29 @@ final class Renderer
                                   if ($label === 'Facebook' || $label === 'Instagram') {
                                       $candidate = $value;
                                       if ($label === 'Instagram') {
-                                          $handle = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\SocialUrl::trimHandle($value);
-                                          if ($handle !== '') {
-                                              $candidate = 'https://instagram.com/' . ltrim($handle, '@');
-                                              $displayValue = $handle;
-                                          } else {
-                                              $altHandle = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\SocialUrl::trimHandle('@' . ltrim($value, '@/'));
-                                              if ($altHandle !== '') {
-                                                  $displayValue = $altHandle;
-                                              }
+                                          $insta = SocialUrl::normalizeInstagram($value);
+                                          if ($insta['display'] !== '') {
+                                              $displayValue = $insta['display'];
+                                          }
+                                          if ($insta['url'] !== '') {
+                                              $candidate = $insta['url'];
                                           }
                                       }
-
-                                      if (!preg_match('#^https?://#i', $candidate)) {
+                                      if ($candidate !== '' && !preg_match('#^https?://#i', $candidate)) {
                                           $candidate = 'https://' . ltrim($candidate, '/');
                                       }
-
                                       $isValidUrl = filter_var($candidate, FILTER_VALIDATE_URL);
                                       if ($isValidUrl) {
                                           $type = 'link';
                                           $href = $candidate;
                                       }
                                   } elseif ($label === 'WhatsApp') {
-                                      $digits = preg_replace('/\D+/', '', $value);
-                                      if ($digits !== '') {
+                                      $waUrl = PhoneUrl::whatsappUrl($value);
+                                      if ($waUrl !== '') {
                                           $type = 'link';
-                                          $href = 'https://wa.me/' . $digits;
+                                          $href = $waUrl;
                                       }
                                   }
-
                                   $profileRows[] = [
                                       'label' => $label,
                                       'value' => $displayValue,
@@ -445,12 +440,10 @@ final class Renderer
                                       if (!empty($attendee['instagram'])) {
                                           $instagramRaw = trim((string) $attendee['instagram']);
                                           if ($instagramRaw !== '') {
-                                              $candidate = $instagramRaw;
-                                              $display = \Tapin\Events\Features\Orders\ProducerApprovals\Utils\SocialUrl::trimHandle($instagramRaw);
-                                              if ($display === '') {
-                                                  $display = $instagramRaw;
-                                              }
-                                              if (!preg_match('#^https?://#i', $candidate)) {
+                                              $insta = SocialUrl::normalizeInstagram($instagramRaw);
+                                              $candidate = $insta['url'] !== '' ? $insta['url'] : $instagramRaw;
+                                              $display = $insta['display'] !== '' ? $insta['display'] : $instagramRaw;
+                                              if ($candidate !== '' && !preg_match('#^https?://#i', $candidate)) {
                                                   $candidate = 'https://' . ltrim($candidate, '/');
                                               }
                                               $isValidUrl = filter_var($candidate, FILTER_VALIDATE_URL);
@@ -483,13 +476,13 @@ final class Renderer
                                       if (!empty($attendee['whatsapp'])) {
                                           $whatsappRaw = trim((string) $attendee['whatsapp']);
                                           if ($whatsappRaw !== '') {
-                                              $digits = preg_replace('/\D+/', '', $whatsappRaw);
-                                              if ($digits !== '') {
+                                              $waUrl = PhoneUrl::whatsappUrl($whatsappRaw);
+                                              if ($waUrl !== '') {
                                                   $attendeeRows[] = [
                                                       'label' => 'WhatsApp',
                                                       'value' => $whatsappRaw,
                                                       'type'  => 'link',
-                                                      'href'  => 'https://wa.me/' . $digits,
+                                                      'href'  => $waUrl,
                                                   ];
                                               }
                                           }

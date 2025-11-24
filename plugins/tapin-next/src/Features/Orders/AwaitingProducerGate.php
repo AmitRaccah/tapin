@@ -5,13 +5,14 @@ namespace Tapin\Events\Features\Orders;
 use Tapin\Events\Core\Service;
 use Tapin\Events\Features\Orders\PartiallyApprovedStatus;
 use Tapin\Events\Features\Orders\TicketEmails\TicketTokensRepository;
+use Tapin\Events\Features\Orders\ProducerApprovalStore;
+use Tapin\Events\Support\OrderMeta;
 use Tapin\Events\Support\PaymentGatewayHelper;
 use Tapin\Events\Support\Orders;
 use Tapin\Events\Support\TicketSalesCounter;
 use WC_Order;
 use WC_Email_Customer_Processing_Order;
 use WC_Order_Item_Product;
-use WC_Product;
 
 final class AwaitingProducerGate implements Service
 {
@@ -44,7 +45,7 @@ final class AwaitingProducerGate implements Service
             return;
         }
 
-        $order->update_meta_data('_tapin_producer_ids', $producerIds);
+        $order->update_meta_data(OrderMeta::PRODUCER_IDS, $producerIds);
 
         $awaiting = self::awaitingStatusSlug();
         if ($order->get_status() !== $awaiting) {
@@ -205,7 +206,16 @@ final class AwaitingProducerGate implements Service
     public static function captureAndApprove(WC_Order $order, ?int $producerId = null, ?float $captureAmount = null): bool
     {
         $producerKey = $producerId !== null && $producerId > 0 ? $producerId : null;
-        $capturedTotals = self::normalizeProducerFloatMap($order->get_meta('_tapin_partial_captured_total', true), $producerKey);
+        $capturedTotals = self::normalizeProducerFloatMap($order->get_meta(OrderMeta::PARTIAL_CAPTURED_TOTAL, true), $producerKey);
+        if (function_exists('tapin_next_debug_log')) {
+            tapin_next_debug_log(sprintf(
+                '[capture-and-approve] order %d producer=%s target=%s captured-so-far=%s',
+                (int) $order->get_id(),
+                $producerKey !== null ? (string) $producerKey : 'all',
+                $captureAmount !== null ? number_format((float) $captureAmount, 2, '.', '') : 'full',
+                number_format((float) array_sum($capturedTotals), 2, '.', '')
+            ));
+        }
 
         $paidAmount = null;
         if ($order->get_date_paid() || $order->is_paid()) {
@@ -220,7 +230,7 @@ final class AwaitingProducerGate implements Service
                     $capturedTotals[self::LEGACY_PRODUCER_ID] ?? 0.0,
                     $paidAmount
                 );
-                self::saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
+                self::saveProducerFloatMap($order, OrderMeta::PARTIAL_CAPTURED_TOTAL, $capturedTotals);
             }
         }
 
@@ -248,19 +258,31 @@ final class AwaitingProducerGate implements Service
         $remainingGlobal   = max(0.0, $orderTotal - $globalCaptured);
         $toCapture         = min($producerRemaining, $remainingGlobal);
 
+        $gateway          = PaymentGatewayHelper::getGateway($order);
+        $gatewaySupports  = PaymentGatewayHelper::supportsPartialCapture($gateway);
         $didCapture = true;
         if ($toCapture > 0.0) {
-            $didCapture = PaymentGatewayHelper::capture($order, $toCapture);
-            if (!$didCapture) {
-                $order->add_order_note(__('Tapin: capture failed. Please capture the approved amount manually before approving the order.', 'tapin'));
-                return false;
-            }
-
-            if ($producerKey !== null) {
-                $capturedTotals[$producerKey] = ($capturedTotals[$producerKey] ?? 0.0) + $toCapture;
-                self::saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
+            if (!$gatewaySupports) {
+                $order->add_order_note(__('Gateway does not support capture; approval saved without capture. Please charge manually.', 'tapin'));
+                if ($producerKey !== null) {
+                    $capturedTotals[$producerKey] = max($capturedTotals[$producerKey] ?? 0.0, $alreadyCaptured + $toCapture);
+                    self::saveProducerFloatMap($order, OrderMeta::PARTIAL_CAPTURED_TOTAL, $capturedTotals);
+                } else {
+                    $order->update_meta_data(OrderMeta::PARTIAL_CAPTURED_TOTAL, $alreadyCaptured + $toCapture);
+                }
             } else {
-                $order->update_meta_data('_tapin_partial_captured_total', $alreadyCaptured + $toCapture);
+                $didCapture = PaymentGatewayHelper::capture($order, $toCapture);
+                if (!$didCapture) {
+                    $order->add_order_note(__('Tapin: capture failed. Please capture the approved amount manually before approving the order.', 'tapin'));
+                    return false;
+                }
+
+                if ($producerKey !== null) {
+                    $capturedTotals[$producerKey] = ($capturedTotals[$producerKey] ?? 0.0) + $toCapture;
+                    self::saveProducerFloatMap($order, OrderMeta::PARTIAL_CAPTURED_TOTAL, $capturedTotals);
+                } else {
+                    $order->update_meta_data(OrderMeta::PARTIAL_CAPTURED_TOTAL, $alreadyCaptured + $toCapture);
+                }
             }
         }
 
@@ -285,7 +307,7 @@ final class AwaitingProducerGate implements Service
                 __('Producer approved the order.', 'tapin')
             );
             if ($captureAmount === null) {
-                $order->delete_meta_data('_tapin_partial_captured_total');
+                $order->delete_meta_data(OrderMeta::PARTIAL_CAPTURED_TOTAL);
             }
         } else {
             $order->delete_meta_data('_tapin_producer_approved');
@@ -336,15 +358,15 @@ final class AwaitingProducerGate implements Service
             return;
         }
 
-        $rawRecorded = $order->get_meta('_tapin_ticket_sales_recorded', true);
+        $rawRecorded = $order->get_meta(OrderMeta::TICKET_SALES_RECORDED, true);
         if (!is_array($rawRecorded) || $rawRecorded === []) {
-            $order->delete_meta_data('_tapin_ticket_sales_recorded');
+            $order->delete_meta_data(OrderMeta::TICKET_SALES_RECORDED);
         }
 
         if (is_array($rawRecorded) && $rawRecorded !== []) {
             $recorded = $this->normalizeSalesMap($rawRecorded);
             if ($recorded === []) {
-                $order->delete_meta_data('_tapin_ticket_sales_recorded');
+                $order->delete_meta_data(OrderMeta::TICKET_SALES_RECORDED);
             } else {
                 foreach ($recorded as $productId => $types) {
                     $delta = [];
@@ -360,24 +382,24 @@ final class AwaitingProducerGate implements Service
                     }
                 }
 
-                $order->delete_meta_data('_tapin_ticket_sales_recorded');
+                $order->delete_meta_data(OrderMeta::TICKET_SALES_RECORDED);
             }
         }
 
-        $order->delete_meta_data('_tapin_partial_captured_total');
-        $order->delete_meta_data('_tapin_partial_approved_map');
-        $order->delete_meta_data('_tapin_partial_approved_total');
-        $order->delete_meta_data('_tapin_producer_approved_attendees');
+        $order->delete_meta_data(OrderMeta::PARTIAL_CAPTURED_TOTAL);
+        $order->delete_meta_data(OrderMeta::PARTIAL_APPROVED_MAP);
+        $order->delete_meta_data(OrderMeta::PARTIAL_APPROVED_TOTAL);
+        $order->delete_meta_data(OrderMeta::PRODUCER_APPROVED_ATTENDEES);
 
         $tokens = new TicketTokensRepository();
         $tokens->invalidateTokensForOrder($order);
-        $order->delete_meta_data('_tapin_ticket_emails_sent');
+        $order->delete_meta_data(OrderMeta::TICKET_EMAILS_SENT);
         $order->save();
     }
 
     private static function resolveProducerApprovedTotal(WC_Order $order, int $producerId): float
     {
-        $totals = self::normalizeProducerFloatMap($order->get_meta('_tapin_partial_approved_total', true), $producerId);
+        $totals = self::normalizeProducerFloatMap($order->get_meta(OrderMeta::PARTIAL_APPROVED_TOTAL, true), $producerId);
         if (isset($totals[$producerId])) {
             return $totals[$producerId];
         }
@@ -395,38 +417,7 @@ final class AwaitingProducerGate implements Service
      */
     private static function normalizeProducerFloatMap($raw, ?int $producerId = null): array
     {
-        $result = [];
-        if (is_array($raw)) {
-            foreach ($raw as $producerKey => $value) {
-                $pid = (int) $producerKey;
-                if ($pid <= 0) {
-                    $pid = self::LEGACY_PRODUCER_ID;
-                }
-
-                if (is_array($value)) {
-                    continue;
-                }
-
-                $floatVal = max(0.0, (float) $value);
-                if ($floatVal > 0.0) {
-                    $result[$pid] = $floatVal;
-                }
-            }
-        }
-
-        if ($result !== []) {
-            return $result;
-        }
-
-        if (is_numeric($raw)) {
-            $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
-            $val    = max(0.0, (float) $raw);
-            if ($val > 0.0) {
-                $result[$target] = $val;
-            }
-        }
-
-        return $result;
+        return ProducerApprovalStore::normalizeProducerFloatMap($raw, $producerId);
     }
 
     private static function saveProducerFloatMap(WC_Order $order, string $key, array $map): void
@@ -485,7 +476,7 @@ final class AwaitingProducerGate implements Service
      */
     public static function ensureProducerMeta(WC_Order $order): array
     {
-        $current = (array) $order->get_meta('_tapin_producer_ids', true);
+        $current = (array) $order->get_meta(OrderMeta::PRODUCER_IDS, true);
         $current = array_values(array_filter(array_map('intval', $current)));
         if ($current !== []) {
             return $current;
@@ -496,7 +487,7 @@ final class AwaitingProducerGate implements Service
             return [];
         }
 
-        $order->update_meta_data('_tapin_producer_ids', $ids);
+        $order->update_meta_data(OrderMeta::PRODUCER_IDS, $ids);
         return $ids;
     }
 
@@ -524,7 +515,7 @@ final class AwaitingProducerGate implements Service
     private static function isProducerApproved(WC_Order $order, int $producerId): bool
     {
         $approvedByProducer = self::normalizeApprovedMetaByProducer(
-            $order->get_meta('_tapin_producer_approved_attendees', true),
+            $order->get_meta(OrderMeta::PRODUCER_APPROVED_ATTENDEES, true),
             $producerId
         );
         $map = $approvedByProducer[$producerId] ?? $approvedByProducer[self::LEGACY_PRODUCER_ID] ?? [];
@@ -538,7 +529,7 @@ final class AwaitingProducerGate implements Service
         $hasItems = false;
 
         foreach ($order->get_items('line_item') as $item) {
-            if (!$item instanceof WC_Order_Item_Product || !self::isProducerLineItem($item, $producerId)) {
+            if (!$item instanceof WC_Order_Item_Product || !Orders::isProducerLineItem($item, $producerId)) {
                 continue;
             }
 
@@ -565,72 +556,7 @@ final class AwaitingProducerGate implements Service
      */
     private static function normalizeApprovedMetaByProducer($raw, ?int $producerId = null): array
     {
-        if (!is_array($raw)) {
-            return [];
-        }
-
-        $hasNested = false;
-        foreach ($raw as $value) {
-            if (is_array($value)) {
-                foreach ($value as $nested) {
-                    if (is_array($nested)) {
-                        $hasNested = true;
-                        break 2;
-                    }
-                }
-            }
-        }
-
-        if ($hasNested) {
-            $result = [];
-            foreach ($raw as $producerKey => $map) {
-                $pid = (int) $producerKey;
-                if ($pid <= 0) {
-                    $pid = self::LEGACY_PRODUCER_ID;
-                }
-                if (!is_array($map)) {
-                    continue;
-                }
-
-                $clean = [];
-                foreach ($map as $itemId => $indices) {
-                    $itemKey = (int) $itemId;
-                    if ($itemKey <= 0 || !is_array($indices)) {
-                        continue;
-                    }
-                    $filtered = self::filterIndices($indices);
-                    if ($filtered !== []) {
-                        $clean[$itemKey] = $filtered;
-                    }
-                }
-
-                if ($clean !== []) {
-                    $result[$pid] = $clean;
-                }
-            }
-
-            return $result;
-        }
-
-        $clean = [];
-        foreach ($raw as $itemId => $indices) {
-            $itemKey = (int) $itemId;
-            if ($itemKey <= 0 || !is_array($indices)) {
-                continue;
-            }
-            $filtered = self::filterIndices($indices);
-            if ($filtered !== []) {
-                $clean[$itemKey] = $filtered;
-            }
-        }
-
-        if ($clean === []) {
-            return [];
-        }
-
-        $target = $producerId && $producerId > 0 ? $producerId : self::LEGACY_PRODUCER_ID;
-
-        return [$target => $clean];
+        return ProducerApprovalStore::normalizeApprovedMetaByProducer($raw, $producerId);
     }
 
     /**
@@ -639,47 +565,7 @@ final class AwaitingProducerGate implements Service
      */
     private static function filterIndices(array $indices): array
     {
-        $clean = [];
-        foreach ($indices as $value) {
-            $int = (int) $value;
-            if ($int < 0) {
-                continue;
-            }
-            $clean[] = $int;
-        }
-
-        $clean = array_values(array_unique($clean));
-        sort($clean);
-
-        return $clean;
-    }
-
-    private static function isProducerLineItem($item, int $producerId): bool
-    {
-        if (!$item instanceof WC_Order_Item_Product) {
-            return false;
-        }
-
-        $productId = $item->get_product_id();
-        if ($productId) {
-            $author = (int) get_post_field('post_author', $productId);
-            if ($author === $producerId) {
-                return true;
-            }
-        }
-
-        $product = $item->get_product();
-        if ($product instanceof WC_Product) {
-            $parentId = $product->get_parent_id();
-            if ($parentId) {
-                $author = (int) get_post_field('post_author', $parentId);
-                if ($author === $producerId) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return ProducerApprovalStore::filterIndices($indices);
     }
 
     /**
