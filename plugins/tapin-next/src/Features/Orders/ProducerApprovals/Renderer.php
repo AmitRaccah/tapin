@@ -14,6 +14,8 @@ final class Renderer
     {
         $events = (array) ($view['events'] ?? []);
         $canDownloadExport = (bool) ($view['can_download_export'] ?? false);
+        $requestUri = isset($_SERVER['REQUEST_URI']) ? (string) $_SERVER['REQUEST_URI'] : '';
+        $actionUrl = $requestUri !== '' ? $requestUri : get_permalink();
 
         ob_start();
         ?>
@@ -21,7 +23,7 @@ final class Renderer
           <?php echo $noticeHtml; ?>
           <h3><?php echo esc_html__('הזמנות ממתינות לאישור', 'tapin'); ?></h3>
 
-          <form method="post" id="tapinBulkForm" class="tapin-pa__form">
+          <form method="post" id="tapinBulkForm" class="tapin-pa__form" action="<?php echo esc_url((string) $actionUrl); ?>">
             <?php wp_nonce_field('tapin_pa_bulk', 'tapin_pa_bulk_nonce'); ?>
             <div class="tapin-pa__controls">
               <div class="tapin-pa__search">
@@ -117,8 +119,12 @@ final class Renderer
                           }
                           $altClass = ((int) $orderIndex % 2 === 1) ? ' tapin-pa-order--alt' : '';
                           $approvedMap = (array) ($orderData['approved_attendee_map'] ?? []);
+                          $orderId = (int) ($orderData['id'] ?? 0);
                           ?>
                           <article class="tapin-pa-order <?php echo esc_attr($statusClass); ?><?php echo $altClass; ?>" data-search="<?php echo esc_attr((string) ($orderData['search_blob'] ?? '')); ?>">
+                            <?php if ($orderId > 0): ?>
+                              <input type="hidden" name="order_ids[]" value="<?php echo esc_attr((string) $orderId); ?>">
+                            <?php endif; ?>
                             <header class="tapin-pa-order__header">
                               <div class="tapin-pa-order__left">
                                 <div>
@@ -355,7 +361,6 @@ final class Renderer
                                   <div class="tapin-pa-attendees__grid">
                                     <?php foreach ($uiAttendees as $attendee): ?>
                                       <?php
-                                      $orderId = (int) ($orderData['id'] ?? 0);
                                       $itemId = isset($attendee['item_id']) ? (int) $attendee['item_id'] : 0;
                                       $attendeeIndex = isset($attendee['attendee_index']) ? (int) $attendee['attendee_index'] : -1;
                                       $hasPointer = $orderId > 0 && $itemId > 0 && $attendeeIndex >= 0;

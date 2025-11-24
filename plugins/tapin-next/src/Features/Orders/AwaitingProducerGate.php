@@ -206,12 +206,31 @@ final class AwaitingProducerGate implements Service
     {
         $producerKey = $producerId !== null && $producerId > 0 ? $producerId : null;
         $capturedTotals = self::normalizeProducerFloatMap($order->get_meta('_tapin_partial_captured_total', true), $producerKey);
-        if ($producerKey !== null) {
-            $alreadyCaptured = $capturedTotals[$producerKey] ?? ($capturedTotals[self::LEGACY_PRODUCER_ID] ?? 0.0);
-        } else {
-            $alreadyCaptured = array_sum($capturedTotals);
+
+        $paidAmount = null;
+        if ($order->get_date_paid() || $order->is_paid()) {
+            $paidAmount = max(0.0, (float) $order->get_total() - (float) $order->get_total_refunded());
         }
-        $globalCaptured = array_sum($capturedTotals);
+
+        if ($paidAmount !== null && $paidAmount > 0.0) {
+            $currentSum = array_sum($capturedTotals);
+            $targetSum  = max($currentSum, $paidAmount);
+            if ($targetSum > $currentSum) {
+                $capturedTotals[self::LEGACY_PRODUCER_ID] = max(
+                    $capturedTotals[self::LEGACY_PRODUCER_ID] ?? 0.0,
+                    $paidAmount
+                );
+                self::saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
+            }
+        }
+
+        $legacyCaptured = $capturedTotals[self::LEGACY_PRODUCER_ID] ?? 0.0;
+        if ($producerKey !== null) {
+            $alreadyCaptured = max($capturedTotals[$producerKey] ?? 0.0, $legacyCaptured, $paidAmount ?? 0.0);
+        } else {
+            $alreadyCaptured = max(array_sum($capturedTotals), $paidAmount ?? 0.0);
+        }
+        $globalCaptured = max(array_sum($capturedTotals), $paidAmount ?? 0.0);
 
         $orderTotal      = (float) $order->get_total();
         $resolvedTarget  = $captureAmount !== null ? max(0.0, (float) $captureAmount) : $orderTotal;
@@ -239,6 +258,15 @@ final class AwaitingProducerGate implements Service
                 } else {
                     $order->update_meta_data('_tapin_partial_captured_total', $alreadyCaptured + $toCapture);
                 }
+            } else {
+                $order->add_order_note(__('Tapin: gateway does not support capture; marked as captured based on paid total.', 'tapin'));
+                if ($producerKey !== null) {
+                    $capturedTotals[$producerKey] = ($capturedTotals[$producerKey] ?? 0.0) + $toCapture;
+                    self::saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
+                } else {
+                    $order->update_meta_data('_tapin_partial_captured_total', $alreadyCaptured + $toCapture);
+                }
+                $didCapture = true;
             }
         }
 
@@ -461,7 +489,7 @@ final class AwaitingProducerGate implements Service
     /**
      * @return array<int,int>
      */
-    private static function ensureProducerMeta(WC_Order $order): array
+    public static function ensureProducerMeta(WC_Order $order): array
     {
         $current = (array) $order->get_meta('_tapin_producer_ids', true);
         $current = array_values(array_filter(array_map('intval', $current)));

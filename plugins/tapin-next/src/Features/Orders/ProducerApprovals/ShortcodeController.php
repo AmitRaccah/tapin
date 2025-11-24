@@ -30,12 +30,15 @@ final class ShortcodeController
         $orderSets   = $ordersQuery->resolveProducerOrderIds($producerId);
         $relevantIds = $orderSets['relevant'];
         $displayIds  = $orderSets['display'];
-
         $notice = '';
         if ('POST' === ($_SERVER['REQUEST_METHOD'] ?? '')) {
             $bulk = new BulkActionsController();
             $res  = $bulk->handle($relevantIds);
             $notice = (string) ($res['notice'] ?? '');
+            if ($notice !== '' && function_exists('wc_add_notice')) {
+                $type = strpos($notice, 'woocommerce-error') !== false ? 'error' : 'success';
+                wc_add_notice(wp_strip_all_tags($notice), $type);
+            }
 
             $orderSets   = $ordersQuery->resolveProducerOrderIds($producerId);
             $relevantIds = $orderSets['relevant'];

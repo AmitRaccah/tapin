@@ -13,7 +13,7 @@ final class SocialUrl
         }
 
         $handle = '';
-        if (preg_match('#instagram\.com/([^/?#]+)#i', $value, $matches)) {
+        if (preg_match('~instagram\.com/([^/?#\s]+)~i', $value, $matches)) {
             $handle = $matches[1];
         } else {
             $handle = ltrim($value, '@/');

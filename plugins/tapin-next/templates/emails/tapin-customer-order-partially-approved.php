@@ -55,7 +55,9 @@ $event_location = trim($event_address . ($event_city !== '' ? ' ' . $event_city 
 
 $order_number   = $order instanceof WC_Order ? (string) $order->get_order_number() : '';
 $order_total    = $order instanceof WC_Order ? wp_strip_all_tags($order->get_formatted_order_total()) : '';
-$partial_raw    = $order instanceof WC_Order ? (float) $order->get_meta('_tapin_partial_approved_total', true) : 0.0;
+$partial_raw    = ($order instanceof WC_Order && $email instanceof \Tapin\Events\Features\Orders\Email\Email_CustomerOrderPartiallyApproved)
+    ? $email->getProducerPartialTotal($order, isset($producer_id) ? (int) $producer_id : 0)
+    : ($order instanceof WC_Order ? (float) $order->get_meta('_tapin_partial_approved_total', true) : 0.0);
 $partial_total  = '';
 if ($order instanceof WC_Order && $partial_raw > 0 && function_exists('wc_price')) {
     $partial_total = wc_price($partial_raw, ['currency' => $order->get_currency()]);

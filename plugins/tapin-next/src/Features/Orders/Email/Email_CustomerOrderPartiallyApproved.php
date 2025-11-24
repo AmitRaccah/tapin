@@ -205,6 +205,26 @@ final class Email_CustomerOrderPartiallyApproved extends WC_Email
         return is_string($encoded) && $encoded !== '' ? md5($encoded) : '';
     }
 
+    public function getProducerPartialTotal(WC_Order $order, int $producerId): float
+    {
+        $totals = $this->normalizeProducerTotals($order->get_meta('_tapin_partial_approved_total', true), $producerId);
+
+        if ($producerId > 0 && isset($totals[$producerId])) {
+            return $totals[$producerId];
+        }
+
+        if (isset($totals[self::LEGACY_PRODUCER_ID])) {
+            return $totals[self::LEGACY_PRODUCER_ID];
+        }
+
+        if ($totals !== []) {
+            return array_sum($totals);
+        }
+
+        $raw = $order->get_meta('_tapin_partial_approved_total', true);
+        return is_numeric($raw) ? max(0.0, (float) $raw) : 0.0;
+    }
+
     /**
      * @param mixed $raw
      * @return array<int,array<int,int>>

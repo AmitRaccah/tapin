@@ -31,17 +31,37 @@ final class BulkActionsController
     {
         $notice = '';
 
-        if (
-            'POST' === ($_SERVER['REQUEST_METHOD'] ?? '')
-            && !empty($_POST['tapin_pa_bulk_nonce'])
-            && wp_verify_nonce((string) $_POST['tapin_pa_bulk_nonce'], 'tapin_pa_bulk')
-        ) {
+        if ('POST' === ($_SERVER['REQUEST_METHOD'] ?? '')) {
+            $nonce = $_POST['tapin_pa_bulk_nonce'] ?? '';
+            if (empty($nonce) || !wp_verify_nonce((string) $nonce, 'tapin_pa_bulk')) {
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log(
+                        '[Tapin ProducerApproval] Invalid or missing nonce on bulk handler for user '
+                        . (int) get_current_user_id()
+                        . ' and order IDs: '
+                        . (json_encode($_POST['order_ids'] ?? []) ?: '[]')
+                    );
+                }
+
+                return [
+                    'notice' => sprintf(
+                        '<div class="woocommerce-error" style="direction:rtl;text-align:right">%s</div>',
+                        esc_html__('הבקשה לא אושרה – אנא רענן את העמוד ונסה שוב.', 'tapin')
+                    ),
+                ];
+            }
+
             $approveAll     = !empty($_POST['approve_all']);
             $cancelSelected = isset($_POST['bulk_cancel']);
             $bulkApprove    = isset($_POST['bulk_approve']);
 
             $selected    = array_map('absint', (array) ($_POST['order_ids'] ?? []));
             $attendeeMap = $this->sanitizeAttendeeSelection((array) ($_POST['attendee_approve'] ?? []));
+            $hasSelection = $selected !== [] || $attendeeMap !== [];
+
+            if (!$bulkApprove && !$approveAll && !$cancelSelected && $hasSelection) {
+                $bulkApprove = true;
+            }
 
             if ($approveAll) {
                 $selected = $relevantIds;
@@ -49,7 +69,12 @@ final class BulkActionsController
                 $selected = array_map('intval', array_keys($attendeeMap));
             }
 
-            if ($bulkApprove && !$approveAll && !$cancelSelected && $attendeeMap === []) {
+            $orderLevelApprove = $approveAll || $cancelSelected;
+            if (!$orderLevelApprove && $bulkApprove && $attendeeMap === [] && $selected !== []) {
+                $orderLevelApprove = true;
+            }
+
+            if ($bulkApprove && !$orderLevelApprove && $attendeeMap === []) {
                 return [
                     'notice' => sprintf(
                         '<div class="woocommerce-error" style="direction:rtl;text-align:right">%s</div>',
@@ -58,10 +83,22 @@ final class BulkActionsController
                 ];
             }
 
+            $branch = $orderLevelApprove ? ($cancelSelected ? 'order_cancel' : 'order_full') : ($bulkApprove ? 'attendee' : 'none');
+            $this->logDebug(sprintf(
+                'PA handle: producer=%d branch=%s approveAll=%d cancel=%d bulk=%d selected=%s attendeeOrders=%s',
+                (int) get_current_user_id(),
+                $branch,
+                $approveAll ? 1 : 0,
+                $cancelSelected ? 1 : 0,
+                $bulkApprove ? 1 : 0,
+                json_encode(array_values($selected), JSON_UNESCAPED_SLASHES) ?: '[]',
+                json_encode(array_keys($attendeeMap), JSON_UNESCAPED_SLASHES) ?: '[]'
+            ));
+
             $approved = 0;
             $failed   = 0;
 
-            if ($approveAll || $cancelSelected) {
+            if ($orderLevelApprove) {
                 [$approved, $failed] = $this->handleOrderLevelActions(
                     array_unique(array_map('intval', $selected)),
                     $relevantIds,
@@ -92,6 +129,13 @@ final class BulkActionsController
                 }
                 $this->warnings = [];
             }
+
+            if ($notice === '' && ($approveAll || $cancelSelected || $bulkApprove || $hasSelection)) {
+                $notice = sprintf(
+                    '<div class="woocommerce-error" style="direction:rtl;text-align:right">%s</div>',
+                    esc_html__('No approvals were processed. Please select attendees or orders and try again.', 'tapin')
+                );
+            }
         }
 
         return ['notice' => $notice];
@@ -111,24 +155,40 @@ final class BulkActionsController
 
         foreach ($selected as $orderId) {
             $orderId = (int) $orderId;
+            $this->logDebug(sprintf(
+                'PA order-level: start order=%d producer=%d cancel=%d',
+                $orderId,
+                $producerId,
+                $cancelSelected ? 1 : 0
+            ));
             if (!isset($relevantLookup[$orderId])) {
+                $this->logDebug(sprintf('PA order-level: order %d skipped (not relevant for producer)', $orderId));
                 $failed++;
                 continue;
             }
 
             $order = wc_get_order($orderId);
             if (!$order instanceof WC_Order) {
+                $this->logDebug(sprintf('PA order-level: order %d not found', $orderId));
                 $failed++;
                 continue;
             }
 
             $status = $order->get_status();
             if (!in_array($status, [AwaitingProducerStatus::STATUS_SLUG, PartiallyApprovedStatus::STATUS_SLUG], true)) {
+                $this->logDebug(sprintf('PA order-level: order %d skipped due to status %s', $orderId, $status));
+                $order->add_order_note(sprintf(
+                    'Tapin: producer %d action skipped because status is %s.',
+                    $producerId,
+                    $status
+                ));
                 $failed++;
                 continue;
             }
 
             if ($cancelSelected) {
+                $this->logDebug(sprintf('PA order-level: cancelling order %d for producer %d', $orderId, $producerId));
+                $order->add_order_note(sprintf('Tapin: producer %d requested cancellation from approvals screen.', $producerId));
                 $producerProducts = $this->productIdsFromItems($this->collectProducerItems($order, $producerId));
                 $this->syncTicketSales($order, [], $producerProducts);
                 $this->persistApprovalMeta($order, [], [], 0.0, $producerId);
@@ -159,12 +219,16 @@ final class BulkActionsController
             }
 
             if ($producerId <= 0) {
+                $this->logDebug(sprintf('PA order-level: producer id missing for order %d', $orderId));
+                $order->add_order_note('Tapin: producer approval failed because the producer id was missing.');
                 $failed++;
                 continue;
             }
 
             $producerItems = $this->collectProducerItems($order, $producerId);
             if ($producerItems === []) {
+                $this->logDebug(sprintf('PA order-level: no producer items for order %d (producer %d)', $orderId, $producerId));
+                $order->add_order_note(sprintf('Tapin: no matching items for producer %d on this order.', $producerId));
                 $failed++;
                 continue;
             }
@@ -179,6 +243,8 @@ final class BulkActionsController
             }
 
             if ($fullMeta === []) {
+                $this->logDebug(sprintf('PA order-level: no quantities to approve for order %d (producer %d)', $orderId, $producerId));
+                $order->add_order_note(sprintf('Tapin: producer %d approval skipped because quantities were empty.', $producerId));
                 $failed++;
                 continue;
             }
@@ -202,6 +268,8 @@ final class BulkActionsController
             }
 
             if (!$hasCapacity) {
+                $this->logDebug(sprintf('PA order-level: capacity check failed for order %d (producer %d)', $orderId, $producerId));
+                $order->add_order_note(sprintf('Tapin: approval blocked for producer %d because capacity was exceeded.', $producerId));
                 $failed++;
                 continue;
             }
@@ -209,6 +277,8 @@ final class BulkActionsController
             $stateSnapshot = $this->snapshotProducerState($order);
 
             if (!$this->syncTicketSales($order, $desiredCounts, $this->productIdsFromItems($producerItems))) {
+                $this->logDebug(sprintf('PA order-level: ticket sales sync failed for order %d (producer %d)', $orderId, $producerId));
+                $order->add_order_note(sprintf('Tapin: ticket allocation failed for producer %d; approval rolled back.', $producerId));
                 $failed++;
                 continue;
             }
@@ -227,6 +297,7 @@ final class BulkActionsController
 
             $captured = AwaitingProducerGate::captureAndApprove($order, $producerId, $partialData['total']);
             if (!$captured) {
+                $this->logDebug(sprintf('PA order-level: capture failed for order %d (producer %d)', $orderId, $producerId));
                 $this->restoreProducerState($order, $stateSnapshot);
                 $order->add_order_note(__('Tapin: final capture failed. Approval was rolled back and capacity released for this producer.', 'tapin'));
                 $order->save();
@@ -234,6 +305,8 @@ final class BulkActionsController
                 continue;
             }
 
+            $order->add_order_note(sprintf('Tapin: order-level approval completed for producer %d.', $producerId));
+            $this->logDebug(sprintf('PA order-level: approval complete for order %d (producer %d)', $orderId, $producerId));
             $approved++;
         }
 
@@ -248,11 +321,13 @@ final class BulkActionsController
     private function handleAttendeeApprovals(array $selection, array $relevantIds): array
     {
         if ($selection === []) {
+            $this->logDebug('PA attendee: selection empty');
             return [0, 0];
         }
 
         $producerId = (int) get_current_user_id();
         if ($producerId <= 0) {
+            $this->logDebug('PA attendee: missing producer id');
             return [0, count($selection)];
         }
 
@@ -262,26 +337,37 @@ final class BulkActionsController
 
         foreach ($selection as $orderId => $items) {
             $orderKey = (int) $orderId;
+            $this->logDebug(sprintf('PA attendee: start order=%d producer=%d', $orderKey, $producerId));
             if (!isset($relevantLookup[$orderKey])) {
+                $this->logDebug(sprintf('PA attendee: order %d not relevant for producer', $orderKey));
                 $failed++;
                 continue;
             }
 
             $order = wc_get_order($orderKey);
             if (!$order instanceof WC_Order) {
+                $this->logDebug(sprintf('PA attendee: order %d not found', $orderKey));
                 $failed++;
                 continue;
             }
 
             $status = $order->get_status();
             if (!in_array($status, [AwaitingProducerStatus::STATUS_SLUG, PartiallyApprovedStatus::STATUS_SLUG], true)) {
+                $this->logDebug(sprintf('PA attendee: order %d skipped due to status %s', $orderKey, $status));
+                $order->add_order_note(sprintf(
+                    'Tapin: producer %d attendee approval skipped because status is %s.',
+                    $producerId,
+                    $status
+                ));
                 $failed++;
                 continue;
             }
 
             if ($this->applyAttendeeSelection($order, $producerId, is_array($items) ? $items : [])) {
+                $this->logDebug(sprintf('PA attendee: approval applied for order %d (producer %d)', $orderKey, $producerId));
                 $approved++;
             } else {
+                $this->logDebug(sprintf('PA attendee: approval failed for order %d (producer %d)', $orderKey, $producerId));
                 $failed++;
             }
         }
@@ -295,8 +381,17 @@ final class BulkActionsController
      */
     private function applyAttendeeSelection(WC_Order $order, int $producerId, array $itemSelections): bool
     {
+        $orderId = (int) $order->get_id();
+        $this->logDebug(sprintf(
+            'PA attendee-selection: order=%d producer=%d itemKeys=%s',
+            $orderId,
+            $producerId,
+            json_encode(array_keys($itemSelections), JSON_UNESCAPED_SLASHES) ?: '[]'
+        ));
         $producerItems = $this->collectProducerItems($order, $producerId);
         if ($producerItems === []) {
+            $this->logDebug(sprintf('PA attendee-selection: no producer items for order %d (producer %d)', $orderId, $producerId));
+            $order->add_order_note(sprintf('Tapin: no matching items for producer %d when applying attendee selection.', $producerId));
             return false;
         }
 
@@ -310,6 +405,8 @@ final class BulkActionsController
 
         $selectionMeta = $this->buildSelectionMeta($producerItems, $itemSelections, $approvedMeta);
         if ($selectionMeta['touched'] === false) {
+            $this->logDebug(sprintf('PA attendee-selection: no attendees selected for order %d (producer %d)', $orderId, $producerId));
+            $order->add_order_note(sprintf('Tapin: producer %d submitted approval with no attendees selected.', $producerId));
             return false;
         }
 
@@ -318,11 +415,22 @@ final class BulkActionsController
         $desiredCounts     = $capacityResult['counts'];
 
         $partialData = $this->computePartialData($order, $producerItems, $finalApprovedMeta);
+        $this->logDebug(sprintf(
+            'PA attendee-selection: summary order=%d producer=%d touched=%d approved_qty=%d total_qty=%d total=%s',
+            $orderId,
+            $producerId,
+            $selectionMeta['touched'] ? 1 : 0,
+            (int) ($partialData['approved_qty'] ?? 0),
+            (int) ($partialData['total_qty'] ?? 0),
+            (string) ($partialData['total'] ?? 0)
+        ));
 
         $stateSnapshot = $this->snapshotProducerState($order);
         $previousStatus = $order->get_status();
 
         if (!$this->syncTicketSales($order, $desiredCounts, $this->productIdsFromItems($producerItems))) {
+            $this->logDebug(sprintf('PA attendee-selection: ticket sync failed for order %d (producer %d)', $orderId, $producerId));
+            $order->add_order_note(sprintf('Tapin: ticket allocation failed for producer %d; approval was not saved.', $producerId));
             $order->save();
             return false;
         }
@@ -354,6 +462,7 @@ final class BulkActionsController
                 return true;
             }
 
+            $this->logDebug(sprintf('PA attendee-selection: partial capture failed for order %d (producer %d)', $orderId, $producerId));
             $this->restoreProducerState($order, $stateSnapshot);
             $order->set_status($previousStatus);
             $order->add_order_note(__('Tapin: partial capture failed. Approval was rolled back and capacity released.', 'tapin'));
@@ -373,12 +482,14 @@ final class BulkActionsController
 
         $captured = AwaitingProducerGate::captureAndApprove($order, $producerId, $partialData['total']);
         if (!$captured) {
+            $this->logDebug(sprintf('PA attendee-selection: final capture failed for order %d (producer %d)', $orderId, $producerId));
             $this->restoreProducerState($order, $stateSnapshot);
             $order->add_order_note(__('Tapin: final capture failed. Approval was rolled back and capacity released for this producer.', 'tapin'));
             $order->save();
             return false;
         }
 
+        $this->logDebug(sprintf('PA attendee-selection: approval complete for order %d (producer %d)', $orderId, $producerId));
         return true;
     }
 
@@ -732,8 +843,11 @@ final class BulkActionsController
 
         $gateway = PaymentGatewayHelper::getGateway($order);
         if (!PaymentGatewayHelper::supportsPartialCapture($gateway)) {
-            $order->add_order_note(__('Gateway does not support partial capture; collect the approved amount manually.', 'tapin'));
-            return false;
+            $order->add_order_note(__('Gateway does not support partial capture; approval saved without capture. Please charge manually.', 'tapin'));
+            $capturedTotals = $this->normalizeProducerFloatMap($order->get_meta('_tapin_partial_captured_total', true), $producerId);
+            $capturedTotals[$producerId] = max($capturedTotals[$producerId] ?? 0.0, $target);
+            $this->saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
+            return true;
         }
 
         $captured = PaymentGatewayHelper::capture($order, $toCapture);
@@ -745,9 +859,12 @@ final class BulkActionsController
             return true;
         }
 
-        $order->add_order_note(__('Partial capture failed. Please capture the approved amount manually.', 'tapin'));
+        $order->add_order_note(__('Partial capture failed. Approval saved without capture; please charge manually.', 'tapin'));
+        $capturedTotals = $this->normalizeProducerFloatMap($order->get_meta('_tapin_partial_captured_total', true), $producerId);
+        $capturedTotals[$producerId] = max($capturedTotals[$producerId] ?? 0.0, $alreadyCaptured);
+        $this->saveProducerFloatMap($order, '_tapin_partial_captured_total', $capturedTotals);
 
-        return false;
+        return true;
     }
 
     /**
@@ -1022,6 +1139,13 @@ final class BulkActionsController
         }
 
         $order->update_meta_data($key, $value);
+    }
+
+    private function logDebug(string $message): void
+    {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('[Tapin PA] ' . $message);
+        }
     }
 
     /**
