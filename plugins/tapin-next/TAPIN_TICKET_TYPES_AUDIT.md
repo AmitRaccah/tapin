@@ -1,4 +1,4 @@
-Tapin Events Next — Ticket Types Flow Audit and Fixes
+Tapin Events Next - Ticket Types Flow Audit and Fixes
 
 Summary
 
@@ -11,23 +11,23 @@ Flow Map (key points)
   - Stable id generation: plugins/tapin-next/src/Domain/TicketTypesRepository.php:183
   - Sale windows aligned by type id: plugins/tapin-next/src/Domain/SaleWindowsRepository.php:11, 164, 207
 
-- Frontend (build list → modal → POST)
+- Frontend (build list -> modal -> POST)
   - Modal data (ticketTypes list): plugins/tapin-next/src/Features/ProductPage/PurchaseDetailsModal.php:1411
   - JS selection by id (cards): plugins/tapin-next/src/Features/ProductPage/assets/js/tapin-purchase/tapin.tickets.js
   - Plan (per-attendee typeId/label): plugins/tapin-next/src/Features/ProductPage/assets/js/tapin-purchase/tapin.plan.js
   - Finalize POST (tapin_attendees JSON with ticket_type + ticket_type_label): plugins/tapin-next/src/Features/ProductPage/assets/js/tapin-purchase/tapin.form.js
   - Hidden field renderer: plugins/tapin-next/src/Features/ProductPage/PurchaseDetailsModal.php (search for renderHiddenField)
 
-- Server validate/sanitize → cart split → pricing
+- Server validate/sanitize -> cart split -> pricing
   - Validate submission + set current type index: plugins/tapin-next/src/Features/ProductPage/PurchaseDetailsModal.php:402
-  - Sanitize attendee (id-first, label→id fallback, set price): plugins/tapin-next/src/Features/ProductPage/PurchaseDetailsModal.php (see sanitizeAttendee)
+  - Sanitize attendee (id-first, label->id fallback, set price): plugins/tapin-next/src/Features/ProductPage/PurchaseDetailsModal.php (see sanitizeAttendee)
   - Split add into separate cart items: plugins/tapin-next/src/Features/ProductPage/PurchaseDetailsModal.php:515
   - Late, authoritative pricing (priority 999, id fallback via cache): plugins/tapin-next/src/Features/ProductPage/PurchaseDetailsModal.php:53, 904
   - Order item meta (encrypted, per line): plugins/tapin-next/src/Features/ProductPage/PurchaseDetailsModal.php (search for storeOrderItemMeta)
 
 Root Cause
 
-- Pricing/identification sometimes relied on label or earlier base price and could be overridden by other filters due to a lower priority hook. In cases where id was omitted from POST (or transformed), there was no reliable label→id resolution.
+- Pricing/identification sometimes relied on label or earlier base price and could be overridden by other filters due to a lower priority hook. In cases where id was omitted from POST (or transformed), there was no reliable label->id resolution.
 
 Changes
 
@@ -36,11 +36,11 @@ Changes
   - Enabled via: define('TAPIN_TICKET_DEBUG', true)
   - Logs ensureTicketTypeCache, sanitizeAttendee, attachCartItemData, applyAttendeePricing
 
-- Enforce id-first resolution with label→id fallback
+- Enforce id-first resolution with label->id fallback
   - sanitizeAttendee now:
     - Resolves by ticket_type id when present
-    - If missing, attempts label→id match (case/trim normalized)
-    - If unresolved, returns error: "סוג הכרטיס שנבחר אינו זמין"
+    - If missing, attempts label->id match (case/trim normalized)
+    - If unresolved, returns error: "??? ?????? ????? ???? ????"
     - Sets authoritative ticket_price from ensureTicketTypeCache index
 
 - Strengthen late pricing
@@ -57,10 +57,9 @@ Changes
 
 QA Scenarios (expected to pass)
 
-1) VIP ×2 → two lines, both VIP price
-2) Regular ×1 + VIP ×1 → two lines, correct distinct prices, labels for display
-3) VIP under active discount window → discounted VIP price at checkout
-4) Rename label (e.g., "Gold Lounge") with same id → price remains correct (id authoritative)
-5) Non-simple/non-purchasable product → modal not rendered; logic not applied
-6) TAPIN_TICKET_DEBUG false/undefined → no logs
-
+1) VIP x2 -> two lines, both VIP price
+2) Regular x1 + VIP x1 -> two lines, correct distinct prices, labels for display
+3) VIP under active discount window -> discounted VIP price at checkout
+4) Rename label (e.g., "Gold Lounge") with same id -> price remains correct (id authoritative)
+5) Non-simple/non-purchasable product -> modal not rendered; logic not applied
+6) TAPIN_TICKET_DEBUG false/undefined -> no logs

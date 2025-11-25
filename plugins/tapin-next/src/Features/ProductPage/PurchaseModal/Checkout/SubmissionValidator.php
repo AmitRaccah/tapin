@@ -54,35 +54,22 @@ final class SubmissionValidator
         }
 
         if (!isset($_POST['tapin_attendees'])) {
-            wc_add_notice('יש למלא את פרטי המשתתפים לפני הרכישה.', 'error');
+            wc_add_notice(__('לא נבחרו משתתפים להזמנה.', 'tapin'), 'error');
             return false;
         }
 
         $decoded = json_decode(wp_unslash((string) $_POST['tapin_attendees']), true);
         if (!is_array($decoded)) {
-            wc_add_notice('נראה שיש בעיה בנתוני המשתתפים, אנא נסו שוב.', 'error');
+            wc_add_notice(__('הנתונים שנשלחו אינם תקינים, נסו שוב.', 'tapin'), 'error');
             return false;
         }
 
         $originalQty = (int) $quantity;
         $quantity = max(1, (int) $quantity);
-        if (count($decoded) !== $quantity) {
-            wc_add_notice('יש להזין פרטים עבור כל משתתף שנבחר לרכישה.', 'error');
-            return false;
-        }
 
-        $cache = $this->ticketTypeCache->ensureTicketTypeCache($productId);
-        $ticketTypeIndex = $cache['index'];
-
-        $sanitized = [];
-        $errors = [];
-
-        foreach ($decoded as $index => $attendee) {
-            $result = $this->sanitizer->sanitizeAttendee(is_array($attendee) ? $attendee : [], $index, $errors, $index === 0, $ticketTypeIndex);
-            if ($result !== null) {
-                $sanitized[] = $result;
-            }
-        }
+        $validation = $this->pendingCheckoutManager->validateAttendeesPayload($productId, $quantity, $decoded);
+        $sanitized = $validation['sanitized'];
+        $errors = $validation['errors'];
 
         if ($errors !== []) {
             foreach ($errors as $message) {
@@ -102,32 +89,6 @@ final class SubmissionValidator
             return false;
         }
 
-        if ($sanitized === []) {
-            wc_add_notice(__('לא נמצאו משתתפים תקינים לעיבוד. אנא נסו שוב.', 'tapin'), 'error');
-            return false;
-        }
-
-        $typeCounts = [];
-        foreach ($sanitized as $entry) {
-            $typeId = isset($entry['ticket_type']) ? (string) $entry['ticket_type'] : '';
-            if ($typeId === '' || !isset($ticketTypeIndex[$typeId])) {
-                wc_add_notice(__('סוג הכרטיס שנבחר אינו זמין.', 'tapin'), 'error');
-                return false;
-            }
-            $typeCounts[$typeId] = ($typeCounts[$typeId] ?? 0) + 1;
-        }
-
-        foreach ($typeCounts as $typeId => $count) {
-            $context = $ticketTypeIndex[$typeId];
-            $capacity = isset($context['capacity']) ? (int) $context['capacity'] : 0;
-            $available = isset($context['available']) ? (int) $context['available'] : 0;
-            if ($capacity > 0 && $available >= 0 && $count > $available) {
-                $name = (string) ($context['name'] ?? $typeId);
-                wc_add_notice(sprintf(__('אין מספיק זמינות עבור %s.', 'tapin'), esc_html($name)), 'error');
-                return false;
-            }
-        }
-
         $payer = $sanitized[0];
         $userId = get_current_user_id();
         $created = false;
@@ -141,7 +102,7 @@ final class SubmissionValidator
 
             $existing = get_user_by('email', $email);
             if ($existing instanceof \WP_User) {
-                $this->pendingCheckoutManager->storePendingCheckout($sanitized, $productId, $quantity);
+                $this->pendingCheckoutManager->storePendingCheckout($sanitized, $productId, $quantity, (int) $existing->ID);
                 $this->flowState->resetAttendees();
                 $this->pendingCheckoutManager->redirectToLogin();
                 return false;

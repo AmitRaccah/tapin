@@ -1,42 +1,20 @@
-Tapin Events Next — QA Notes for Ticket Types Flow
+# QA Notes — Tapin Events Next
 
-Scenarios
+## מודל רכישה: הוספה / רענון / חזרה
+- פתחו מודל רכישה במוצר אירוע והוסיפו 2–3 משתתפים מסוגים שונים עד שמתקבלת הודעת הצלחה.
+- רעננו את העמוד או חזרו קדימה/אחורה: המודל צריך להיפתח ריק (בלי ערכים קודמים) והוספה חדשה חייבת לעבוד ללא כפילויות בסל.
+- ודאו שהוספה חוזרת לא נחסמת כל עוד יש קיבולת וכי מחירי חלונות המכירה מתעדכנים נכון.
 
-- A) Two VIP tickets
-  - Select VIP ×2 in modal
-  - Expected: Exactly 2 lines in cart, both priced at VIP price
+## חידוש לאחר התחברות עם קיבולת
+- הזינו אימייל של משתמש קיים כדי להפעיל הפניה לדף התחברות במקום ליצור משתמש שקוף.
+- לאחר ההתחברות, חזרו למוצר: ההזמנה אמורה להתחדש אוטומטית עם אותם משתתפים כל עוד נותר מקום לכל סוג כרטיס.
+- אם בזמן ההתחברות אזל סוג כרטיס, צריכה להופיע הודעת שגיאה ברורה והמוצר לא מתווסף לסל.
 
-- B) One Regular + One VIP
-  - Select Regular ×1 and VIP ×1
-  - Expected: 2 lines, correct distinct prices; labels only for display
+## Approvals וסנכרון מלאי
+- אשרו הזמנה בהמתנה ממסך האישורים (כולל Bulk) ובדקו ש-EventStockSynchronizer מעדכן את `_manage_stock`, `_stock`, `_stock_status` והכמויות בדשבורד.
+- ודאו שספירת מכירות/קיבולת מתעדכנת פעם אחת לכל מוצר, ושלא נשארים פערים בין קופות או בין הזמנות מאושרות/מבוטלות.
+- מלאי ידני שנמחק צריך לאפס את `_stock` ולהחזיר סטטוס `instock` כאשר אין קיבולת מוגדרת.
 
-- C) Rename label without changing id
-  - Change VIP label to "Gold Lounge" keeping the same id
-  - Expected: pricing remains correct (id authoritative)
-
-- D) Active discount window for VIP
-  - Configure Sale Window with VIP-specific price
-  - Expected: Checkout shows discounted VIP price
-
-- E) Refresh/Back
-  - After adding via modal, refresh product page or navigate back/forward
-  - Expected: No extra "ghost" line is added
-
-- F) Login redirect (pending checkout resume)
-  - Submit as email that belongs to an existing user to trigger login redirect
-  - After login, resume pending checkout
-  - Expected: Items added once; count matches attendees
-
-Debugging
-
-- Enable logs by defining: TAPIN_TICKET_DEBUG = true
-- PHP logs:
-  - ensureTicketTypeCache snapshots
-  - validateSubmission: decoded, sanitized, original qty
-  - attachCartItemData: processing state, chosen attendee type, remaining queue
-  - applyAttendeePricing: product_id, type_id, price source (item/attendee/cache)
-  - maybeResumePendingCheckout: attendees count, add_to_cart result
-- JS logs (console.debug):
-  - Plan.buildFromSelection totals
-  - Form.finalize serialized attendees (type/label/price)
-
+## בדיקות מהירות
+- אימות סינטקס PHP: `php -l path/to/file.php`
+- ניקוי שגיאות רכישה קודמות לפני ניסיון חדש: `wc_clear_notices()`

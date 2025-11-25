@@ -12,6 +12,7 @@ use Tapin\Events\Support\OrderMeta;
 use Tapin\Events\Support\Orders;
 use Tapin\Events\Support\PaymentGatewayHelper;
 use Tapin\Events\Support\TicketSalesCounter;
+use Tapin\Events\Support\EventStockSynchronizer;
 use Tapin\Events\Support\AttendeeSecureStorage;
 use WC_Order;
 use WC_Order_Item_Product;
@@ -983,6 +984,13 @@ final class BulkActionsController
             $updatedMap[$pid] = $sanitizedDesired[$pid] ?? [];
             if ($updatedMap[$pid] === []) {
                 unset($updatedMap[$pid]);
+            }
+        }
+
+        foreach ($allProducts as $productId) {
+            $pid = (int) $productId;
+            if ($pid > 0) {
+                EventStockSynchronizer::syncFromTicketTypes($pid);
             }
         }
 

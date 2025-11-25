@@ -131,13 +131,13 @@ final class AttendeeSanitizer
     {
         switch ($key) {
             case 'email':
-                return sprintf('יש להזין אימייל עבור %s', $attendeeLabel);
+                return sprintf(__('חסר אימייל עבור %s.', 'tapin'), $attendeeLabel);
             case 'instagram':
-                return sprintf('יש להזין אינסטגרם עבור %s', $attendeeLabel);
+                return sprintf(__('חסר שם משתמש אינסטגרם עבור %s.', 'tapin'), $attendeeLabel);
             case 'phone':
-                return sprintf('יש להזין מספר טלפון עבור %s', $attendeeLabel);
+                return sprintf(__('חסר מספר טלפון עבור %s.', 'tapin'), $attendeeLabel);
             default:
-                return sprintf('יש למלא את השדה %s עבור %s', $fieldLabel, $attendeeLabel);
+                return sprintf(__('השדה %s הוא חובה עבור %s.', 'tapin'), $fieldLabel, $attendeeLabel);
         }
     }
 
@@ -145,25 +145,25 @@ final class AttendeeSanitizer
     {
         switch ($key) {
             case 'email':
-                return sprintf('כתובת האימייל אינה תקינה עבור %s', $attendeeLabel);
+                return sprintf(__('כתובת האימייל של %s אינה תקינה.', 'tapin'), $attendeeLabel);
             case 'phone':
-                return sprintf('מספר הטלפון חייב לכלול לפחות 10 ספרות עבור %s', $attendeeLabel);
+                return sprintf(__('מספר הטלפון של %s צריך \ליות \לין 9-10 ספרות.', 'tapin'), $attendeeLabel);
             case 'id_number':
-                return sprintf('תעודת זהות חייבת להכיל בדיוק 9 ספרות עבור %s', $attendeeLabel);
+                return sprintf(__('מספר הזהות \של %s צריך היות באורך 9 ספרות.', 'tapin'), $attendeeLabel);
             case 'instagram':
-                return sprintf('יש להזין אינסטגרם תקין (@username או קישור לפרופיל) עבור %s', $attendeeLabel);
+                return sprintf(__('שם משתמש אינסטגרם עבור %s לא תקין.', 'tapin'), $attendeeLabel);
             case 'tiktok':
-                return sprintf('יש להזין טיקטוק תקין (@username או קישור לפרופיל) עבור %s', $attendeeLabel);
+                return sprintf(__('שם משתמש \טיקטוק עבור %s לא תקין.', 'tapin'), $attendeeLabel);
             case 'facebook':
-                return sprintf('קישור הפייסבוק חייב לכלול facebook עבור %s', $attendeeLabel);
+                return sprintf(__('קישור פייסבוק \עעבור %s לא תקין.', 'tapin'), $attendeeLabel);
             default:
-                return sprintf('הערך שסופק עבור %s אינו תקין עבור %s', $fieldLabel, $attendeeLabel);
+                return sprintf(__('הערך שסופק לשדה %s עבור %s אינו תקין.', 'tapin'), $fieldLabel, $attendeeLabel);
         }
     }
 
     public function attendeeLabel(int $index): string
     {
-        return $index === 0 ? 'הלקוח המשלם' : sprintf('משתתף %d', $index + 1);
+        return $index === 0 ? 'משלם ההזמנה' : sprintf('משתתף %d', $index + 1);
     }
 
     public function formatPrefillValue(string $fieldKey, string $value): string

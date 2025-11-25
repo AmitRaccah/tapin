@@ -210,8 +210,7 @@ final class SaleWindowsRepeater
                             '<input type="datetime-local" class="tapin-sale-w__start'+(lockStart?' tapin-sale-w__start--locked':'')+'" name="'+escapeHtml(prefix)+'_start[]" value="'+escapeHtml(startVal)+'"'+(lockStart?' readonly data-locked-start="1" tabindex="-1"':'')+'>'+                            '<input type="datetime-local" class="tapin-sale-w__end" name="'+escapeHtml(prefix)+'_end[]" value="'+escapeHtml(endVal)+'">'+
                         '</div>'+
                         '<div class="tapin-sale-w__prices" data-price-fields></div>'+
-                        '<button type="button" class="tapin-sale-w__remove" aria-label="Remove sale window">&times;</button>';
-                    // TODO: replace with proper Hebrew label
+                        '<button type="button" class="tapin-sale-w__remove" aria-label="הסר חלון מכירה">&times;</button>';
 
                     rows.appendChild(row);
                     renderPrices(row, defaults.prices || {});

@@ -51,9 +51,9 @@ final class ProductAvailability
         $windows = SaleWindowsRepository::get($productId, $types);
         $summary = CapacityValidator::summarize($productId, $types);
 
-        $saleState   = self::resolveSaleState($windows);
-        $hasTickets  = self::hasAvailableTickets($summary);
-        $isPurchasable = ($saleState === 'none' || $saleState === 'active') && $hasTickets;
+        $saleState    = self::resolveSaleState($windows);
+        $hasTickets   = self::hasAvailableTickets($summary);
+        $isPurchasable = $hasTickets && $saleState !== 'upcoming';
 
         self::$cache[$productId] = [
             'has_windows'    => $windows !== [],

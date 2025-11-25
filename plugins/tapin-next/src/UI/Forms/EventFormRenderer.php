@@ -45,7 +45,7 @@ final class EventFormRenderer
             <input type="text" name="title" value="<?php echo esc_attr($post->post_title); ?>">
         </div>
         <div class="tapin-form-row">
-            <label>כתובת אירוע</label>
+            <label>כתובת האירוע</label>
             <input type="text" name="event_address" value="<?php echo esc_attr((string) $eventAddress); ?>">
         </div>
         <div class="tapin-form-row">
@@ -56,7 +56,7 @@ final class EventFormRenderer
             <label>גיל מינימלי</label>
             <input type="number" name="min_age" min="0" step="1" value="<?php echo esc_attr($minAgeVal !== '' ? (string) (int) $minAgeVal : ''); ?>">
             <small style="display:block;margin-top:6px;color:#475569;font-size:.85rem;">
-                השאר ריק אם אין מגבלת גיל.
+                השיארו ריק אם אין מגבלת גיל.
             </small>
         </div>
         <div class="tapin-form-row">
@@ -99,7 +99,7 @@ final class EventFormRenderer
                     </div>
                 <?php endif; ?>
                 <input type="file" name="bg_image" accept="image/*">
-                <small style="display:block;margin-top:6px;color:#475569;font-size:.85rem;">מומלץ להעלות תמונה רוחבית בגודל של לפחות ‎1920‎ פיקסלים כדי להבטיח תצוגה חדה.</small>
+                <small style="display:block;margin-top:6px;color:#475569;font-size:.85rem;">מומלץ להעלות תמונה רוחבית בגודל של לפחות 1920 פיקסלים כדי להבטיח תצוגה חדה.</small>
             </div>
         <?php endif; ?>
         <?php

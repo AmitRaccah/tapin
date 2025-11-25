@@ -51,7 +51,7 @@ final class AssetsEnqueuer
         $ticketCache = $productId ? $this->ticketTypeCache->ensureTicketTypeCache($productId) : ['list' => [], 'index' => []];
 
         $modalData = [
-            'prefill'     => $this->userManager->getPrefillData(),
+            'prefill'     => $this->userManager->getPrefillData(['first_name', 'last_name', 'email', 'phone']),
             'ticketTypes' => $ticketCache['list'],
             'messages'    => $this->messages->getModalMessages(),
             'fields'      => $this->fields->getDefinitions(),

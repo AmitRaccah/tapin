@@ -9,6 +9,7 @@ use Tapin\Events\Features\Orders\ProducerApprovalStore;
 use Tapin\Events\Support\OrderMeta;
 use Tapin\Events\Support\PaymentGatewayHelper;
 use Tapin\Events\Support\Orders;
+use Tapin\Events\Support\EventStockSynchronizer;
 use Tapin\Events\Support\TicketSalesCounter;
 use WC_Order;
 use WC_Email_Customer_Processing_Order;
@@ -199,7 +200,7 @@ final class AwaitingProducerGate implements Service
 
         $order = wc_get_order($orderId);
         if ($order instanceof WC_Order && $order->has_status(self::awaitingStatusSlug())) {
-            echo '<p class="woocommerce-info" style="direction:rtl;text-align:right">ההזמנה ממתינה לאישור המפיק. נעדכן אותך לאחר האישור.</p>';
+            echo '<p class="woocommerce-info" style="direction:rtl;text-align:right">ההזמנה ממתינה לאישור מפיק. נעדכן אתכם באימייל כשנאשר.</p>';
         }
     }
 
@@ -379,6 +380,7 @@ final class AwaitingProducerGate implements Service
 
                     if ($delta !== []) {
                         TicketSalesCounter::adjust((int) $productId, $delta);
+                        EventStockSynchronizer::syncFromTicketTypes((int) $productId);
                     }
                 }
 

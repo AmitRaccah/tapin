@@ -17,7 +17,10 @@ final class TransparentUserManager
         $this->sanitizer = $sanitizer;
     }
 
-    public function getPrefillData(): array
+    /**
+     * @param array<int,string> $allowedFields
+     */
+    public function getPrefillData(array $allowedFields = []): array
     {
         $definitions = $this->fields->getDefinitions();
         $fieldKeys = array_keys($definitions);
@@ -103,14 +106,21 @@ final class TransparentUserManager
             }
         }
 
-        return (array) apply_filters('tapin_purchase_modal_prefill', $prefill, $userId);
+        $prefill = (array) apply_filters('tapin_purchase_modal_prefill', $prefill, $userId);
+
+        if ($allowedFields !== []) {
+            $allowedKeys = array_fill_keys($allowedFields, true);
+            $prefill = array_intersect_key($prefill, $allowedKeys);
+        }
+
+        return $prefill;
     }
 
     public function createTransparentUser(array $payer): ?int
     {
         $email = isset($payer['email']) ? sanitize_email($payer['email']) : '';
         if ($email === '') {
-            wc_add_notice('כתובת האימייל אינה תקינה.', 'error');
+            wc_add_notice(__('כתובת האימייל אינה תקינה.', 'tapin'), 'error');
             return null;
         }
 
@@ -127,7 +137,7 @@ final class TransparentUserManager
         ]);
 
         if (is_wp_error($userId)) {
-            wc_add_notice('לא ניתן היה ליצור משתמש חדש, אנא נסו שוב או פנו לתמיכה.', 'error');
+            wc_add_notice(__('לא ניתן היה ליצור משתמש חדש, אנא נסו שוב או פנו לתמיכה.', 'tapin'), 'error');
             return null;
         }
 

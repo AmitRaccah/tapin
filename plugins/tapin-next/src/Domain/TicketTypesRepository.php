@@ -3,6 +3,7 @@
 namespace Tapin\Events\Domain;
 
 use Tapin\Events\Support\MetaKeys;
+use Tapin\Events\Support\EventStockSynchronizer;
 use Tapin\Events\Support\TicketSalesCounter;
 use Tapin\Events\Support\Util;
 
@@ -82,6 +83,7 @@ final class TicketTypesRepository
 
         update_post_meta($productId, MetaKeys::TICKET_TYPES, $sanitized);
         TicketSalesCounter::set($productId, $filteredSales);
+        EventStockSynchronizer::syncFromTicketTypes($productId, $sanitized);
 
         return $sanitized;
     }

@@ -2,6 +2,7 @@
 namespace Tapin\Events\Domain;
 
 use Tapin\Events\Support\MetaKeys;
+use Tapin\Events\Support\EventStockSynchronizer;
 use Tapin\Events\Support\Time;
 use Tapin\Events\Support\Util;
 
@@ -32,9 +33,7 @@ final class EventProductService {
                 update_post_meta($pid,'_price',$formatted);
             }
 
-            $totalCapacity = TicketTypesRepository::totalCapacity($ticketTypes ?? []);
-            update_post_meta($pid, '_manage_stock', 'yes');
-            update_post_meta($pid, '_stock', $totalCapacity);
+            EventStockSynchronizer::syncFromTicketTypes($pid, $ticketTypes ?? []);
         } else {
             if ($price !== '') {
                 update_post_meta($pid,'_regular_price',$price);
@@ -42,8 +41,9 @@ final class EventProductService {
             }
 
             if ($stock !== null && $stock >= 0) {
-                update_post_meta($pid, '_manage_stock', 'yes');
-                update_post_meta($pid, '_stock', $stock);
+                EventStockSynchronizer::syncManualStock($pid, $stock);
+            } else {
+                EventStockSynchronizer::syncManualStock($pid, null);
             }
         }
 

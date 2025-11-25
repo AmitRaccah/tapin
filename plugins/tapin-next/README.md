@@ -6,7 +6,7 @@
 
 ### Sandbox toggle
 - The sandbox switch now lives behind `admin-post.php?action=tapin_toggle_sandbox`. Generate links with `tapin_next_sandbox_toggle_url( bool $enable, ?string $redirect = null )`.  
-- Nonce: `tapin_toggle_sandbox`. Capability: `manage_options`. Requests without both are rejected with HTTP 403.  
+- Nonce: `tapin_toggle_sandbox`. Capability: `manage_options`. Requests without both are rejected with HTTP 403.  
 - Cookie is set via `tapin_next_toggle_sandbox_cookie()` using secure/httponly/Lax flags and emits `do_action( 'tapin/sandbox/toggled', $enabled, $user_id )`.  
 - Legacy `?tapin_sandbox=1&_wpnonce=...` still works temporarily but is flagged as deprecated and will be removed once callers migrate.
 

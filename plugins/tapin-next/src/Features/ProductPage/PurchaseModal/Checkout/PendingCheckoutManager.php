@@ -12,6 +12,8 @@ use WC_Product;
 
 final class PendingCheckoutManager
 {
+    private const PENDING_CHECKOUT_TTL = 900;
+
     private FlowState $flowState;
     private AttendeeSanitizer $sanitizer;
     private TicketTypeCache $ticketTypeCache;
@@ -35,7 +37,7 @@ final class PendingCheckoutManager
     /**
      * @param array<int,array<string,mixed>> $attendees
      */
-    public function storePendingCheckout(array $attendees, int $productId, int $quantity): void
+    public function storePendingCheckout(array $attendees, int $productId, int $quantity, int $userId = 0): void
     {
         if (!function_exists('WC')) {
             return;
@@ -47,14 +49,18 @@ final class PendingCheckoutManager
         }
 
         $payload = [
-            'product_id' => (int) $productId,
-            'quantity'   => max(1, (int) $quantity),
-            'attendees'  => $attendees,
+            'product_id'               => (int) $productId,
+            'quantity'                 => max(1, (int) $quantity),
+            'attendees'                => array_values($attendees),
+            'user_id'                  => max(0, (int) $userId),
             'created_by_login_redirect' => true,
-            'timestamp'  => time(),
+            'created_at'               => time(),
         ];
 
-        $session->set(Constants::SESSION_KEY_PENDING, $payload);
+        $normalized = $this->normalizePendingPayload($payload);
+        $normalized['hmac'] = $this->buildPendingSignature($normalized);
+
+        $session->set(Constants::SESSION_KEY_PENDING, $normalized);
     }
 
     public function redirectToLogin(): void
@@ -90,32 +96,45 @@ final class PendingCheckoutManager
 
         $session->set(Constants::SESSION_KEY_PENDING, null);
 
-        $productId = (int) ($pending['product_id'] ?? 0);
-        $quantity = max(1, (int) ($pending['quantity'] ?? 1));
-        $rawAttendees = is_array($pending['attendees']) ? $pending['attendees'] : [];
+        $normalized = $this->normalizePendingPayload($pending);
+        $productId  = (int) ($normalized['product_id'] ?? 0);
+        $quantity   = max(1, (int) ($normalized['quantity'] ?? 1));
+        $rawAttendees = is_array($normalized['attendees']) ? $normalized['attendees'] : [];
 
-        $errors = [];
-        $sanitized = [];
-        $ticketTypeIndex = $this->ticketTypeCache->getTicketTypeIndex($productId);
-
-        foreach ($rawAttendees as $index => $entry) {
-            $result = $this->sanitizer->sanitizeAttendee(is_array($entry) ? $entry : [], $index, $errors, $index === 0, $ticketTypeIndex);
-            if ($result !== null) {
-                $sanitized[] = $result;
-            }
-        }
-
-        if ($errors !== [] || $sanitized === []) {
-            if (function_exists('tapin_next_debug_log')) {
-                tapin_next_debug_log(
-                    sprintf(
-                        '[pending-checkout] resume aborted: %s',
-                        $errors !== [] ? 'validation errors' : 'no attendees'
-                    )
-                );
-            }
+        $createdAt = (int) ($normalized['created_at'] ?? 0);
+        if ($createdAt <= 0 || (time() - $createdAt) > self::PENDING_CHECKOUT_TTL) {
+            $this->logPendingIssue($productId, 'expired');
             return;
         }
+
+        $sessionUserId   = get_current_user_id();
+        $expectedUserId  = (int) ($normalized['user_id'] ?? 0);
+        $storedSignature = is_string($pending['hmac'] ?? null) ? (string) $pending['hmac'] : '';
+
+        if ($expectedUserId > 0 && $expectedUserId !== $sessionUserId) {
+            $this->logPendingIssue($productId, 'user-mismatch');
+            return;
+        }
+
+        $calculatedSignature = $this->buildPendingSignature($normalized);
+        if ($calculatedSignature === '' || $storedSignature === '' || !hash_equals($calculatedSignature, $storedSignature)) {
+            $this->logPendingIssue($productId, 'signature-invalid');
+            return;
+        }
+
+        $validation = $this->validateAttendeesPayload($productId, $quantity, $rawAttendees);
+        $errors = $validation['errors'];
+        $sanitized = $validation['sanitized'];
+
+        if ($errors !== [] || $sanitized === []) {
+            foreach ($errors as $message) {
+                wc_add_notice($message, 'error');
+            }
+            $this->logPendingIssue($productId, 'validation');
+            return;
+        }
+
+        $quantity = count($sanitized);
 
         if (!function_exists('wc_get_product')) {
             return;
@@ -182,6 +201,59 @@ final class PendingCheckoutManager
     }
 
     /**
+     * @param array<int,array<string,mixed>> $rawAttendees
+     * @return array{sanitized: array<int,array<string,mixed>>, errors: array<int,string>}
+     */
+    public function validateAttendeesPayload(int $productId, int $quantity, array $rawAttendees): array
+    {
+        $errors = [];
+        $sanitized = [];
+        $cache = $this->ticketTypeCache->ensureTicketTypeCache($productId);
+        $ticketTypeIndex = $cache['index'];
+
+        if ($quantity > 0 && count($rawAttendees) !== $quantity) {
+            $errors[] = __('כמות המשתתפים אינה תואמת את הכמות שנבחרה.', 'tapin');
+        }
+
+        foreach ($rawAttendees as $index => $entry) {
+            $result = $this->sanitizer->sanitizeAttendee(is_array($entry) ? $entry : [], $index, $errors, $index === 0, $ticketTypeIndex);
+            if ($result !== null) {
+                $sanitized[] = $result;
+            }
+        }
+
+        if ($sanitized === []) {
+            $errors[] = __('לא נבחרו משתתפים תקינים להמשך הזמנה.', 'tapin');
+        }
+
+        $typeCounts = [];
+        foreach ($sanitized as $entry) {
+            $typeId = isset($entry['ticket_type']) ? (string) $entry['ticket_type'] : '';
+            if ($typeId === '' || !isset($ticketTypeIndex[$typeId])) {
+                $errors[] = __('סוג הכרטיס שנבחר אינו זמין.', 'tapin');
+                continue;
+            }
+            $typeCounts[$typeId] = ($typeCounts[$typeId] ?? 0) + 1;
+        }
+
+        foreach ($typeCounts as $typeId => $count) {
+            $context = $ticketTypeIndex[$typeId];
+            $capacity = isset($context['capacity']) ? (int) $context['capacity'] : 0;
+            $available = isset($context['available']) ? (int) $context['available'] : 0;
+
+            if ($capacity > 0 && $available >= 0 && $count > $available) {
+                $name = (string) ($context['name'] ?? $typeId);
+                $errors[] = sprintf(__('אין מספיק כרטיסי %s זמינים.', 'tapin'), $name !== '' ? $name : $typeId);
+            }
+        }
+
+        return [
+            'sanitized' => $sanitized,
+            'errors'    => array_values(array_unique($errors)),
+        ];
+    }
+
+    /**
      * @param mixed $product
      */
     public function maybeRedirectToCheckout($url, $product)
@@ -207,5 +279,57 @@ final class PendingCheckoutManager
         }
 
         return $url;
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     * @return array<string,mixed>
+     */
+    private function normalizePendingPayload(array $payload): array
+    {
+        $attendees = [];
+        if (isset($payload['attendees']) && is_array($payload['attendees'])) {
+            $attendees = array_values($payload['attendees']);
+        }
+
+        return [
+            'product_id'               => (int) ($payload['product_id'] ?? 0),
+            'quantity'                 => max(1, (int) ($payload['quantity'] ?? 1)),
+            'attendees'                => $attendees,
+            'user_id'                  => max(0, (int) ($payload['user_id'] ?? 0)),
+            'created_at'               => (int) ($payload['created_at'] ?? ($payload['timestamp'] ?? 0)),
+            'created_by_login_redirect' => !empty($payload['created_by_login_redirect']),
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     */
+    private function buildPendingSignature(array $payload): string
+    {
+        $normalized = [
+            'product_id' => (int) ($payload['product_id'] ?? 0),
+            'quantity'   => max(1, (int) ($payload['quantity'] ?? 1)),
+            'user_id'    => max(0, (int) ($payload['user_id'] ?? 0)),
+            'created_at' => (int) ($payload['created_at'] ?? 0),
+            'attendees'  => isset($payload['attendees']) && is_array($payload['attendees']) ? array_values($payload['attendees']) : [],
+            'redirect'   => !empty($payload['created_by_login_redirect']),
+        ];
+
+        $json = wp_json_encode($normalized);
+        if (!is_string($json)) {
+            return '';
+        }
+
+        $secret = function_exists('wp_salt') ? wp_salt('tapin_pending_checkout') : (defined('AUTH_SALT') ? AUTH_SALT : 'tapin_pending_checkout');
+
+        return hash_hmac('sha256', $json, (string) $secret);
+    }
+
+    private function logPendingIssue(int $productId, string $reason): void
+    {
+        if (function_exists('tapin_next_debug_log')) {
+            tapin_next_debug_log(sprintf('[pending-checkout] resume aborted for product %d: %s', $productId, $reason));
+        }
     }
 }
