@@ -82,8 +82,8 @@ final class ProductBackground implements Service
             body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs {
                 position: relative;
                 z-index: 1;
-                background: rgba(8, 10, 22, 0.96);
-                background-color: rgba(8, 10, 22, 0.96) !important;
+                background: rgba(8, 10, 22, 0.6);
+                background-color: rgba(8, 10, 22, 0.6) !important;
                 border: 1px solid rgba(255, 255, 255, 0.2);
                 border-radius: clamp(16px, 2.5vw, 28px);
                 padding: clamp(20px, 3vw, 36px);
