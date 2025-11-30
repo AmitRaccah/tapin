@@ -138,6 +138,17 @@ final class ProductBackground implements Service
             body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs {
                 margin-top: clamp(24px, 4vw, 48px);
             }
+            @media (min-width: 1024px) {
+                body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs {
+                    max-width: 680px;
+                    margin-inline: auto;
+                    padding: 32px 36px;
+                }
+                body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs .ui-tabs-panel {
+                    line-height: 1.6;
+                    font-size: 16px;
+                }
+            }
             body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs .ui-tabs-nav {
                 background: transparent;
                 border: 0;
