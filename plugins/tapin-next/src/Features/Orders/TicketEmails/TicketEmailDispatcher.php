@@ -83,13 +83,16 @@ final class TicketEmailDispatcher implements Service
 
             $ticketData['email'] = $email;
 
-            $ticketUrl = $this->urlBuilder->build($ticketData);
-            if ($ticketUrl === '') {
+            $checkinUrl = $this->urlBuilder->buildCheckinUrl($ticketData);
+            if ($checkinUrl === '') {
                 continue;
             }
 
-            $ticketData['ticket_url'] = $ticketUrl;
-            $qrImageUrl = $this->generateQrImage((string) ($ticketData['token'] ?? ''), $ticketUrl);
+            $viewUrl = $this->urlBuilder->build($ticketData);
+            $ticketData['ticket_url'] = $viewUrl;
+
+            $qrImageUrl = $this->generateQrImage((string) ($ticketData['token'] ?? ''), $checkinUrl);
+            $qrImageUrl = $this->canonicalizeEmailUrl($qrImageUrl);
             if ($qrImageUrl === '') {
                 $missingQr = true;
             }
@@ -144,6 +147,34 @@ final class TicketEmailDispatcher implements Service
         }
 
         return array_values(array_unique($keys));
+    }
+
+    private function canonicalizeEmailUrl(string $url): string
+    {
+        $url = trim($url);
+        if ($url === '' || !function_exists('tapin_next_canonical_site_url')) {
+            return $url;
+        }
+
+        $canonicalBase = tapin_next_canonical_site_url();
+        if ($canonicalBase === '') {
+            return $url;
+        }
+
+        $canonicalParts = wp_parse_url($canonicalBase);
+        $parts          = wp_parse_url($url);
+
+        if (!is_array($canonicalParts) || !is_array($parts) || empty($canonicalParts['host']) || empty($parts['path'])) {
+            return $url;
+        }
+
+        $scheme   = $canonicalParts['scheme'] ?? 'https';
+        $host     = $canonicalParts['host'];
+        $port     = isset($canonicalParts['port']) ? ':' . $canonicalParts['port'] : '';
+        $query    = !empty($parts['query']) ? '?' . $parts['query'] : '';
+        $fragment = !empty($parts['fragment']) ? '#' . $parts['fragment'] : '';
+
+        return $scheme . '://' . $host . $port . $parts['path'] . $query . $fragment;
     }
 
     private function generateQrImage(string $token, string $ticketUrl): string

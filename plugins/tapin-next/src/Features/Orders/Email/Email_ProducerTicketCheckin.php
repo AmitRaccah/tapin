@@ -47,7 +47,7 @@ final class Email_ProducerTicketCheckin extends WC_Email
         }
 
         $this->ticket = $ticket;
-        $this->ticketUrl = $this->ticketUrlBuilder->build($this->ticket);
+        $this->ticketUrl = $this->ticketUrlBuilder->buildCheckinUrl($this->ticket);
         $this->qrImageUrl = $this->generateQrImage(
             isset($this->ticket['token']) ? (string) $this->ticket['token'] : '',
             $this->ticketUrl

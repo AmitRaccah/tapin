@@ -23,8 +23,8 @@ final class Email_TicketToAttendee extends WC_Email
     public function __construct()
     {
         $this->id          = 'tapin_ticket_to_attendee';
-        $this->title       = esc_html__('כרטיס ללקוח (Tapin)', 'tapin');
-        $this->description = esc_html__('אימייל זה נשלח לכל משתתף עם כרטיס אישי וקוד QR לסריקה בכניסה לאירוע.', 'tapin');
+        $this->title       = esc_html__('כרטיס כניסה (Tapin)', 'tapin');
+        $this->description = esc_html__('אימייל ללקוח לאחר אישור המפיק הכולל קוד QR וקישור בטוח לצפייה בכרטיס.', 'tapin');
 
         $this->customer_email = true;
         $this->template_html  = 'emails/tapin-ticket-to-attendee.php';
@@ -34,7 +34,7 @@ final class Email_TicketToAttendee extends WC_Email
             '{site_title}'   => $this->get_blogname(),
         ];
 
-        $this->subject = esc_html__('הכרטיס שלך לאירוע %s מוכן', 'tapin');
+        $this->subject = esc_html__('הכרטיס ל-%s מחכה לך', 'tapin');
         $this->heading = esc_html__('הכרטיס שלך מוכן!', 'tapin');
 
         $this->template_base = trailingslashit(TAPIN_NEXT_PATH) . 'templates/';
@@ -52,28 +52,28 @@ final class Email_TicketToAttendee extends WC_Email
         parent::init_form_fields();
 
         if (isset($this->form_fields['enabled'])) {
-            $this->form_fields['enabled']['title'] = esc_html__('הפעלת אימייל', 'tapin');
-            $this->form_fields['enabled']['label'] = esc_html__('שליחת כרטיס (עם קוד QR) לכל משתתף לאחר אישור ההזמנה.', 'tapin');
+            $this->form_fields['enabled']['title'] = esc_html__('הפעלת הודעת כרטיסים', 'tapin');
+            $this->form_fields['enabled']['label'] = esc_html__('שליחת כרטיס עם קוד QR למשתתפים לאחר שהמפיק אישר את ההזמנה.', 'tapin');
         }
 
         if (isset($this->form_fields['subject'])) {
             $this->form_fields['subject']['title']       = esc_html__('נושא', 'tapin');
-            $this->form_fields['subject']['description'] = esc_html__('אפשר להשתמש ב-%s כדי לשלב את שם האירוע או ההזמנה.', 'tapin');
+            $this->form_fields['subject']['description'] = esc_html__('השתמשו במשתנה %s כדי לשלב את שם האירוע בנושא.', 'tapin');
             $this->form_fields['subject']['placeholder'] = $this->subject;
             $this->form_fields['subject']['default']     = $this->subject;
         }
 
         if (isset($this->form_fields['heading'])) {
             $this->form_fields['heading']['title']       = esc_html__('כותרת', 'tapin');
-            $this->form_fields['heading']['description'] = esc_html__('כותרת שתופיע בראש ההודעה.', 'tapin');
+            $this->form_fields['heading']['description'] = esc_html__('כותרת שתופיע בראש המייל.', 'tapin');
             $this->form_fields['heading']['default']     = $this->heading;
         }
 
         if (isset($this->form_fields['additional_content'])) {
             $this->form_fields['additional_content']['title']       = esc_html__('תוכן נוסף', 'tapin');
-            $this->form_fields['additional_content']['description'] = esc_html__('טקסט שיופיע בסוף האימייל, למשל הוראות הגעה או פרטים חשובים נוספים.', 'tapin');
-            $this->form_fields['additional_content']['placeholder'] = esc_html__('תודה שבחרת ב-Tapin.', 'tapin');
-            $this->form_fields['additional_content']['default']     = esc_html__('תודה שבחרת ב-Tapin.', 'tapin');
+            $this->form_fields['additional_content']['description'] = esc_html__('יופיע בסוף המייל לפני פרטי התמיכה.', 'tapin');
+            $this->form_fields['additional_content']['placeholder'] = esc_html__('תודה שבחרתם בטאפין!', 'tapin');
+            $this->form_fields['additional_content']['default']     = esc_html__('תודה שבחרתם בטאפין!', 'tapin');
             $this->form_fields['additional_content']['css']         = 'width:400px; height:75px;';
         }
     }
@@ -120,7 +120,7 @@ final class Email_TicketToAttendee extends WC_Email
                 'ticket'        => $this->ticket,
                 'qr_image_url'  => $this->qrImageUrl,
                 'ticket_url'    => $this->ticketUrl,
-                'qr_fallback'   => $this->qrImageUrl === '' ? __('QR code could not be generated; use the link below for check-in.', 'tapin') : '',
+                'qr_fallback'   => $this->qrImageUrl === '' ? __('לא הצלחנו ליצור קוד QR; השתמשו בקישור הבטוח המצורף.', 'tapin') : '',
                 'event_context' => $this->object instanceof WC_Order
                     ? EmailEventContext::fromOrder(
                         $this->object,
@@ -149,7 +149,7 @@ final class Email_TicketToAttendee extends WC_Email
                 'ticket'        => $this->ticket,
                 'qr_image_url'  => $this->qrImageUrl,
                 'ticket_url'    => $this->ticketUrl,
-                'qr_fallback'   => $this->qrImageUrl === '' ? __('QR code could not be generated; use the link below for check-in.', 'tapin') : '',
+                'qr_fallback'   => $this->qrImageUrl === '' ? __('לא הצלחנו ליצור קוד QR; השתמשו בקישור הבטוח המצורף.', 'tapin') : '',
                 'event_context' => $this->object instanceof WC_Order
                     ? EmailEventContext::fromOrder(
                         $this->object,

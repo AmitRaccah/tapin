@@ -21,9 +21,32 @@ if ($site_name === '') {
     $site_name = get_bloginfo('name');
 }
 
-$site_url  = function_exists('tapin_next_canonical_site_url') ? tapin_next_canonical_site_url() : home_url('/');
-$login_url = wc_get_page_permalink('myaccount');
-if (empty($login_url)) {
+$site_url = function_exists('tapin_next_canonical_site_url') ? tapin_next_canonical_site_url() : home_url('/');
+$apply_canonical = static function (string $url) use ($site_url): string {
+    $url = trim($url);
+    if ($url === '') {
+        return '';
+    }
+
+    $baseParts = wp_parse_url($site_url);
+    if (!is_array($baseParts) || empty($baseParts['host'])) {
+        return $url;
+    }
+
+    $parts    = wp_parse_url($url);
+    $path     = is_array($parts) && isset($parts['path']) ? $parts['path'] : '/' . ltrim($url, '/');
+    $query    = is_array($parts) && !empty($parts['query']) ? '?' . $parts['query'] : '';
+    $fragment = is_array($parts) && !empty($parts['fragment']) ? '#' . $parts['fragment'] : '';
+
+    $scheme = $baseParts['scheme'] ?? 'https';
+    $host   = $baseParts['host'];
+    $port   = isset($baseParts['port']) ? ':' . $baseParts['port'] : '';
+
+    return $scheme . '://' . $host . $port . $path . $query . $fragment;
+};
+
+$login_url = $apply_canonical((string) wc_get_page_permalink('myaccount'));
+if ($login_url === '') {
     $login_url = $site_url;
 }
 
@@ -37,12 +60,13 @@ if ($order instanceof WC_Order) {
         $view_order_url = wc_get_endpoint_url('view-order', (string) $order->get_id(), $login_url);
     }
 }
+$view_order_url = $apply_canonical($view_order_url);
 if ($view_order_url === '') {
     $view_order_url = $login_url;
 }
 
 $full_name    = trim((string) ($ticket['full_name'] ?? ''));
-$display_name = $full_name !== '' ? $full_name : esc_html__('לקוח Tapin', 'tapin');
+$display_name = $full_name !== '' ? $full_name : esc_html__('אורח Tapin', 'tapin');
 
 $attendee_email = trim((string) ($ticket['email'] ?? ''));
 
@@ -54,14 +78,14 @@ if ($label === '') {
     );
 }
 
-$event_context = isset($event_context) && is_array($event_context) ? $event_context : [];
-$event_name    = trim((string) ($event_context['event_name'] ?? ''));
-$event_date    = trim((string) ($event_context['event_date_label'] ?? ''));
-$event_address = trim((string) ($event_context['event_address'] ?? ''));
-$event_city    = trim((string) ($event_context['event_city'] ?? ''));
+$event_context  = isset($event_context) && is_array($event_context) ? $event_context : [];
+$event_name     = trim((string) ($event_context['event_name'] ?? ''));
+$event_date     = trim((string) ($event_context['event_date_label'] ?? ''));
+$event_address  = trim((string) ($event_context['event_address'] ?? ''));
+$event_city     = trim((string) ($event_context['event_city'] ?? ''));
 $event_location = trim($event_address . ($event_city !== '' ? ' ' . $event_city : ''));
 
-$ticket_url = isset($ticket_url) ? (string) $ticket_url : '';
+$ticket_url = isset($ticket_url) ? $apply_canonical((string) $ticket_url) : '';
 if ($ticket_url === '' && $view_order_url !== '') {
     $ticket_url = $view_order_url;
 }
@@ -69,26 +93,25 @@ if ($ticket_url === '' && $login_url !== '') {
     $ticket_url = $login_url;
 }
 
+$qr_image_url = isset($qr_image_url) ? $apply_canonical((string) $qr_image_url) : '';
+
 $additional_content = $email->get_additional_content();
 
-$button_label = esc_html__('מעבר לאזור האישי', 'tapin');
-$button_url   = $ticket_url !== '' ? $ticket_url : $login_url;
+$button_label = esc_html__('פתיחת תמונת ה-QR', 'tapin');
+$button_url   = $qr_image_url !== '' ? $qr_image_url : $ticket_url;
 
-$qr_image_alt = esc_attr__('קוד QR להצגת הכרטיס באירוע', 'tapin');
+$qr_image_alt = esc_attr__('תמונת קוד QR עבור הכרטיס שלך', 'tapin');
 
-$preheader_text = '';
-ob_start();
-printf(
-    esc_html__('ברוך/ה הבא/ה ל-%s. הכרטיס שלך לאירוע מצורף במייל זה.', 'tapin'),
+$preheader_text = sprintf(
+    esc_html__('הכרטיס שלך מ-%s מוכן עם קוד QR מצורף.', 'tapin'),
     esc_html($site_name)
 );
-$preheader_text = trim((string) ob_get_clean());
 
 $header_html = '';
 ob_start();
 ?>
 <td style="background: #151515; padding: 18px 22px; font-family: Arial,Helvetica,sans-serif; color: #ff0000; font-size: 20px; font-weight: 800;">
-    <?php esc_html_e('כרטיס לאירוע ב', 'tapin'); ?>
+    <?php esc_html_e('כרטיס הכניסה של', 'tapin'); ?>
     <span style="color: #ff0000;"><?php echo esc_html($site_name); ?></span>
 </td>
 <?php
@@ -98,13 +121,12 @@ $body_html = '';
 ob_start();
 ?>
 <td style="padding: 26px 24px 8px 24px; font-family: Arial,Helvetica,sans-serif; color: #e6e6e6; font-size: 15px; line-height: 1.7; background: #121212;">
-    <?php esc_html_e('היי', 'tapin'); ?>
+    <?php esc_html_e('שלום', 'tapin'); ?>
     <strong><?php echo esc_html($display_name); ?></strong>.<br />
-    <?php esc_html_e('הכרטיס שלך לאירוע', 'tapin'); ?>
-    <strong><?php echo esc_html($label); ?></strong>
-    <?php esc_html_e('מוכן ומצורף כאן למטה.', 'tapin'); ?><br />
-    <?php esc_html_e('בכניסה לאירוע הציגו את הברקוד המצורף לצוות האירוע.', 'tapin'); ?><br />
-    <?php esc_html_e('מומלץ לשמור את האימייל הזה עד לסיום האירוע.', 'tapin'); ?>
+    <?php esc_html_e('הכרטיס שלך מוכן ומצורף כאן ל-', 'tapin'); ?>
+    <strong><?php echo esc_html($label); ?></strong>.<br />
+    <?php esc_html_e('לחצו על הכפתור האדום כדי לפתוח את תמונת ה-QR ולהציג אותה בכניסה.', 'tapin'); ?><br />
+    <?php esc_html_e('האישור הסופי מתבצע רק על ידי המפיק המחובר לאירוע.', 'tapin'); ?>
 </td>
 <?php
 $body_html = trim((string) ob_get_clean());
@@ -142,7 +164,7 @@ if ($attendee_email !== '' || $order_number !== '' || $event_name !== '' || $eve
                 <?php echo esc_html($event_name); ?><br />
             <?php endif; ?>
             <?php if ($event_date !== '') : ?>
-                <strong><?php esc_html_e('תאריך ושעה:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('תאריך האירוע:', 'tapin'); ?></strong>
                 <?php echo esc_html($event_date); ?><br />
             <?php endif; ?>
             <?php if ($event_location !== '') : ?>
@@ -150,15 +172,15 @@ if ($attendee_email !== '' || $order_number !== '' || $event_name !== '' || $eve
                 <?php echo esc_html($event_location); ?><br />
             <?php endif; ?>
             <?php if ($attendee_email !== '') : ?>
-                <strong><?php esc_html_e('אימייל:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('אימייל משתתף:', 'tapin'); ?></strong>
                 <?php echo esc_html($attendee_email); ?><br />
             <?php endif; ?>
             <?php if ($order_number !== '') : ?>
-                <strong><?php esc_html_e('מספר ההזמנה:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('מספר הזמנה:', 'tapin'); ?></strong>
                 <?php echo esc_html('#' . $order_number); ?><br />
             <?php endif; ?>
             <?php if ($ticket_url !== '') : ?>
-                <strong><?php esc_html_e('קישור לכרטיס:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('קישור לצפייה בכרטיס:', 'tapin'); ?></strong>
                 <a style="color: #ff0000; text-decoration: none;" href="<?php echo esc_url($ticket_url); ?>"><?php echo esc_html($ticket_url); ?></a>
             <?php endif; ?>
         </td>
@@ -168,14 +190,14 @@ if ($attendee_email !== '' || $order_number !== '' || $event_name !== '' || $eve
 }
 
 $qr_fallback_html = '';
-if (empty($qr_image_url) && $button_url !== '') {
+if (empty($qr_image_url) && $ticket_url !== '') {
     ob_start();
     ?>
     <tr>
         <td style="padding: 0 24px 24px 24px; background: #121212; font-family: Arial,Helvetica,sans-serif; color: #e6e6e6; font-size: 14px; line-height: 1.8;">
-            <strong><?php esc_html_e('הקוד לא נוצר? אין בעיה.', 'tapin'); ?></strong><br />
-            <?php esc_html_e('הציגו את הכרטיס באמצעות הקישור הבא בכניסה לאירוע:', 'tapin'); ?><br />
-            <a style="color: #ff0000; text-decoration: none;" href="<?php echo esc_url($button_url); ?>"><?php echo esc_html($button_url); ?></a>
+            <strong><?php esc_html_e('לא הצלחנו ליצור קוד QR.', 'tapin'); ?></strong><br />
+            <?php esc_html_e('ניתן לפתוח את הכרטיס בבטחה בקישור:', 'tapin'); ?><br />
+            <a style="color: #ff0000; text-decoration: none;" href="<?php echo esc_url($ticket_url); ?>"><?php echo esc_html($ticket_url); ?></a>
         </td>
     </tr>
     <?php
@@ -190,7 +212,7 @@ ob_start();
         <?php echo wp_kses_post(wpautop(wptexturize($additional_content))); ?>
         <br /><br />
     <?php endif; ?>
-    <?php esc_html_e('צריך עזרה? אפשר להשיב למייל זה או לכתוב לנו ב-', 'tapin'); ?>
+    <?php esc_html_e('תודה שבחרתם בטאפין! לשאלות נוספות אנחנו זמינים בכתובת:', 'tapin'); ?>
     <a style="color: #ff0000; text-decoration: none;" href="mailto:support@tapin.co.il">support@tapin.co.il</a>.
 </td>
 <?php
@@ -201,14 +223,14 @@ ob_start();
 ?>
 <?php
 printf(
-    esc_html__('הודעה זו נשלחה אוטומטית בעקבות אישור ההזמנה באתר %s.', 'tapin'),
+    esc_html__('הודעה זו נשלחה אוטומטית על ידי %s.', 'tapin'),
     esc_html($site_name)
 );
 ?>
 <br />
-<?php esc_html_e('הצוות של Tapin מאחל לך בילוי נעים.', 'tapin'); ?>
+<?php esc_html_e('מחכים לראותך באירוע.', 'tapin'); ?>
 <br />
-<?php esc_html_e('לאתר שלנו:', 'tapin'); ?>
+<?php esc_html_e('ביקור באתר:', 'tapin'); ?>
 <a style="color: #ff0000; text-decoration: none;" href="<?php echo esc_url($site_url); ?>"><?php echo esc_html($site_url); ?></a>
 <?php
 $footer_html = trim((string) ob_get_clean());
@@ -230,4 +252,3 @@ wc_get_template(
 );
 
 do_action('woocommerce_email_footer', $email);
-

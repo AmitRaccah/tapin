@@ -15,9 +15,32 @@ if ($site_name === '') {
     $site_name = 'Tapin';
 }
 
-$site_url    = function_exists('tapin_next_canonical_site_url') ? tapin_next_canonical_site_url() : home_url('/');
-$account_url = wc_get_page_permalink('myaccount');
-if (empty($account_url)) {
+$site_url = function_exists('tapin_next_canonical_site_url') ? tapin_next_canonical_site_url() : home_url('/');
+$apply_canonical = static function (string $url) use ($site_url): string {
+    $url = trim($url);
+    if ($url === '') {
+        return '';
+    }
+
+    $baseParts = wp_parse_url($site_url);
+    if (!is_array($baseParts) || empty($baseParts['host'])) {
+        return $url;
+    }
+
+    $parts    = wp_parse_url($url);
+    $path     = is_array($parts) && isset($parts['path']) ? $parts['path'] : '/' . ltrim($url, '/');
+    $query    = is_array($parts) && !empty($parts['query']) ? '?' . $parts['query'] : '';
+    $fragment = is_array($parts) && !empty($parts['fragment']) ? '#' . $parts['fragment'] : '';
+
+    $scheme = $baseParts['scheme'] ?? 'https';
+    $host   = $baseParts['host'];
+    $port   = isset($baseParts['port']) ? ':' . $baseParts['port'] : '';
+
+    return $scheme . '://' . $host . $port . $path . $query . $fragment;
+};
+
+$account_url = $apply_canonical((string) wc_get_page_permalink('myaccount'));
+if ($account_url === '') {
     $account_url = $site_url;
 }
 
@@ -31,6 +54,7 @@ if ($order instanceof WC_Order) {
         $view_order_url = wc_get_endpoint_url('view-order', (string) $order->get_id(), $account_url);
     }
 }
+$view_order_url = $apply_canonical($view_order_url);
 if ($view_order_url === '') {
     $view_order_url = $account_url;
 }
@@ -46,11 +70,11 @@ if ($customer_name === '') {
     $customer_name = esc_html__('לקוח Tapin', 'tapin');
 }
 
-$event_context = isset($event_context) && is_array($event_context) ? $event_context : [];
-$event_name    = trim((string) ($event_context['event_name'] ?? ''));
-$event_date    = trim((string) ($event_context['event_date_label'] ?? ''));
-$event_address = trim((string) ($event_context['event_address'] ?? ''));
-$event_city    = trim((string) ($event_context['event_city'] ?? ''));
+$event_context  = isset($event_context) && is_array($event_context) ? $event_context : [];
+$event_name     = trim((string) ($event_context['event_name'] ?? ''));
+$event_date     = trim((string) ($event_context['event_date_label'] ?? ''));
+$event_address  = trim((string) ($event_context['event_address'] ?? ''));
+$event_city     = trim((string) ($event_context['event_city'] ?? ''));
 $event_location = trim($event_address . ($event_city !== '' ? ' ' . $event_city : ''));
 
 $order_number = $order instanceof WC_Order ? (string) $order->get_order_number() : '';
@@ -82,7 +106,7 @@ if ($order instanceof WC_Order && $producer_id > 0 && class_exists('\Tapin\Event
             $name  = trim($first . ' ' . $last);
         }
         if ($name === '') {
-            $name = esc_html__('משתתף ללא שם', 'tapin');
+            $name = esc_html__('שם משתתף חסר', 'tapin');
         }
 
         $label = (string) ($attendee['ticket_type_label'] ?? ($attendee['ticket_type'] ?? ''));
@@ -96,12 +120,10 @@ if ($order instanceof WC_Order && $producer_id > 0 && class_exists('\Tapin\Event
 
 $additional_content = $email->get_additional_content();
 
-ob_start();
-printf(
-    esc_html__('כל המשתתפים בהזמנה שלך באתר %s אושרו.', 'tapin'),
+$preheader_text = sprintf(
+    esc_html__('ההזמנה שלך ב-%s אושרה.', 'tapin'),
     esc_html($site_name)
 );
-$preheader_text = trim((string) ob_get_clean());
 
 ob_start();
 ?>
@@ -117,8 +139,8 @@ ob_start();
 <td style="padding: 26px 24px 8px 24px; font-family: Arial,Helvetica,sans-serif; color: #e6e6e6; font-size: 15px; line-height: 1.7; background: #121212;">
     <?php esc_html_e('שלום', 'tapin'); ?>
     <strong><?php echo esc_html($customer_name); ?></strong>,<br />
-    <?php esc_html_e('המפיק אישר את כל המשתתפים בהזמנה שלך.', 'tapin'); ?><br />
-    <?php esc_html_e('להלן סיכום הכרטיסים שאושרו וסכום החיוב הסופי.', 'tapin'); ?><br />
+    <?php esc_html_e('תודה! ההזמנה שלך אושרה על ידי המפיק.', 'tapin'); ?><br />
+    <?php esc_html_e('ריכזנו עבורך את פרטי האירוע וההזמנה. הכרטיסים למשתתפים יישלחו לאחר האישור.', 'tapin'); ?><br />
     <?php if ($approved_attendees !== []) : ?>
         <br />
         <strong><?php esc_html_e('משתתפים שאושרו:', 'tapin'); ?></strong><br />
@@ -136,7 +158,7 @@ $body_html = trim((string) ob_get_clean());
 
 $button_html = '';
 if ($view_order_url !== '') {
-    $button_label = esc_html__('פתיחת ההזמנה למעקב', 'tapin');
+    $button_label = esc_html__('צפייה בהזמנה', 'tapin');
     ob_start();
     ?>
     <a style="background: #ff0000; color: #111; text-decoration: none; padding: 12px 18px; border-radius: 8px; font-weight: 800;" href="<?php echo esc_url($view_order_url); ?>">
@@ -157,7 +179,7 @@ if ($event_name !== '' || $event_date !== '' || $event_location !== '') {
                 <?php echo esc_html($event_name); ?><br />
             <?php endif; ?>
             <?php if ($event_date !== '') : ?>
-                <strong><?php esc_html_e('תאריך ושעה:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('תאריך האירוע:', 'tapin'); ?></strong>
                 <?php echo esc_html($event_date); ?><br />
             <?php endif; ?>
             <?php if ($event_location !== '') : ?>
@@ -175,11 +197,11 @@ if ($order_number !== '' || $order_total !== '') {
     <tr>
         <td style="padding: 0 24px 24px 24px; background: #121212; font-family: Arial,Helvetica,sans-serif; color: #e6e6e6; font-size: 14px; line-height: 1.8;">
             <?php if ($order_number !== '') : ?>
-                <strong><?php esc_html_e('מספר ההזמנה:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('מספר הזמנה:', 'tapin'); ?></strong>
                 <?php echo esc_html('#' . $order_number); ?><br />
             <?php endif; ?>
             <?php if ($order_total !== '') : ?>
-                <strong><?php esc_html_e('סכום החיוב הסופי:', 'tapin'); ?></strong>
+                <strong><?php esc_html_e('סכום ששולם:', 'tapin'); ?></strong>
                 <?php echo wp_kses_post($order_total); ?><br />
             <?php endif; ?>
         </td>
@@ -195,8 +217,7 @@ ob_start();
         <?php echo wp_kses_post(wpautop(wptexturize($additional_content))); ?>
         <br /><br />
     <?php endif; ?>
-    <?php esc_html_e('מחכים לראות אותך באירוע. אם יש לך שאלות לגבי ההזמנה, ניתן להשיב למייל זה או לפנות לצוות התמיכה של Tapin.', 'tapin'); ?>
-    <br />
+    <?php esc_html_e('אם יש שינוי או שאלה, אנחנו זמינים בכתובת:', 'tapin'); ?>
     <a style="color: #ff0000; text-decoration: none;" href="mailto:support@tapin.co.il">support@tapin.co.il</a>
 </td>
 <?php
@@ -206,14 +227,14 @@ ob_start();
 ?>
 <?php
 printf(
-    esc_html__('הודעה זו נשלחה באופן אוטומטי בעקבות אישור ההזמנה שלך באתר %s.', 'tapin'),
+    esc_html__('הודעה זו נשלחה אוטומטית על ידי %s.', 'tapin'),
     esc_html($site_name)
 );
 ?>
 <br />
-<?php esc_html_e('הצוות של Tapin מאחל לך אירוע מוצלח.', 'tapin'); ?>
+<?php esc_html_e('תודה שבחרתם בטאפין.', 'tapin'); ?>
 <br />
-<?php esc_html_e('לאתר שלנו:', 'tapin'); ?>
+<?php esc_html_e('ביקור באתר:', 'tapin'); ?>
 <a style="color: #ff0000; text-decoration: none;" href="<?php echo esc_url($site_url); ?>"><?php echo esc_html($site_url); ?></a>
 <?php
 $footer_html = trim((string) ob_get_clean());
