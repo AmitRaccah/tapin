@@ -35,6 +35,9 @@ final class FieldDefinitionsProvider
         }
         unset($definition);
 
+        // Remove social fields not requested for the purchase modal (TikTok, Facebook)
+        unset($definitions['tiktok'], $definitions['facebook']);
+
         $this->definitions = $definitions;
 
         return $this->definitions;
