@@ -38,9 +38,6 @@ final class ProductBackground implements Service
         add_action('wp_head', [$this, 'renderStyles'], 30);
     }
 
-    /**
-     * @param int $productId
-     */
     private function resolveBackgroundUrl(int $productId): string
     {
         $attachmentId = (int) get_post_meta($productId, MetaKeys::EVENT_BG_IMAGE, true);
@@ -56,10 +53,6 @@ final class ProductBackground implements Service
         return (string) $image[0];
     }
 
-    /**
-     * @param array<int,string> $classes
-     * @return array<int,string>
-     */
     public function addBodyClass(array $classes): array
     {
         if (!in_array(self::ENHANCED_CLASS, $classes, true)) {
@@ -89,14 +82,30 @@ final class ProductBackground implements Service
             body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs {
                 position: relative;
                 z-index: 1;
-                background: rgba(8, 10, 22, 0.78);
-                border: 1px solid rgba(255, 255, 255, 0.14);
+                background: rgba(8, 10, 22, 0.96);
+                background-color: rgba(8, 10, 22, 0.96) !important;
+                border: 1px solid rgba(255, 255, 255, 0.2);
                 border-radius: clamp(16px, 2.5vw, 28px);
                 padding: clamp(20px, 3vw, 36px);
-                color: #f5f7ff;
+                color: #ffffff;
                 box-shadow: 0 30px 60px rgba(5, 9, 20, 0.45);
                 backdrop-filter: blur(12px);
                 -webkit-backdrop-filter: blur(12px);
+            }
+            body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs .ui-tabs-panel {
+                background: transparent !important;
+                color: #ffffff !important;
+            }
+            body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs .ui-tabs-panel p,
+            body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs .ui-tabs-panel span,
+            body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs .ui-tabs-panel li,
+            body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs .ui-tabs-panel a,
+            body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs .ui-tabs-panel strong,
+            body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs .ui-tabs-panel b {
+                color: #ffffff !important;
+            }
+            body.single-product.<?php echo self::ENHANCED_CLASS; ?> .entry-summary .mcb-column-inner {
+                color: #f5f7ff;
             }
             body.single-product.<?php echo self::ENHANCED_CLASS; ?> .entry-summary .mcb-column-inner > *:not(:last-child) {
                 margin-bottom: clamp(12px, 2vw, 24px);
@@ -172,7 +181,7 @@ final class ProductBackground implements Service
             body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs .ui-tabs-panel {
                 background: transparent;
                 padding: 0;
-                color: inherit;
+                color: #111827;
             }
             body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs .ui-tabs-panel p,
             body.single-product.<?php echo self::ENHANCED_CLASS; ?> .jq-tabs .ui-tabs-panel li {
