@@ -83,7 +83,7 @@ final class StickyPurchaseBar implements Service
         }
 
         $primaryText = $formattedPrice !== ''
-            ? sprintf(__('הזמנה ב-%s', 'tapin'), $formattedPrice)
+            ? sprintf(__('החל מ-%s', 'tapin'), $formattedPrice)
             : __('המשיכו לרכישה', 'tapin');
 
         $noteText = __('כולל עמלת רכישה', 'tapin');
