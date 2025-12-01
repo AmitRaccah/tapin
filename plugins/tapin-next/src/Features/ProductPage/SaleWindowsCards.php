@@ -43,7 +43,7 @@ final class SaleWindowsCards implements Service
         $eventTs = Time::productEventTs($pid);
 
         echo '<style>' . Assets::saleWindowsCss() . '</style>';
-        echo '<div class="tapin-pw"><div class="tapin-pw__title">' . esc_html__('חלונות תמחור כרטיסים', 'tapin') . '</div><div class="tapin-pw__grid">';
+        echo '<div class="tapin-pw"><div class="tapin-pw__grid">';
 
         foreach ($windows as $window) {
             $start = (int) ($window['start'] ?? 0);
@@ -160,7 +160,7 @@ final class SaleWindowsCards implements Service
         }
         echo '</div>';
 
-        echo '</div><div class="tapin-pw__hint">' . esc_html__('מחירי הכרטיסים מתעדכנים אוטומטית לפי החלון הפעיל. בחרו את סוג הכרטיס והמועד שנוחים לכם.', 'tapin') . '</div></div>';
+        echo '</div></div>';
     }
 }
 
