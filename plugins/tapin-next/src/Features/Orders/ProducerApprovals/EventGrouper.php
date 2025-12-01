@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace Tapin\Events\Features\Orders\ProducerApprovals;
 
+use Tapin\Events\Domain\TicketTypesRepository;
+use Tapin\Events\Support\CapacityValidator;
+
 final class EventGrouper
 {
     /**
@@ -35,6 +38,7 @@ final class EventGrouper
                         'event_date_label' => (string) ($eventData['event_date_label'] ?? ''),
                         'created_ts'       => isset($eventData['created_ts']) ? (int) $eventData['created_ts'] : 0,
                         'latest_order_ts'  => 0,
+                        'product_id'       => $productId,
                         'counts'    => ['pending' => 0, 'partial' => 0, 'approved' => 0, 'cancelled' => 0],
                         'orders'    => [],
                         'search'    => '',
@@ -105,6 +109,55 @@ final class EventGrouper
             $event['latest_order_ts'] = !empty($event['orders'])
                 ? (int) ($event['orders'][0]['timestamp'] ?? 0)
                 : (int) ($event['latest_order_ts'] ?? 0);
+        }
+        unset($event);
+
+        // Attach ticket capacity/availability summary per event (per product).
+        $capacityCache = [];
+        foreach ($events as $key => &$event) {
+            $productId = isset($event['product_id']) ? (int) $event['product_id'] : (int) ($event['id'] ?? 0);
+            if ($productId <= 0) {
+                continue;
+            }
+
+            if (!isset($capacityCache[$productId])) {
+                $types   = TicketTypesRepository::get($productId);
+                $summary = CapacityValidator::summarize($productId, $types);
+
+                $labeledTypes = [];
+                foreach ($types as $type) {
+                    if (!is_array($type)) {
+                        continue;
+                    }
+                    $typeId = isset($type['id']) ? (string) $type['id'] : '';
+                    if ($typeId === '') {
+                        continue;
+                    }
+                    $label = trim((string) ($type['label'] ?? ($type['name'] ?? $typeId)));
+                    $typeSummary = $summary['types'][$typeId] ?? ['capacity' => 0, 'sold' => 0, 'remaining' => -1];
+                    $capacity    = (int) ($typeSummary['capacity'] ?? 0);
+                    $sold        = (int) ($typeSummary['sold'] ?? 0);
+                    $remaining   = (int) ($typeSummary['remaining'] ?? -1);
+
+                    $labeledTypes[] = [
+                        'id'        => $typeId,
+                        'label'     => $label !== '' ? $label : $typeId,
+                        'capacity'  => $capacity,
+                        'sold'      => $sold,
+                        'remaining' => $remaining,
+                        'unlimited' => $capacity <= 0 || $remaining < 0,
+                        'sold_out'  => $capacity > 0 && $remaining === 0,
+                    ];
+                }
+
+                $capacityCache[$productId] = [
+                    'types'          => $labeledTypes,
+                    'has_unlimited'  => (bool) ($summary['has_unlimited'] ?? false),
+                    'total_remaining'=> (int) ($summary['total_remaining'] ?? -1),
+                ];
+            }
+
+            $event['ticket_capacity'] = $capacityCache[$productId];
         }
         unset($event);
 

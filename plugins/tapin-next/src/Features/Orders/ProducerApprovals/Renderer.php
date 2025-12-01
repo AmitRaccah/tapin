@@ -82,6 +82,41 @@ final class Renderer
                           <?php echo esc_html($eventDateHeading . ': ' . (string) $event['event_date_label']); ?>
                         </h4>
                       <?php endif; ?>
+                      <?php
+                      $capacityMeta  = (array) ($event['ticket_capacity'] ?? []);
+                      $capacityTypes = (array) ($capacityMeta['types'] ?? []);
+                      ?>
+                      <?php if ($capacityTypes !== []): ?>
+                        <div class="tapin-pa-capacity">
+                          <h5 class="tapin-pa-capacity__title"><?php echo esc_html__('זמינות כרטיסים', 'tapin'); ?></h5>
+                          <div class="tapin-pa-capacity__grid">
+                            <?php foreach ($capacityTypes as $typeMeta): ?>
+                              <?php
+                              $cap        = (int) ($typeMeta['capacity'] ?? 0);
+                              $sold       = (int) ($typeMeta['sold'] ?? 0);
+                              $remaining  = (int) ($typeMeta['remaining'] ?? -1);
+                              $isUnlimited = !empty($typeMeta['unlimited']);
+                              $soldOut    = !empty($typeMeta['sold_out']);
+                              ?>
+                              <div class="tapin-pa-capacity__card<?php echo $soldOut ? ' tapin-pa-capacity__card--soldout' : ''; ?>">
+                                <div class="tapin-pa-capacity__card-header">
+                                  <span class="tapin-pa-capacity__label"><?php echo esc_html((string) ($typeMeta['label'] ?? '')); ?></span>
+                                  <?php if ($soldOut): ?>
+                                    <span class="tapin-pa-capacity__badge"><?php echo esc_html__('אזלו', 'tapin'); ?></span>
+                                  <?php endif; ?>
+                                </div>
+                                <div class="tapin-pa-capacity__stats">
+                                  <span><?php echo esc_html($isUnlimited ? __('ללא הגבלה', 'tapin') : sprintf(__('קיבולת: %d', 'tapin'), $cap)); ?></span>
+                                  <span><?php echo esc_html(sprintf(__('מאושרים עד עכשיו: %d', 'tapin'), $sold)); ?></span>
+                                  <?php if (!$isUnlimited): ?>
+                                    <span><?php echo esc_html(sprintf(__('נותר פנוי: %d', 'tapin'), max(0, $remaining))); ?></span>
+                                  <?php endif; ?>
+                                </div>
+                              </div>
+                            <?php endforeach; ?>
+                          </div>
+                        </div>
+                      <?php endif; ?>
                       <?php if ($canDownloadExport && !empty($event['orders'])): ?>
                         <?php
                         $downloadUrl = wp_nonce_url(
