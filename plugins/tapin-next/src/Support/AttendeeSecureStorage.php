@@ -21,24 +21,36 @@ final class AttendeeSecureStorage
 
         $key = self::encryptionKey();
         if ($key === null || !self::supportsEncryption()) {
-            return $json;
+            if (function_exists('tapin_next_debug_log')) {
+                tapin_next_debug_log('[attendees] encryption unavailable; aborting storage');
+            }
+            return '';
         }
 
         $ivLength = openssl_cipher_iv_length(self::CIPHER);
         if ($ivLength <= 0) {
-            return $json;
+            if (function_exists('tapin_next_debug_log')) {
+                tapin_next_debug_log('[attendees] invalid IV length; aborting storage');
+            }
+            return '';
         }
 
         try {
             $iv = random_bytes($ivLength);
         } catch (\Exception $e) {
-            return $json;
+            if (function_exists('tapin_next_debug_log')) {
+                tapin_next_debug_log('[attendees] IV generation failed: ' . $e->getMessage());
+            }
+            return '';
         }
 
         $tag = '';
         $ciphertext = openssl_encrypt($json, self::CIPHER, $key, OPENSSL_RAW_DATA, $iv, $tag);
         if (!is_string($ciphertext) || $ciphertext === '' || $tag === '') {
-            return $json;
+            if (function_exists('tapin_next_debug_log')) {
+                tapin_next_debug_log('[attendees] encryption failed');
+            }
+            return '';
         }
 
         $payload = [

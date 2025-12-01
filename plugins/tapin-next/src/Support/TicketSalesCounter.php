@@ -57,6 +57,10 @@ final class TicketSalesCounter
         $normalized = self::filterZeros($current);
         update_post_meta($productId, MetaKeys::TICKET_TYPE_SALES, $normalized);
 
+        if (class_exists(\Tapin\Events\Support\ProductAvailability::class)) {
+            \Tapin\Events\Support\ProductAvailability::reset($productId);
+        }
+
         return $normalized;
     }
 
@@ -81,6 +85,10 @@ final class TicketSalesCounter
 
         $normalized = self::filterZeros($normalized);
         update_post_meta($productId, MetaKeys::TICKET_TYPE_SALES, $normalized);
+
+        if (class_exists(\Tapin\Events\Support\ProductAvailability::class)) {
+            \Tapin\Events\Support\ProductAvailability::reset($productId);
+        }
 
         return $normalized;
     }

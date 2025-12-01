@@ -51,7 +51,7 @@ final class EventStockSynchronizer
         $manageStock = $capacityTotal > 0;
         $status      = ($manageStock && $available <= 0) ? 'outofstock' : 'instock';
 
-        self::updateStockMeta($productId, $manageStock, $available, $status, !$manageStock);
+        self::applyStock($productId, $manageStock, $available, $status, !$manageStock);
     }
 
     public static function syncManualStock(int $productId, ?int $manualStock): void
@@ -61,33 +61,62 @@ final class EventStockSynchronizer
         }
 
         if ($manualStock === null) {
-            self::updateStockMeta($productId, false, null, 'instock', true);
+            self::applyStock($productId, false, null, 'instock', true);
             return;
         }
 
         $stock  = max(0, (int) $manualStock);
         $status = $stock <= 0 ? 'outofstock' : 'instock';
 
-        self::updateStockMeta($productId, true, $stock, $status, false);
+        self::applyStock($productId, true, $stock, $status, false);
     }
 
-    private static function updateStockMeta(
+    private static function applyStock(
         int $productId,
         bool $manageStock,
         ?int $stock,
         string $status,
         bool $removeStock
     ): void {
-        update_post_meta($productId, '_manage_stock', $manageStock ? 'yes' : 'no');
+        $product = function_exists('wc_get_product') ? wc_get_product($productId) : null;
 
-        if ($removeStock) {
-            delete_post_meta($productId, '_stock');
+        if ($product && method_exists($product, 'set_manage_stock')) {
+            $product->set_manage_stock($manageStock);
+
+            if ($stock !== null && $manageStock) {
+                if (function_exists('wc_update_product_stock')) {
+                    wc_update_product_stock($product, $stock, 'set');
+                } else {
+                    $product->set_stock_quantity($stock);
+                }
+            } elseif ($removeStock) {
+                $product->set_stock_quantity(null);
+            }
+
+            if (function_exists('wc_update_product_stock_status')) {
+                wc_update_product_stock_status($productId, $status);
+            } else {
+                $product->set_stock_status($status);
+            }
+
+            $product->save();
+        } else {
+            // Fallback to direct meta updates if product object is unavailable.
+            update_post_meta($productId, '_manage_stock', $manageStock ? 'yes' : 'no');
+
+            if ($removeStock) {
+                delete_post_meta($productId, '_stock');
+            }
+
+            if ($stock !== null) {
+                update_post_meta($productId, '_stock', max(0, (int) $stock));
+            }
+
+            update_post_meta($productId, '_stock_status', $status);
         }
 
-        if ($stock !== null) {
-            update_post_meta($productId, '_stock', max(0, (int) $stock));
+        if (class_exists(\Tapin\Events\Support\ProductAvailability::class)) {
+            \Tapin\Events\Support\ProductAvailability::reset($productId);
         }
-
-        update_post_meta($productId, '_stock_status', $status);
     }
 }

@@ -292,3 +292,4 @@ final class ProducerEventRequest implements Service
         return ob_get_clean();
     }
 }
+

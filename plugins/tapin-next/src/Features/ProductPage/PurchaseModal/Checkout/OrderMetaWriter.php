@@ -78,9 +78,17 @@ final class OrderMetaWriter
         }
 
         $encryptedAttendees = AttendeeSecureStorage::encryptAttendees($normalizedAttendees);
-        if ($encryptedAttendees !== '') {
-            $item->update_meta_data('_tapin_attendees_json', $encryptedAttendees);
+        if ($encryptedAttendees === '') {
+            if (function_exists('tapin_next_debug_log')) {
+                tapin_next_debug_log('[attendees] encryption failed; attendee data not stored');
+            }
+            if (function_exists('wc_add_notice')) {
+                wc_add_notice(esc_html__('לא ניתן לשמור פרטי משתתפים כעת. נסו שוב או פנו לתמיכה.', 'tapin'), 'error');
+            }
+            return;
         }
+
+        $item->update_meta_data('_tapin_attendees_json', $encryptedAttendees);
 
         if (!empty($values['tapin_attendees_key'])) {
             $item->update_meta_data('_tapin_attendees_key', sanitize_text_field((string) $values['tapin_attendees_key']));

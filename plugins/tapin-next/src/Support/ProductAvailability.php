@@ -13,6 +13,16 @@ final class ProductAvailability
      */
     private static array $cache = [];
 
+    public static function reset(int $productId = 0): void
+    {
+        if ($productId > 0) {
+            unset(self::$cache[$productId]);
+            return;
+        }
+
+        self::$cache = [];
+    }
+
     /**
      * Returns a quick boolean indicator describing whether the product can be purchased right now.
      */
