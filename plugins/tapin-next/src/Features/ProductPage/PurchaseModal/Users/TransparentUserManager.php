@@ -273,6 +273,14 @@ final class TransparentUserManager
     {
         $checkout = function_exists('wc_get_checkout_url') ? wc_get_checkout_url() : home_url('/');
 
+        // Prefer Ultimate Member login page when available, keeping redirect back to checkout.
+        if (function_exists('um_get_core_page')) {
+            $umLoginUrl = um_get_core_page('login');
+            if (!empty($umLoginUrl)) {
+                return add_query_arg('redirect_to', rawurlencode($checkout), $umLoginUrl);
+            }
+        }
+
         if (function_exists('wc_get_page_permalink')) {
             $accountUrl = wc_get_page_permalink('myaccount');
             if ($accountUrl) {
