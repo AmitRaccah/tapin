@@ -512,8 +512,12 @@ body.single-product.tapin-product-enhanced .entry-summary .tapin-pw-card__ticket
   white-space: nowrap;
 }
 
+.tapin-pw-card--default .tapin-pw-card__badge {
+  color: #000 !important;
+}
+
 .tapin-pw-card--current .tapin-pw-card__badge {
-  color: var(--tapin-success-bg);
+  color: #000 !important;
 }
 
 .tapin-pw-card--upcoming .tapin-pw-card__badge {
