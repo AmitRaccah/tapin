@@ -59,6 +59,13 @@ if ($view_order_url === '') {
     $view_order_url = $account_url;
 }
 
+$ticket_url = isset($ticket_url) ? $apply_canonical((string) $ticket_url) : '';
+if ($ticket_url === '' && $view_order_url !== '') {
+    $ticket_url = $view_order_url;
+}
+
+$qr_image_url = isset($qr_image_url) ? $apply_canonical((string) $qr_image_url) : '';
+
 $customer_name = '';
 if ($order instanceof WC_Order) {
     $customer_name = trim((string) $order->get_formatted_billing_full_name());
@@ -157,11 +164,12 @@ ob_start();
 $body_html = trim((string) ob_get_clean());
 
 $button_html = '';
-if ($view_order_url !== '') {
-    $button_label = esc_html__('צפייה בהזמנה', 'tapin');
+if ($qr_image_url !== '' || $ticket_url !== '' || $view_order_url !== '') {
+    $button_label = esc_html__('פתיחת תמונת ה-QR', 'tapin');
+    $button_url   = $qr_image_url !== '' ? $qr_image_url : ($ticket_url !== '' ? $ticket_url : $view_order_url);
     ob_start();
     ?>
-    <a style="background: #ff0000; color: #111; text-decoration: none; padding: 12px 18px; border-radius: 8px; font-weight: 800;" href="<?php echo esc_url($view_order_url); ?>">
+    <a style="background: #ff0000; color: #111; text-decoration: none; padding: 12px 18px; border-radius: 8px; font-weight: 800;" href="<?php echo esc_url($button_url); ?>">
         <?php echo esc_html($button_label); ?>
     </a>
     <?php
@@ -209,6 +217,20 @@ if ($order_number !== '' || $order_total !== '') {
     <?php
     $meta_rows_html .= trim((string) ob_get_clean());
 }
+$qr_fallback_html = '';
+if (empty($qr_image_url) && $ticket_url !== '') {
+    ob_start();
+    ?>
+    <tr>
+        <td style="padding: 0 24px 24px 24px; background: #121212; font-family: Arial,Helvetica,sans-serif; color: #e6e6e6; font-size: 14px; line-height: 1.8;">
+            <strong><?php esc_html_e('לא הצלחנו לצרף תמונת QR.', 'tapin'); ?></strong><br />
+            <?php esc_html_e('אפשר לפתוח את הכרטיס בקישור הבטוח הבא:', 'tapin'); ?><br />
+            <a style="color: #ff0000; text-decoration: none;" href="<?php echo esc_url($ticket_url); ?>"><?php echo esc_html($ticket_url); ?></a>
+        </td>
+    </tr>
+    <?php
+    $qr_fallback_html = trim((string) ob_get_clean());
+}
 
 ob_start();
 ?>
@@ -247,7 +269,7 @@ wc_get_template(
         'body_html'       => $body_html,
         'qr_image_html'   => '',
         'button_html'     => $button_html,
-        'meta_rows_html'  => $meta_rows_html,
+        'meta_rows_html'  => $meta_rows_html . $qr_fallback_html,
         'additional_html' => $additional_html,
         'footer_html'     => $footer_html,
     ],

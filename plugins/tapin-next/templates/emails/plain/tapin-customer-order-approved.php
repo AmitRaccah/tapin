@@ -72,6 +72,13 @@ if ($view_order_url === '') {
     $view_order_url = $account_url;
 }
 
+$ticket_url = isset($ticket_url) ? $apply_canonical((string) $ticket_url) : '';
+if ($ticket_url === '' && $view_order_url !== '') {
+    $ticket_url = $view_order_url;
+}
+
+$qr_image_url = isset($qr_image_url) ? $apply_canonical((string) $qr_image_url) : '';
+
 $customer_name = '';
 if ($order instanceof WC_Order) {
     $customer_name = trim((string) $order->get_formatted_billing_full_name());
@@ -99,7 +106,8 @@ $order_number_plain   = $order_number !== '' ? '#' . $order_number : '';
 $event_name_plain     = trim(wp_strip_all_tags($event_name));
 $event_date_plain     = trim(wp_strip_all_tags($event_date));
 $event_location_plain = trim(wp_strip_all_tags($event_location));
-$view_order_plain     = esc_url_raw($view_order_url);
+$ticket_url_plain     = $ticket_url !== '' ? esc_url_raw($ticket_url) : '';
+$qr_image_plain       = $qr_image_url !== '' ? esc_url_raw($qr_image_url) : '';
 
 echo sprintf(__('שלום %s,', 'tapin'), $customer_name_plain) . "\n\n";
 echo __('ההזמנה שלך אושרה על ידי המפיק.', 'tapin') . "\n";
@@ -126,8 +134,10 @@ if ($order_total !== '') {
 }
 echo "\n";
 
-if ($view_order_plain !== '') {
-    echo sprintf(__('צפייה בהזמנה: %s', 'tapin'), $view_order_plain) . "\n\n";
+if ($qr_image_plain !== '') {
+    echo sprintf(__('תמונת ה-QR: %s', 'tapin'), $qr_image_plain) . "\n\n";
+} elseif ($ticket_url_plain !== '') {
+    echo sprintf(__('פתיחת הכרטיס בקישור בטוח: %s', 'tapin'), $ticket_url_plain) . "\n\n";
 }
 
 echo sprintf(__('תודה שבחרת ב-%s', 'tapin'), $site_name_plain) . "\n";
